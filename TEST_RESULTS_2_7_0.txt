@@ -1,0 +1,28 @@
+PULSE 2.7.0 — TEST VE DOĞRULAMA RAPORU
+Tarih: 26 Ekim 2026
+
+1) PYTHON TESTLERİ
+Komut: `PYTHONPATH=. python -m pytest -q`
+Sonuç: 198 passed, 0 failed.
+
+2) SÖZDİZİMİ / PAKET
+- `python -m compileall -q .`: başarılı.
+- Node.js `--check` (assets/stitch_app.js ve Chrome/Edge eklentisi JS dosyaları): başarılı.
+- Çıkış ZIP'i CRC/integrity kontrolü: başarılı.
+- Yeni ekran varlıkları ve yeni modüller update_service / publish_update required manifestlerinde zorunlu olarak doğrulanıyor.
+
+3) CHROMIUM / PLAYWRIGHT EKRAN TESTİ
+Ekranlar: Genel Bakış ve Görevler & Süreç.
+Viewport: 1024x768, 1280x800, 1600x900 (6 kombinasyon).
+Kontroller: yatay taşma, çözülmemiş ikon ligatürü, JavaScript sayfa hataları; görev kartlarının render edilmesi; görev çekmecesi açma; görev notu ve durumunun host köprüsüne gönderilmesi; pano/liste geçişi; filtre/aramanın çalışması; açık/koyu tema; modül menüsü; yeni proje butonunun host köprüsüne ulaşması.
+Sonuç: 6/6 viewport kombinasyonu geçti; yatay taşma yok; JS sayfa hatası yok; ikon fallback kontrolü geçti.
+Görsel örnekleri ayrı dosya olarak hazırlanmıştır: `STITCH_OVERVIEW_PREVIEW.png`, `STITCH_KANBAN_PREVIEW.png` (QA fixture ile oluşturulmuş önizlemeler).
+
+QA FİXTURE SINIRI
+Playwright betiğinde sahte Çorum RES / Samsun GES görevleri yalnız tasarım ve köprü testini tekrarlanabilir kılmak için bulunur. Bu değerler üretim koduna/payload'a veya uygulama veri klasörüne yazılmaz. Uygulamadaki gerçek listeler MainWindow._stitch_payload() ile WorkspaceStore/SharedStore'dan doldurulur.
+
+4) TEST EDİLEMEYENLER
+Bu geliştirme ortamında PySide6/QtWebEngine kurulu olmadığından Windows Qt MainWindow gerçek penceresi başlatılamadı. Gerçek ağ paylaşımı, gerçek dilekçe Word kilidi, gerçek mesajlaşma/ek dosya, e-ÇED oturumları ve tarayıcı eklentisiyle uçtan uca Windows kabul testi yapılmadı. Bunlar şirket yayını öncesi `PULSE_UI_ACCEPTANCE.txt` içindeki sırayla doğrulanmalıdır.
+
+5) GÜVENLİK / VERİ
+Gerçek şirket ağına bağlanılmadı, ortak dosyalara yazılmadı, üretim verileri okunup dışarı çıkarılmadı. Üretim olmayan test fixture'ları yalnız QA senaryosunda yer alır.

@@ -1,0 +1,27 @@
+PULSE 2.7.0 — YAYIN ÖNCESİ KABUL LİSTESİ
+==========================================
+
+OTOMATİK KONTROLLER (bu derlemede)
+[x] Python otomatik testler: 198/198 geçti.
+[x] Python derleme kontrolü.
+[x] Browser extension JavaScript syntax check (Node.js).
+[x] Stitch Genel Bakış + Kanban Chromium kontrolü: 1024x768 / 1280x800 / 1600x900.
+[x] Yatay taşma ve JS sayfa hatası kontrolü.
+[x] Görev çekmecesi, note/status host call, liste/pano, tema, arama ve modül menüsü.
+[x] Güncelleme paketinde zorunlu yeni modül ve Stitch asset kontrolleri.
+[x] ZIP CRC/integrity.
+
+GERÇEK WINDOWS KABUL TESTİ (bu ortamda yapılamadı)
+[ ] PySide6 + QtWebEngine kurulu hedef makinede START_PULSE_NO_SHORTCUT_MIGRATION.bat ile ilk açılış.
+[ ] Genel Bakış / Görevler & Süreç web ekranlarının MainWindow içine yüklendiği.
+[ ] Yerel Projeler, Ekip, Kurum Rehberi, Mesajlar, Dilekçeler, e-ÇED, Notlar, Bildirimler ve Ayarlar sayfalarının açılması.
+[ ] Native proje/görev/kişi/dilekçe diyaloglarının tema ve kontrast kontrolü.
+[ ] Paylaşılan ağ klasöründen gerçek görev/proje verisi okuma; görev kaydı değişikliğinin ortak depoya yazılması.
+[ ] Gerçek mesaj gönderme/alındı bildirimi/ek dosya ve mesajdan görev oluşturma.
+[ ] Ortak Word dilekçe kilidi, kuyruk, geçmiş/yedek ve sıraya gir akışı.
+[ ] Belgeler sayfasında yalnız seçilen klasörün okunması; işlemci/ağ kullanımının kabul edilebilir olması.
+[ ] e-ÇED Chrome/Edge eklentisi ve collector bağlantısı.
+[ ] Yedek alma ve yalnız test bilgisayarında update publish/update dry-run.
+
+YAYIN ENGELİ
+Herhangi bir gerçek Windows açılış/işlev kontrolü başarısızsa şirket genelindeki ortak güncelleme alanına yayın yapmayın. Chromium testi native Qt açılış testinin yerine geçmez.

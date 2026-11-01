@@ -1,0 +1,47 @@
+ENÇEV PULSE 2.0.0 — KISA CANLIYA ALMA KONTROLÜ
+
+[ ] Önce test/prova bilgisayarında INSTALL.bat çalıştırıldı.
+[ ] RUN_TESTS.bat başarıyla tamamlandı.
+[ ] Ortak klasör yolu tüm bilgisayarlarda aynı ve erişim izinleri doğru.
+[ ] Güncelleme paylaşımına istemcilerin okuma, yalnızca yetkili yayıncının yazma izni olduğu doğrulandı.
+[ ] Yönetici/proje yöneticisi dışındaki kullanıcıyla proje oluşturma/ekip atama denendi ve engellendi.
+[ ] Bir biyoloğun yalnızca kendisine atanmış görevin durumunu güncelleyebildiği doğrulandı.
+[ ] Kurum görüşü istenme, hedef tarih, dönüş ve revizyon durumu doğrulandı; tüm tarih alanları GG.AA.YYYY gösterildi.
+[ ] Profil ve görev ekranlarında kapasite/saat alanlarının görünmediği; eski verilerin kaydedilirken bozulmadığı kontrol edildi.
+[ ] Kişisel notların başka bir Windows profilinde görünmediği doğrulandı.
+[ ] İki bilgisayardan mesajlaşma, ek önizlemesi/silme, gönderildi-iletildi-görüldü ve çevrimiçi/çevrimdışı göstergeleri denendi.
+[ ] Chrome/Edge eklentisi her ilgili profil için kuruldu; ortak anahtar girildi, maskeli kullanıcılar için hesap etiketi tanımlandı ve e-ÇED Canlı tablosunda rapor görüldü.
+[ ] Ağ kesilince oturumun yanlışlıkla yeşil/aktif gösterilmediği doğrulandı.
+[ ] Ortak klasör ve kurulum dosyaları için yedek/geri dönüş planı mevcut.
+[ ] Gizli bilgilerin düz JSON sohbet üzerinden paylaşılmaması ekibe bildirildi.
+[ ] Excel dışa aktarımı XLSX ile açıldı; sütun başlıkları, tarih ve Türkçe karakterler kontrol edildi.
+[ ] Kurum görüşü tablosunda hücre ve açılır listeye tıklayarak satır seçme, seçili satırı silme ve iptal etme denendi.
+[ ] Bildirim uygulama kimliğinde ENÇEV PULSE adı doğrulandı (Windows toast davranışı için gerçek Windows kabul testi gerekir).
+[ ] GitHub'daki enc_takip/ kaynak kodu denetlendi; Pulse'a yerleşik dilekçe ekranı entegrasyonu ayrı geliştirme olarak tamamlanıp test edildi.
+[ ] 2.000 gözlenmiş hesapla ana sayfanın 100 kayıtlık sayfaları denendi; sonraki/önceki sayfa ve arama düzgün çalıştı.
+[ ] 1.000+ projeli denemede Projeler sayfası 100 satırlık sayfalarla, gecikmeli aramayla kontrol edildi.
+[ ] Seçili projede 1.000+ kurum görüşü varsa Kurum Görüşleri görünümü 100 satırlık sayfalarla denendi.
+[ ] Kurum Görüşleri, Mesajlar, Projeler ve Ayarlar arasında geçiş yaparken ekranların gereksiz yeniden çizilmediği doğrulandı.
+[ ] Kurum Rehberi 200 satırlık sayfalarla ve aramayla kontrol edildi; gerçek Windows kabul testi tamamlandı.
+[ ] Kurum Rehberi 200 satırlık sayfalarla ve arama ile kontrol edildi; Kurum Görüşleri modalı iki kullanıcıyla sınandı.
+
+Bu kontrol listesi bir sertifikasyon değildir; şirketin gerçek kullanım senaryosunda kabul testidir.
+
+
+1.3.9 ek kabul adımları
+[ ] Dilekçeler panosunda müsaitlik, kullanan kişi, bilgisayar, açılış ve son değiştiren alanları gerçek Word dosyasıyla karşılaştırıldı.
+[ ] “Müsait Olunca Haber Ver” ile sıraya girme ve “Sıradan Çık” davranışı iki bilgisayarda denendi.
+[ ] Word dosyasındaki son değiştiren bilgisi `docProps/core.xml` içinde varsa doğru gösterildi; metadata yoksa “kayıtlı bilgi yok” olarak gösterildi.
+[ ] Edge'de `edge://extensions` üzerinden eklenti yenilendi; e-ÇED portal ve imza ekranı ayrı origin ise ikisi için de site izni verildi.
+[ ] Edge imza sekmesinde “Bu sekmeyi kullan” → “İzlemeyi başlat” ve “Yeniden oku” denendi; e-ÇED Canlı tablosunda Edge raporu göründü.
+
+
+2.0.0 görsel / geçiş kabul adımları
+[ ] Ana sayfada koyu PULSE yan menüsü, arama çubuğu ve PULSE simgesi görünüyor.
+[ ] Dilekçeler durum kartı üst sağda görünüyor; Sibel veya diğer kullanıcılar ENCTakip ortak `kilit.json` kaydıyla karşılaştırıldı.
+[ ] Dört metrik gerçek veriyle eşleşiyor; örnek/demo değer görünmüyor.
+[ ] Son projeler satırına çift tıklama ilgili projeyi açıyor; Tümünü Gör, hızlı işlemler ve bildirimler doğru sayfalara gidiyor.
+[ ] PULSE kurulumu eski ENCTakip kısayollarını temizliyor, masaüstü/Başlat menüsüne PULSE ekliyor; proje/dilekçe ağ verileri ve eski kurulum yedeği duruyor.
+[ ] Gerçek Windows makinesinde GUI ölçeklendirmesi (en az 1080x700 ve tipik ofis çözünürlüğü), bildirimler ve görev çubuğu/tepsi simgesi kontrol edildi.
+[ ] İki Windows makinesiyle aynı Word dosyası açık/kapalı, eski kilit, bekleme sırası ve yedek akışları doğrulandı.
+[ ] Gerçek Edge e-ÇED giriş ve imza alt alanında uzantı izni, eşleştirme anahtarı ve canlı hesap gözlemi doğrulandı.

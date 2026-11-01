@@ -1,0 +1,16 @@
+ENÇEV PULSE 2.7.0 — 2026-10-26 — BITRIX WORKSPACE / STITCH ENTEGRASYONU
+
+- Genel Bakış ve Görevler & Süreç, Stitch HTML tasarımına dayalı tek pencere içi ekranlardır; yeni ikinci pencere eklenmedi.
+- Görev Kanban'ı gerçek WorkspaceStore görevleriyle beslenir; filtre, arama, pano/liste, ayrıntı çekmecesi, durum değişikliği ve not güncelleme köprüleri bağlandı.
+- Yerel/native sayfalar ve diyaloglar merkezi `pulse_theme.py` üzerinden ortak açık/koyu tasarım sistemine alındı: tablolar, formlar, açılır menüler, sohbet, dilekçe durumu, proje detayları, profil/kurum diyalogları.
+- Gerçek tarih alanlarından beslenen Takvim & Yasal Süreç ve salt-okunur ortak klasör görüntüleyicisi Belgeler / Drive eklendi.
+- Gerçek mesaj bağlam menüsüne “Bu mesajdan görev oluştur” akışı eklendi; mevcut proje/görev oluşturma penceresi kullanılır.
+- Güncelleme paketi sözleşmesine `pulse_theme.py`, `pulse_calendar.py`, `pulse_documents.py` ve tüm Stitch varlıkları eklendi; eksik tasarım dosyalı paketin geçerli sayılması önlenir.
+- Yayın/test betikleri ve sürüm metinleri 2.7.0'a güncellendi.
+- Otomatik testler: 198 passed, 0 failed. Python compileall ve browser-extension JavaScript `node --check` kontrolleri başarılı.
+- Playwright/Chromium: Genel Bakış ve Görevler & Süreç için 1024x768, 1280x800, 1600x900; yatay taşma ve JS sayfa hatası yok. Görev çekmecesi, not/durum çağrıları, pano/liste, filtre araması, tema geçişi ve modül menüsü test edildi.
+- Sınırlama: PySide6/QtWebEngine olmadığı için Windows Qt MainWindow açılışı ve gerçek ağ paylaşımı üzerinde canlı test yapılamadı. Test raporu bu sınırı ayrıca belirtir.
+
+PULSE 2.6.0 — 2026-10-23 (önceki sürüm geçmişi)
+- Önceki tasarım sistemi ve UI düzenlemeleri.
+- Proje, görev, kurum görüşü, ekip, sohbet, dilekçe, e-ÇED izleme ve güncelleme modüllerinin korunması.

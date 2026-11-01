@@ -1,0 +1,54 @@
+ENÇEV PULSE — DİLEKÇELER KAYNAK DENETİMİ
+Tarih: 13.10.2026
+
+ERİŞİLEN KAYNAK
+GitHub deposu: https://github.com/LaVeyan1337/12312 (public, main branch)
+Kaynak ağacı okundu; `enc_takip/` klasörü artık depoda mevcut.
+
+TEMEL UYGULAMA DOSYALARI
+- `main.py`: uygulama başlangıcı, tek-örnek kilidi ve GUI başlatma.
+- `enc_takip/config.py`: ayar modeli ve yükleme.
+- `enc_takip/gui/app.py`: ana CustomTkinter GUI (yaklaşık 355 KB).
+- `enc_takip/service.py`, `storage.py`: uygulama iş kuralları ve ortak dosya depolama.
+- `enc_takip/lock_service.py`, `eced_lock_service.py`: ENCTakip/Word dosya kilidi ve e-ÇED ile ilişkili kilit mantığı.
+- `enc_takip/docx_meta.py`: Word belgesi meta bilgileri.
+- `enc_takip/presence.py`, `activity.py`, `waitqueue.py`, `backup.py`, `single_instance.py`, `users.py`, `local_prefs.py`, `update_service.py`, `updater.py`: çevrimiçi durum, aktivite, bekleme sırası, yedek, kullanıcı ve güncelleme işlevleri.
+- `enc_takip/webchat_server.py`, `enc_takip/webchat_launcher.py`, `enc_takip/webchat/index.html`: gömülü web sohbet sunucusu/arayüzü.
+- `tests/`: kilit, güncelleme, güvenlik ve headless GUI testleri.
+- `requirements.txt`, `build.bat`, `publish.bat`, PyInstaller `.spec` dosyaları.
+- `prepare_assets.py` derleme sırasında logo URL'sinden logo alıp Windows ikonunu üretir.
+
+WORD ÖRNEĞİ
+`000DİLEKÇELERİMİZ 2026.docx` (yaklaşık 925 KB) erişildi ve metni çıkarıldı. Boş şablon değil; doldurulmuş bir dilekçe örneği.
+Örnekten görülen alan türleri: tarih, sayı, konu, yeterlik belge bilgisi, vergi numarası, hedef kurum/birim/il, yatırımcı, proje adı ve kapasite/alan, ÇED aşaması, talep metni, imzalayan/vekalet ve ekler listesi. Üretimde değişken olacak alanlar sabit metinden ayrılmadan önce onaylanmalı.
+
+DOSYA EKSİKLERİ / SINIRLAR
+- `enc_takip/` kaynak klasörü eksik değil; ana GUI ve servis dosyaları mevcut.
+- Depoda ayrı `assets/`, emoji/görsel veya DOCX şablon klasörü görülmedi. `prepare_assets.py` logo ve ikon dosyalarını indirme/oluşturma yoluyla hazırlıyor. Uygulamada kullanılan özel emoji/görsel kaynakları varsa ayrıca eklenmeli.
+- DOCX dosyası tamamlanmış örnek. Her dilekçe için kullanılacak temiz ana şablon ayrı olarak yok; örnekteki dinamik alanlar işletme kurallarıyla eşleştirilmeli.
+- Google Drive paylaşım bağlantısının dosya içeriği bu ortamdan alınamadı. GitHub içeriği okunduğu için kaynak değerlendirmesi GitHub üzerinden yapılmıştır.
+- Pulse 1.3.8, eski GUI modüllerini ayrı bir CustomTkinter uygulaması olarak gömmek yerine, kilit/sıra/varlık/günlük/yedek/mesaj protokollerini `pulse_petition.py` içinde uyumlu biçimde yeniden uygular; bunları Qt arayüzündeki Dilekçeler sayfasına ve ana ekran özetine bağlar. Eski GUI'nin kendisi ikinci pencere olarak çalıştırılmaz.
+
+GÜVENLİK
+Depodaki `settings.json` dosyasında şirket içi ağ paylaşım yolu var. Dosyayı public depodan kaldır, yalnızca `settings.example.json` bırak ve paylaşılan geçmişte kaldıysa Git geçmişinden de temizlemeyi değerlendir. Burada gerçek ağ yolu tekrar yazılmamıştır. Parola/API anahtarı tespit edildiği iddia edilmiyor; bu kontrol yalnızca dosya adları/değer türleri düzeyinde yapıldı.
+
+
+1.3.8 DOĞRULAMA NOTU
+- Pulse ile ENCTakip arasında `kilit.json`, `varlik/*.json`, `bekleme_sirasi.jsonl`, `gunluk.jsonl`, `yedekler/` ve `mesajlar.jsonl` ortak kullanılır.
+- Pulse mesajları eski JSONL chat biçimine yazılır; eski mesajlar Pulse ekranına adapte edilir. Eski istemci ek binary verilerini alamadığı için yalnızca ek adları aktarılır.
+- Ana ekran üst bandı artık dilekçe durumunu, kullanıcısını/bilgisayarını ve açılış zamanını gösterir.
+- Gerçek Windows/SMB kabul testi yapılmadı. Word alanlarının örnek DOCX içine otomatik doldurulması halen sonraki aşamadır.
+
+
+1.3.9 UI / Edge ek notu
+- Dilekçeler ekranı `pulse_app.py` içinde kart tabanlı dashboard olarak düzenlendi. Son değiştiren bilgisi DOCX `docProps/core.xml` içindeki `lastModifiedBy` alanından, dosya imzasına bağlı önbellekle okunur.
+- Edge e-ÇED imza yönlendirmesinde birden fazla HTTP(S) origin `browser_extension` tarafından saklanır; aktif uygun sekmede site izni isteyip içerik betiğini yeniden bağlama akışı eklendi.
+- Gerçek Windows GUI ve gerçek Edge portal testleri bu çalışma ortamında yapılamadı.
+
+
+2.0.0 — ENCTakip kullanıcı bilgisi geri dönüşü ve yeni ana ekran
+- Ana ekranda dilekçe kartı görünür selamlama satırına bağlandı; durum etiketi, gerçek kullanıcı/açıklama kaynağıyla eşleşir.
+- Kilit JSON alanları ve tarih yazımları normalize edilir. Heartbeat içermeyen eski kayıt etkin kilit sayılmaz.
+- Word sahibi işaretçisi Office dosya adı varyasyonlarıyla bulunur; SMB `NetFileEnum` ve `openfiles.exe` sorguları erişilebilir olduğunda kaynak olarak kullanılır.
+- Testler, ortak kilitte Sibel kullanıcısının gösterilmesini ve Word işaretçisi okunabildiğinde işletim sistemi probu belirsiz olsa da sahibin görünmesini kapsar.
+- 147 otomatik test geçti. Gerçek Windows/SMB ağ deneyi yapılmadı.

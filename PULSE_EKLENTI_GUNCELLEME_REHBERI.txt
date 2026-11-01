@@ -1,0 +1,50 @@
+ENÇEV PULSE 2.7.0 — CHROME / EDGE EKLENTİ GÜNCELLEME REHBERİ
+============================================================
+
+KISA CEVAP
+- Eklentiyi her sürümde sıfırdan kaldırıp kurmanız gerekmeyecek.
+- Bir kez kalıcı PULSE kurulum klasöründen yüklenecek şekilde yönlendirme yapılacak.
+- Sonraki masaüstü PULSE güncellemeleri browser_extension dosyalarını da aynı klasöre kopyalayacak.
+- Chrome ve Edge, geliştirici modunda yüklenmiş (paketlenmemiş) eklentiyi her zaman otomatik yeniden yüklemez. Her yeni sürümden sonra ilgili tarayıcıda eklentinin Yenile düğmesine basıp e-ÇED/imza sekmesini yenilemek gerekir.
+
+SABİT EKLENTİ KLASÖRÜ
+%LOCALAPPDATA%\Programs\PULSE\browser_extension
+
+Bu yol, PULSE kurulumunun güncellediği klasördür. Eklentiyi ZIP'i çıkardığınız indirme/geçici klasöründen yüklemeyin; o kaynak masaüstü güncellemesi sırasında güncellenmez.
+
+A. İLK GEÇİŞ — HER BİLGİSAYAR VE KULLANILAN HER TARAYICI PROFİLİ İÇİN BİR KEZ
+
+1. PULSE 2.7.0 güncellemesinin o bilgisayarda tamamlandığını doğrulayın.
+2. PULSE'u açın. Ayarlar > Tarayıcı eklentisi bağlantısı bölümündeki Anahtarı kopyala düğmesini kullanın. Eklenti içinde özel bir hesap etiketi kullandıysanız mevcut etiketi not edin.
+3. PULSE kurulum klasöründeki PULSE_EKLENTI_KURULUM.bat dosyasını çalıştırın. İstenen tarayıcıyı seçin. Yardımcı program kalıcı eklenti klasörünü ve tarayıcı uzantı yönetimi sayfasını açar.
+4. Uzantı yönetimi sayfasında Geliştirici modunu açın.
+5. “Paketlenmemiş öğe yükle” (Load unpacked) düğmesine basın ve şu klasörü seçin:
+   %LOCALAPPDATA%\Programs\PULSE\browser_extension
+   Klasör seçme penceresi bu değişkeni kabul etmezse Windows Gezgini adres çubuğuna yolu yazın veya aşağıdaki gerçek yolu kullanın:
+   C:\Users\<WindowsKullanıcısı>\AppData\Local\Programs\PULSE\browser_extension
+6. Yeni PULSE eklentisini açın. PULSE Ayarları'ndaki eşleştirme anahtarını yapıştırın/kaydedin. Daha önce “Yedek hesap etiketi” kullandıysanız yeniden girin.
+7. e-ÇED portalını açın. Eklentide “Bu sekmeyi kullan” ve “İzlemeyi başlat” işlemlerini yapın. Site erişim izni sorulursa izin verin. İmza ekranı farklı bir adrese/alt alana yönleniyorsa o sekmede de bu işlemi tekrarlayın. Sekmeyi yenileyin.
+8. PULSE > e-ÇED Canlı ekranında bilgisayar ve hesap raporunun geldiğini doğrulayın. Ancak doğrulama başarılı olduktan sonra eski eklenti kaydını tarayıcı uzantı sayfasından kaldırın.
+
+ÖNEMLİ: Kaynak klasörü değişince Chrome/Edge yeni yüklemeyi ayrı bir eklenti kimliği olarak görebilir. Bu yüzden eski eklentiyi hemen kaldırmayın; yenisini önce çalışır hâle getirin. Yeni kayıtta eşleştirme anahtarı, manuel hesap etiketi ve site izinlerinin tekrar tanımlanması gerekebilir. PULSE'ın ortak proje/dilekçe/sohbet verileri ve PULSE uygulamasındaki ayarlar bu işlemle silinmez. Chrome ve Edge profilleri birbirinden ayrıdır; ikisi kullanılıyorsa geçişi ikisinde de yapın.
+
+B. SONRAKİ HER SÜRÜMDE — YENİDEN KURULUM YOK
+
+1. Yayın bilgisayarında PUBLISH_PULSE.bat dosyasını çalıştırıp PULSE sürümünü ortak Genel Evrak güncelleme klasörüne yayınlayın.
+2. Diğer bilgisayarlarda PULSE güncelleme bildirimi geldiğinde Evet deyin. Program güncellenirken ortak proje, dilekçe ve sohbet verileri bu işlemle silinmez; yine de güncellemeden önce açık formlardaki kaydedilmemiş çalışmaları kaydedin.
+3. PULSE güncellendikten sonra PULSE_EKLENTI_KURULUM.bat dosyasını çalıştırın ve ilgili tarayıcı sayfasını açın.
+4. Chrome için chrome://extensions, Edge için edge://extensions sayfasında PULSE kartındaki dairesel ok/Yenile düğmesine basın.
+5. Açık e-ÇED veya imza sekmesini yenileyin. PULSE > e-ÇED Canlı ekranında raporun yeniden geldiğini kontrol edin.
+
+Yenile düğmesi görünmüyor veya eklenti hataya düşüyorsa eklenti kartındaki hata mesajını kontrol edin. En son çare olarak aynı sabit klasörü “Paketlenmemiş öğe yükle” ile yeniden seçin; normal güncellemede kaldırıp kurmak gerekmez.
+
+C. KONTROL LİSTESİ
+[ ] PULSE 2.7.0 (veya daha yeni sürüm) kurulu.
+[ ] Eklentinin kaynağı %LOCALAPPDATA%\Programs\PULSE\browser_extension.
+[ ] PULSE anahtarı eklentiye kaydedildi.
+[ ] Portal ve imza adresleri için site erişimi verildi.
+[ ] e-ÇED Canlı ekranında güncel rapor göründü.
+[ ] Kullanılmayan eski eklenti kaydı kaldırıldı.
+
+GÜVENLİK NOTU
+Eklenti parola veya çerezleri okumaz. Yalnızca izin verdiğiniz portal sekmesindeki görünür hesap/oturum durumu bilgisini yerel PULSE alıcısına bildirir.

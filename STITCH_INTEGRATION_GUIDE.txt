@@ -1,0 +1,22 @@
+ENÇEV PULSE 2.7.0 — STITCH TASARIMI KULLANIM / GERİ DÖNÜŞ REHBERİ
+
+NE DEĞİŞTİ?
+- Stitch Genel Bakış ve Görevler & Süreç ekranları doğrudan var olan MainWindow içine gömüldü. Ayrı pencere açılmaz.
+- Görev kartları pulse_app.py içindeki mevcut WorkspaceStore/veri snapshot'ından hazırlanır. Projelerin/görevlerin gerçek kayıtları yoksa ekranda boş durum gösterilir; Stitch demo görevleri gerçekmiş gibi sunulmaz.
+- Diğer mevcut PULSE modülleri korunur ve yeni gezinme alanındaki profil/aşağı ok menüsünden erişilebilir.
+- HTML, yerel CSS ve JS dosyaları assets/ dizinindedir; internet bağlantısı tasarımın temel CSS'ini çalıştırmak için gerekli değildir.
+
+KURULUM
+1. ZIP'i mevcut çalışan PULSE klasörünün DIŞINDA, yeni ve ayrı bir klasöre çıkarın.
+2. Önceki çalışan klasörünüzün yedeğini koruyun; dosyaları üstüne kopyalamayın.
+3. Yeni klasörde START_PULSE_NO_SHORTCUT_MIGRATION.bat dosyasını çalıştırın. Bu başlatıcı masaüstü kısayolu geçişini çalıştırmadan mevcut pulse_app.py'yi açar.
+4. Genel Bakış ve Görevler & Süreç sekmelerini, ardından kullanıcı panelindeki aşağı ok menüsünden eski modülleri açmayı deneyin.
+
+GEREKSİNİMLER
+- Windows üzerinde projenin Python gereksinimleri, özellikle PySide6 ve QtWebEngine bileşenleri kurulu olmalıdır. requirements.txt ve PULSE_SETUP.bat yönergelerine bakın. QtWebEngine eksikse program eski yerel sayfaları açabilir; bu durumda Stitch ekranlarının yüklenmemesi bir bağımlılık sorunudur.
+
+GERİ DÖNÜŞ
+- Yeni sürüm sorun çıkarırsa programı kapatıp önceki PULSE klasörünüzdeki START_PULSE.bat dosyasını kullanın. Yeni klasörü silmeden önce oluşmuş logları saklayabilirsiniz. Bu entegrasyon mevcut ortak dosyaları göç ettirmek üzere tasarlanmamıştır.
+
+DOĞRULAMA SINIRI
+- Kaynak testleri, Chromium tabanlı ekran görsel/etkileşim testleri ve boyut kontrolleri çalıştırılmıştır. Ancak bu çalışma ortamında PySide6/QtWebEngine bulunmadığından gerçek Windows MainWindow başlatma testi yapılamamıştır. Önce ayrı klasörde deneyin.

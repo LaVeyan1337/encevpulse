@@ -1,0 +1,22 @@
+ENÇEV PULSE 1.3.8 — Kurum Görüşleri ve ENCTakip ortak iş akışı
+
+Kurum Görüşleri:
+- Satır başına sınırlı kurum seçenekleri kullanılır; kurum geçmişinin tümünü her ComboBox içine kopyalayan maliyetli yapı yoktur.
+- Hücre tıklaması sabit satır kimliğini belirler; currentRow() için asla satır 0 varsayılanı yoktur.
+- Hem her satırda kendi “Sil” düğmesi hem tablonun altında “Seçili satırı sil” vardır. Per-row handler oluşturulurken satır token'ını yakalar.
+- Qt seçim modeli hücre düzenleyiciye odaklanırken anlık boş dönerse son açıkça seçilmiş token korunur; görünmez/var olmayan satır token'ı geçersizleştirilir.
+- Kurum tablosunun ilk çizimi topluca yapılır, hücre vurgusu yalnızca değişen satırlara uygulanır.
+
+ENCTakip birlikte çalışma:
+- Pulse `PulsePetitionService` ortak `.encev_sistem` biçimini kullanır; bağımsız kilit deposu oluşturarak eski ENCTakip'le çakışmaz.
+- Durum kaydında kim/kimin bilgisayarı/ne zaman açtı, fiziksel Word kilidi, müsaitlik ve belirsizlik ayrı gösterilir. Word/Windows kilidi doğrulanamazsa müsait varsayılmaz.
+- Pulse kendi çevrimiçi sinyalini eski `varlik/<kullanıcı>.json` şemasına yazar.
+- Sıra ve bildirimleri `bekleme_sirasi.jsonl` ile `mesajlar.jsonl` üzerinde eski biçimde tutar.
+- Dosya değiştikçe `yedekler` altında eski ENCTakip adlandırma biçiminde Word yedeği tutar; en fazla 30 sürüm saklanır.
+- Sohbet mesajı genel/oda/bire bir hedefle eski biçime yansıtılır; eski sohbet mesajları Pulse modeline adapte edilir.
+
+Sınırlamalar:
+- Bu ortamda gerçek Windows/PySide6 GUI ve şirket SMB paylaşımı açılarak test yapılamadı.
+- Eski ENCTakip'in kendi GUI penceresi Pulse'a gömülmedi; işlevler Pulse'nin yerel ekranlarında karşılıklı ortak dosya protokolüyle yeniden sunuluyor.
+- Sohbet dosya eklerinin binary içeriği eski ENCTakip istemcisine aktarılamaz; dosya adları metin mesajına eklenir.
+- Word örneğinin görsel düzenini bozmayan kopya/taslak akışı var; dinamik alan otomatik doldurma henüz yok.

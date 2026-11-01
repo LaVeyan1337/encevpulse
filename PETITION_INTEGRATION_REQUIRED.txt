@@ -1,0 +1,32 @@
+ENÇEV PULSE 2.0.0 — Dilekçe entegrasyonu durumu
+
+ARTIK PULSE İÇİNDE BULUNAN İŞ AKIŞLARI
+- Ortak Word dosyasının yolu ve müsait/kullanımda/belirsiz durumu.
+- ENCTakip ortak kilit biçimi: açan kullanıcı, bilgisayar, başlangıç zamanı, heartbeat ve fiziksel Word kilidi kontrolü.
+- Dilekçeyi kilitleyerek açma, Word kapandıktan sonra kilidi bırakma ve güvenli bırakma doğrulaması.
+- Bekleme sırasına katılma/ayrılma; dosya serbest kalınca sıradaki kişiye eski ENCTakip `mesajlar.jsonl` biçiminde bildirim.
+- ENCTakip ile aynı çevrimiçi durum JSON dosyaları ve erişim günlüğü.
+- Erişim geçmişi, Word değişiklik yedekleri (azami 30), Word işaretçisi üzerinden hareketsizlik bildirimi.
+- Pulse ve eski ENCTakip arasında JSONL tabanlı metin sohbeti eşitlemesi; `GENEL`, `ODA_ECED`, `ODA_DILEK` ve bire bir hedefler.
+- Ana ekran üst bandında “MÜSAİT/KULLANIMDA”, kullanıcı, bilgisayar ve açılış zamanı.
+
+GERÇEK SINIRLAR / SONRAKİ İŞ
+1. Eski ENCTakip'in CustomTkinter GUI'si ikinci bir pencere olarak gömülmedi; ilgili davranışlar Pulse'nin yerel Qt arayüzünde yeniden kuruldu.
+2. Sohbette Pulse eki varsa eski ENCTakip mesajına yalnızca ek adları yazılır; eski protokol binary dosya eki taşımıyor. Gerçek dosya Pulse tarafında kalır.
+3. `000DİLEKÇELERİMİZ 2026.docx` dolu örneğinden birebir biçim koruyan kopya oluşturulabilir. Tarih/sayı/konu/kurum/proje/ekler gibi alanların otomatik doldurulması henüz yapılmadı; hangi metinlerin dinamik olacağı iş kuralı olarak belirlenmeli.
+4. Boş/temiz ana Word şablonu varsa ayrıca alınması iyi olur; var olan örnek dolu dilekçedir.
+5. Gerçek Windows GUI ve şirket ağı üzerinde çok bilgisayarlı kabul testi zorunludur; Linux/static test tek başına bunu doğrulamaz.
+
+GÜVENLİK
+GitHub deposunda gerçek `settings.json` yerine `settings.example.json` yayımlanmalı; şirket içi ağ yolu içeren dosya herkese açık depodan ve gerekiyorsa Git geçmişinden kaldırılmalı.
+
+
+1.3.9 güncellemesi
+GitHub deposundaki `enc_takip/` kaynak kodu artık mevcuttur. ENCTakip'in ortak Word kilidi, sıra, çevrimiçi kullanıcı, erişim günlüğü, yedek ve metin sohbet dosya sözleşmeleri `pulse_petition.py` üzerinden Pulse Dilekçeler ekranına bağlanmıştır. Kalan ayrı geliştirme: yeni dilekçe kopyasındaki proje/kurum alanlarını Pulse proje kayıtlarından otomatik doldurmak. Dolu DOCX örneğinin biçimi kopyalama yöntemiyle korunur.
+
+
+2.0.0 kullanıcı tespiti düzeltmesi
+- Ortak `kilit.json` alan eş anlamlıları ve saat biçimleri kabul edilir; geçerli heartbeat yoksa eski kayıt canlı kilit sayılmaz.
+- Word `~$` owner dosyası, yaygın ad varyasyonları ve bilinen Word ikili biçimi üzerinden okunur. Windows SMB/openfiles sorguları mevcutsa önce denenir.
+- Kullanıcı adı bulunursa kaynak etiketi ile gösterilir. Fiziksel kilit doğrulanamadığında ekran “MÜSAİT” iddiasında bulunmaz; belirsiz durum korunur.
+- Kalan uçtan uca kabul gereksinimi: gerçek şirket Windows/SMB paylaşımında ENCTakip ve PULSE aynı anda açıkken sahip/kilit/sıra testleri. Bu ortamda gerçek ağ testi çalıştırılamadı.

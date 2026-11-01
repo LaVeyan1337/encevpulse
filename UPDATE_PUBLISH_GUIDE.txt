@@ -1,0 +1,41 @@
+ENÇEV PULSE 2.7.0 — KURULUM, GÜNCELLEME VE YAYIN REHBERİ
+========================================================
+
+AMAÇ
+Bu rehber, kaynak kod + START_PULSE.bat üzerinden çalışan PULSE kurulumları içindir. Tek dosyalı EXE kurulumları bu yayın akışıyla otomatik güncellenmez.
+
+İLK KURULUM / GÜNCELLEME ALTYAPISINI TANIMA
+1. Tam kaynak ZIP paketini yeni ve kalıcı bir klasöre çıkarın.
+2. Windows'ta Python 3, Python Launcher (py.exe), PySide6 ve requirements.txt içindeki paketlerin kurulu olduğundan emin olun.
+3. İlk kurulumda INSTALL.bat veya PULSE_SETUP.bat talimatlarını izleyin. Mevcut program zaten çalışıyorsa sırf yeni sürümü yayınlamak için tekrar kurulum yapmayın.
+4. PULSE > Ayarlar > Ortak izleme klasörü tüm istemcilerde aynı olmalı. Varsayılan: \\192.168.1.55\Genel Evrak\.encev_sistem\eced_pulse
+5. Her istemci ortak klasöre okuma, yayın yapan yetkili kullanıcı yazma erişimine sahip olmalıdır.
+
+YENİ SÜRÜM YAYINLAMA
+1. VERSION.txt içindeki sürümü benzersiz ve mevcut sürümden büyük bir değere artırın. Bir sürüm numarasını tekrar kullanmayın.
+2. RUN_TESTS.bat ile testleri çalıştırın. Ardından PUBLISH_PULSE.bat dosyasını çalıştırın. Yayın BAT'ı kaynak derleme denetimini, otomatik testleri, Node.js mevcutsa eklenti JavaScript denetimlerini ve ZIP içeriği/hash kontrollerini çalıştırır.
+3. Varsayılan ortak hedef için klasör sorusunda boş Enter verin. Başka ortak klasör kullanılıyorsa tam yolu girin.
+4. Yayın başarılı olduğunda ortak klasörde updates\PULSE_<sürüm>.zip ve updates\latest.json oluşur. Yayın aracı eski/aynı sürüm numarasını veya bozuk ZIP içeriğini kabul etmez.
+5. Önce bir test bilgisayarında güncelleme onayı verip uygulamanın açılışını ve temel ekranları doğrulayın. Ardından ikinci bilgisayarı güncelleyin.
+
+İSTEMCİLERDE GÜNCELLEME
+- Program ilk kontrolünü açıldıktan yaklaşık 15 saniye sonra, sonraki kontrollerini yaklaşık beş dakikada bir yapar.
+- Yeni sürüm bulunduğunda kullanıcı onay verir. Hayır denirse mevcut oturum kapatılmaz; sonraki kontrolde veya açılışta tekrar sorulur.
+- Güncellemeden önce açık formlardaki değişiklikleri kaydedin. Program kaydedilmemiş her veriyi otomatik kaydediyor varsayımında bulunmayın.
+- Yayın/kurulum klasörünü taşıdıysanız güncelleme mevcut istemcinin kendi uygulama klasörüne uygulanır.
+
+CHROME / EDGE EKLENTİSİ
+- Masaüstü paketinde eklenti dosyaları ve manifest sürümü bulunur; sürüm numaraları masaüstü sürümüyle eşleştirilir.
+- İlk geçişte eklenti geçici klasörden yüklenmişse PULSE_EKLENTI_KURULUM.bat ile tarayıcı uzantı sayfasını açın. Geliştirici modu açıkken "Paketlenmemiş öğe yükle" ile şu kalıcı klasörü seçin: %LOCALAPPDATA%\Programs\PULSE\browser_extension
+- Yeni kayıt farklı eklenti kimliği oluşturabileceğinden eşleştirme anahtarı, e-ÇED hesap etiketi ve site izinlerini yeniden tanımlamak gerekebilir. Yeni eklentiden rapor geldiğini doğrulamadan eskisini kaldırmayın.
+- Sonraki masaüstü güncellemelerinde eklenti dosyaları aynı klasöre yazılır; Chrome/Edge paketlenmemiş eklentiyi klasör değişti diye kendiliğinden yeniden yüklemez. chrome://extensions veya edge://extensions sayfasında PULSE için "Yenile" düğmesine basın ve portal sekmesini yenileyin. Her sürümde baştan kaldırıp kurmak gerekmez.
+
+VERİ GÜVENLİĞİ
+- Proje kaldırma işlemi kaydı silmek yerine ortak workspace/deleted_projects klasörüne geri alınabilir yedek olarak taşır.
+- Kurum rehberinden kaldırma kaydı ortak rehberde gizler; proje içindeki kurum görüşleri, takip notları ve iletişim alanları korunur.
+- PULSE güncellemesi kişisel ayarları, Notlarım'ı, ortak proje/dilekçe/sohbet verilerini temizlemek üzere tasarlanmamıştır. Yine de yayın öncesi şirket yedekleme politikasına göre yedek alınması önerilir.
+
+YAYIN ÖNCESİ CANLI DOĞRULAMA
+- Gerçek Windows bilgisayarında ekranları küçük ve normal çözünürlükte açıp okunaklılık, taşma, sohbet gönderimi, proje silme/yedekleme, kurum rehberi güncellemesi ve tarayıcı eklentisini test edin.
+- İki istemcide ortak klasörün okunabildiğini ve güncelleme onayından sonra aynı sürüme geldiklerini doğrulayın.
+- PySide6/Windows masaüstü bulunmayan bir geliştirme ortamındaki kaynak testleri piksel düzeyinde görsel test sayılmaz. Bu nedenle görsel kabul kontrolü tamamlanmadan "sıfır GUI hatası" veya gerçek ağda başarılı yayın iddiasında bulunmayın.

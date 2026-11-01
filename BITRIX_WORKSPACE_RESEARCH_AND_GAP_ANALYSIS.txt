@@ -1,0 +1,82 @@
+ENÇEV PULSE 2.7.0 — BITRIX24 WORKSPACE ARAŞTIRMASI VE KAPSAM ANALİZİ
+Tarih: 26.10.2026
+
+1. ARAŞTIRMANIN SINIRI
+Bu çalışma Bitrix24'ün arayüz ve iş akışı yaklaşımını inceleyip PULSE içindeki gerçek modüllerle eşleştirme çalışmasıdır. Bitrix24'ün özel sunucu/backend kodu, lisanslı özellikleri veya veri modelinin birebir kopyası değildir. PULSE mevcut masaüstü uygulamasıdır; bu sürüm onun içinde Bitrix24'ten esinlenen tek çalışma alanı arayüzü ve kullanılabilir köprüler oluşturur.
+
+Kullanıcının ayrıca yüklediği Stitch kaynağı: Görevler & Süreç için koyu, dört sütunlu Kanban pano; sol ana menü, üst araç çubuğu, filtre kapsülü, görev ayrıntı çekmecesi, görev durumu ve alt görev etkileşimlerinden oluşan HTML/CSS/JS tasarımı. Stitch tasarımının renkleri, yuvarlatılmış kapsül ve kart dili, sol navigasyon ve görev çekmecesi görsel referans olarak korunmuştur. Demo görev, kişi ve sabit sayıların gerçek uygulama verisi olarak kullanılmaması hedeflenmiştir.
+
+Kullanıcı tarafından şirkete ait ayrı bir wiki/iş akışı dosyası verilmedi. Bu nedenle “wiki” incelemesi için Bitrix24'ün herkese açık Helpdesk/kılavuz içerikleri, video eğitimleri ve kullanıcının Stitch dosyası kaynak alındı.
+
+2. BITRIX24 ARAYÜZ VE İŞ AKIŞI BULGULARI
+
+2.1 Birleşik çalışma alanı
+Bitrix24 arayüzü ana menü, üst araç çubuğu, yardımcı yan panel, bildirim sayaçları ve modüller arası bağlantıların tek bir çalışma alanında birleştirilmesi üzerine kurulu. Giriş sayfasının kullanıcının birincil aracıyla değişebilmesi ve menünün özelleştirilebilmesi dokümante edilmiş.
+Kaynak: https://helpdesk.bitrix24.com/open/25746895/ (Interface overview, 05.10.2026)
+Kaynak: https://helpdesk.bitrix24.com/open/25409295/ (Space+ interface, 29.09.2025)
+
+2.2 Görevler ve projeler
+Bitrix24 görevleri yalnız Kanban değildir. Resmî yardım sayfasında Liste, Kanban, Deadline, Planner, Gantt ve Calendar görünümleri sayılır. Görevler proje, sorumlu, teslim tarihi, roller ve izinlerle ilişkilidir. Planner aşamaları görev son tarihinden ayrı tutulabilir; Kanban aşaması ile yasal teslim tarihi aynı kavram değildir.
+Kaynak: https://helpdesk.bitrix24.com/open/20713086/ (Working with tasks in projects)
+Kaynak: https://helpdesk.bitrix24.com/open/18034564/ (Tasks)
+Kaynak: https://helpdesk.bitrix24.com/open/18891600/ (Planner, 05.10.2026)
+
+2.3 Mesajdan göreve/davete dönüştürme
+Bitrix24 sohbetinde seçilen mesajdan doğrudan görev veya toplantı oluşturulabilir; mesaj metni yeni kayda açıklama olarak aktarılır ve orijinal mesaj bağlamı korunur. Bu, görevlerin sohbetten kopuk bir form olmaması gerektiğini gösterir.
+Kaynak: https://helpdesk.bitrix24.com/open/25834615/ (Create a task or an event from a message, 05.10.2026)
+Kaynak: https://helpdesk.bitrix24.com/open/26018763/ (Tasks integration, 2026)
+
+2.4 Messenger ve işbirliği
+Bitrix24 Messenger; bireysel/grup sohbetleri, kanallar, dosya paylaşımı, görev ve toplantı oluşturma ve video konferans gibi özelliklere sahiptir. Bazı özellikler ürün hesabı ve sunucu hizmetleri gerektirir; masaüstü arayüzünü taklit etmek tek başına bunları sağlamaz.
+Kaynak: https://helpdesk.bitrix24.com/open/25968875/ (Getting started tutorials, 05.10.2026)
+
+2.5 Drive / dokümanlar
+Bitrix24 Drive şirket ve kişisel dosyalarını yönetir; belge üzerinde gerçek zamanlı ortak düzenleme, yorum, sürüm geçmişi, erişim izinleri ve yerel bilgisayarla eşitleme özellikleri vardır. Yerel ağ klasörüne salt-okunur listeleme, bu özelliklerle aynı değildir.
+Kaynak: https://helpdesk.bitrix24.com/open/20995470/ (Bitrix24 Drive, 05.10.2026)
+Kaynak: https://helpdesk.bitrix24.com/open/25769143/ (FAQ: Bitrix24 Drive, 06.10.2026)
+
+2.6 Takvim
+Bitrix24 takvimi kişisel ve şirket takvimleri, farklı görünüm türleri, davetler ve hatırlatıcıları destekler. PULSE 2.7.0 takvimi mevcut proje/görev/kurum görüşü teslim tarihlerini toplar; etkinlik oluşturma, davet yanıtı ve takvim sunucusuyla eşitleme bu sürümün kapsamında değildir.
+Kaynak: https://helpdesk.bitrix24.com/open/25786155/ (Calendar)
+
+2.7 CRM, otomasyon ve bilgi tabanı
+Bitrix24 CRM lead/deal/contact kayıtları ve iletişim geçmişi tutar; otomasyon kuralları görev, belge, bildirim ve aşama ilerletme işlemlerini tetikleyebilir. Görsel workflow oluşturucu ve bilgi tabanı da ürünün ayrı modülleridir. Bunları mevcut PULSE'ta CRM servisi veya iş akışı motoru yokken sırf arayüzle tamamlanmış saymak yanlış olur.
+Kaynak: https://helpdesk.bitrix24.com/open/25766191 (CRM overview, 06.10.2026)
+Kaynak: https://helpdesk.bitrix24.com/open/25886243/ (Workflow builder, 06.10.2026)
+Kaynak: https://helpdesk.bitrix24.com/open/25971079/ (Knowledge Base 2.0)
+
+2.8 Video incelemesi
+“Tutorial on how to use Bitrix24 CRM - Updated 2025”, Fabio Dias, YouTube, 19.01.2025. Video bölüm işaretleri CRM (7:24), Tasks & Projects (18:25), Workflows (32:10), Contact Center (33:34), Telephony (38:50), CoPilot (42:26), Calendar (45:00), Marketing (52:00), Drive (53:00) ve Electronic Signature (54:50) gibi modülleri ayrı iş akışları olarak ele alır.
+Kaynak: https://www.youtube.com/watch?v=l3-0cNnDeJ8
+Bitrix24'ün resmî başlangıç video kataloğu: https://helpdesk.bitrix24.com/open/25968875/
+
+3. PULSE 2.7.0 UYGULAMA EŞLEŞMESİ
+
+Modül / Durum
+- Birleşik ana pencere, sol menü, üst arama/eylem çubuğu ve Stitch'ten gelen görsel dil: UYGULANDI.
+- Genel Bakış: gerçek proje/görev/operasyon özetleriyle Stitch tarzı ekran: UYGULANDI.
+- Görevler: canlı PULSE kayıtlarından Kanban, arama/filtre, pano/liste, görev çekmecesi, durum ve not güncelleme köprüsü: UYGULANDI.
+- Native PULSE projeleri, ekip, kurum rehberi, özel notlar, bildirimler, e-ÇED, dilekçeler, mesajlar ve ayarlar: MEVCUT MODÜLLER KORUNDU; ortak tema/stil sistemi uygulandı, bunların tamamı Stitch HTML ekranı olarak yeniden yazılmış değildir.
+- Mesajdan görev oluşturma: VAR; seçilen mesaj metni yeni görev formuna aktarılır. Kaydın sohbetle gerçek çift yönlü ilişkilendirilmesi PULSE veri modelinin desteklediği ölçüyle sınırlıdır.
+- Takvim & Yasal Süreç: proje/görev/kurum görüşü kayıtlarından tarih listesi/takvim: UYGULANDI, temel seviye.
+- Belgeler / Drive: ayarlı yerel/ağ klasörünü tek seviyede salt-okunur listeleme, arama/sıralama/açma; tarama arka planda: UYGULANDI, temel seviye.
+- Global açık/koyu tema ve temel native Qt kontrol/diyalog/tablo görünümü: UYGULANDI; görsel tasarım her native formun tamamen yeni HTML olarak yazıldığı anlamına gelmez.
+- Güncelleme paketinin gerekli dosya listesi: yeni tema, takvim, Drive ve Stitch varlıkları ile güncellendi.
+
+4. AÇIK KALAN GERÇEK PARİTE FARKLARI — TAMAMLANMIŞ GİBİ SUNULMAMALI
+- Bitrix CRM lead/deal pipeline, iletişim geçmişi ve CRM raporları: YOK.
+- Bitrix bulut Drive, ortak gerçek zamanlı düzenleme, revizyon geçmişi, rol tabanlı dosya izni ve istemci senkronizasyonu: YOK; PULSE belgeler modülü bunların yerine geçmez.
+- Tam şirket takvimi; davet gönderimi/yanıt takibi, toplantı eşitleme ve hatırlatıcı sunucusu: YOK.
+- Görsel workflow/automation tasarımcısı ve koşullu tetikleyici motoru: YOK.
+- Bitrix Contact Center, PBX/telefoni, video toplantı, CoPilot/AI, e-imza ağı, sosyal Feed/poll ve tam organizasyon şeması: YOK.
+- Bitrix düzeyinde kullanıcı rolleri ve modül bazında ince erişim izinleri: bu sürümde yeni bir kurumsal IAM servisi olarak eklenmedi.
+- Mobil istemci/çoklu cihaz senkronizasyonu: YOK.
+
+Bu eksikler sadece CSS/GUI işi değildir. Gerçek işlevler için ayrı servisler, veri modeli, kimlik doğrulama, izin modeli, entegrasyon hesapları ve kabul testleri gerekir. Mevcut yerel/ağ dosyaları ve PULSE backend'leri korunarak mümkün olan kısım uygulandı; gerçek Bitrix24 SaaS kopyası değildir.
+
+5. KABUL TESTLERİ VE SINIRLAR
+- Python otomatik testleri: 198 geçti.
+- Python compileall ve Node.js sözdizimi kontrolleri: başarılı.
+- Stitch Genel Bakış ve Kanban tarayıcı etkileşim testi: 1024x768, 1280x800, 1600x900 olmak üzere 6 ekran denemesi; yatay taşma ve JavaScript sayfa hatası yok. Görev çekmecesi, durum güncelleme köprüsü, not kaydetme, pano/liste, tema geçişi, filtre/arama ve yeni proje köprüsü kontrol edildi. Bu özel testteki sentetik fixture yalnız QA betiğindedir; uygulama çalışma kodunda demo kayıtlar olarak kullanılmaz.
+- PySide6/QtWebEngine geliştirme konteynerinde bulunmadığından Windows Qt MainWindow açılışı burada doğrulanamadı. Şirket Windows cihazında gerçek açılış, ağ paylaşımı, Word dilekçe kilidi, sohbet, e-ÇED, tarayıcı eklentisi ve güncelleme yayını kabul testi gereklidir.
+- Test sonucu bir test bilgisayarında açılış garantisi değildir. Uygulamayı mevcut kurulumun üstüne yazmadan ayrı klasörde deneyin.

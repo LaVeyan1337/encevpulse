@@ -1,0 +1,11 @@
+PULSE 2.7.0 — YAYINLAMA TALİMATI
+
+1) Bu kaynak paketini bütünüyle bir Windows bilgisayarında klasöre çıkarın.
+2) PUBLISH_PULSE.bat dosyasını çalıştırın. Python Launcher (py), pytest ve temel Python bağımlılıkları gerekir; script testleri çalıştırır.
+3) Sorulan ortak klasör için varsayılanı kullanacaksanız boş bırakıp Enter'a basın. Varsayılan hedef:
+   \192.168.1.55\Genel Evrak\.encev_sistem\eced_pulse
+4) Yayın başarılı olursa updates\latest.json ve updates\PULSE_2.7.0.zip oluşur. İki istemci de sürümü denetler; uygulama güncellemesi kullanıcı onayından sonra yapılır.
+5) İlk güncellemeden önce açık formlardaki kaydedilmemiş değişiklikleri kaydedin. Güncelleme paketi ayarları, Notlarım'ı ve ortak proje/dilekçe/sohbet kayıtlarını silmez.
+6) Chrome/Edge geliştirici modunda yüklenmiş eklentiler paket dosyaları değişince otomatik yeniden yüklenmez. Bir defalık geçiş için PULSE_EKLENTI_GUNCELLEME_REHBERI.txt dosyasını okuyun. Sonraki sürümlerde uzantılar sayfasında Yenile'ye basıp portal sekmesini yenileyin.
+
+ÖNEMLİ: Buradaki geliştirme ortamında şirket paylaşımına gerçek yayın yapılmadı ve Windows/Chrome/Edge canlı GUI kabul testi yapılamadı. İlk yayın sonrası önce tek bilgisayarda doğrulayın, ardından ikinci istemciyi kontrol edin.

@@ -1,0 +1,45 @@
+ENÇEV PULSE — GÜVENLİK VE CANLIYA ALMA NOTLARI
+Sürüm 2.0.0
+
+GÜNCELLEME GÜVENLİĞİ
+- SHA-256, paketin yayın sırasında bozulmadığını doğrulamaya yarar; tek başına yayıncının kimliğini doğrulamaz. Güncelleme klasörüne yazma iznini yalnızca yetkili yayın hesabıyla sınırlayın.
+- Yayın paketini dağıtmadan önce test makinesinde INSTALL.bat ve RUN_TESTS.bat çalıştırın. Ortak güncelleme klasörüne yazma iznini yalnızca yetkili yayıncıda tutun.
+
+VERİLERİN YERİ
+- Proje, ekip profili, kurum görüşü, görev, ortak mesaj ve izleme kayıtları seçilen ortak ağ klasöründe dosyalar olarak tutulur.
+- Kişisel notlar bu bilgisayardaki Windows kullanıcısının yerel profilinde tutulur; ortak alana kopyalanmaz.
+- E-posta/telefon ve kullanıcı etiketleri kişisel veridir. Ortak klasöre erişimi yalnızca ihtiyacı olan çalışanlarla sınırlayın; yedekleri de aynı şekilde koruyun.
+
+YETKİ SINIRI
+- Uygulama yönetici ve proje yöneticisi rollerine göre ekran/işlem kısıtlaması uygular. Ancak ortak klasöre yazma izni olan bir Windows kullanıcısı JSON dosyalarını uygulama dışından değiştirebilir. Bu nedenle dosya tabanlı rol denetimi, sunucu tarafında doğrulanan gerçek yetkilendirme ile eşdeğer değildir.
+- Yetki ve veri bütünlüğünün kötü niyetli değişikliklere karşı garanti edilmesi gerekiyorsa paylaşımdan bağımsız kimlik doğrulamalı bir merkezi servis/veritabanı kurulmalıdır. Canlı şirket sürecinde bunu güvenlik gereksinimi olarak değerlendirin.
+
+SOHBET
+- Mesajlar ortak klasörde düz JSON olarak tutulur. Şifreli uçtan uca özel mesajlaşma değildir; gizli müşteri bilgileri, kişisel hassas veriler, parolalar veya erişim anahtarları göndermeyin.
+- Klasör erişim izinleri, dosya sunucusu yedeklemesi ve kurtarma prosedürü BT tarafından doğrulanmalıdır.
+
+E-ÇED
+- Tarayıcı eklentisi sadece kullanıcı tarafından seçilen görünür hesap etiketi ile sınırlı sekme/portal durum bilgisini paylaşır. Parola, çerez, form alanı, localStorage/sessionStorage veya sayfa HTML içeriği okumaz.
+- Portalın resmî kimlik doğrulama API'si kullanılmadığından görünür etiket, portal sunucusunun doğruladığı oturum kimliği olarak yorumlanmamalıdır.
+- Eklenti kurulu olmayan, Pulse çalışmayan veya ağa rapor gönderemeyen bilgisayarlar gözlem dışı kalabilir. “Veri yok/belirsiz” durumunu “hesap boş” olarak yorumlamayın.
+
+YAYIN ÖNCESİ KONTROL
+1. Her bilgisayarda INSTALL.bat ve RUN_TESTS.bat çalıştırın.
+2. Ayrı bir Windows bilgisayarında uygulamanın açılışını, proje/görev/profile editlerini, ağ kesintisi davranışını ve sohbet alıcılarını deneyin.
+3. Eklentiyi her kullanılan Chrome/Edge profilinde kurup gerçek e-ÇED portalında görünür hesap etiketini bir kez eşleştirin.
+4. Ortak klasörde okuma/yazma izinlerini ve yedeklemeyi doğrulayın.
+5. Bunlar başarıyla yapılmadan kritik şirket kayıtlarını tek kaynak olarak bu uygulamaya bağlamayın.
+
+Testler ve statik kontroller kaynak kodu/iş mantığı düzeyinde yapılmıştır. Bu çalışma ortamında Windows üzerinde PySide6 masaüstü arayüzü açılarak görsel ya da gerçek SMB/e-ÇED portal testi yapılmamıştır.
+
+DEPO PAYLAŞIMI
+- Kamuya açık kaynak deposunda gerçek settings.json veya şirket içi ağ yolu bulundurmayın. settings.example.json kullanın; bir ayar dosyası daha önce commit edildiyse gerekirse Git geçmişinden de temizleyin.
+
+
+1.3.9: Eklentinin portalOrigin listesi kullanıcı tarafından seçilen birden fazla HTTP(S) portal/imza origin kaydını tutabilir. Eklenti, Edge imza alt alanına ilk kez bağlanırken tarayıcı site izni ister. Parola, çerez, yerel depolama veya oturum anahtarı okunmaz.
+
+
+2.0.0 ek notu — ENCTakip dilekçe sahibi çözümleme
+- `kilit.json` alanları farklı yazımlarla gelebilir; heartbeat bilgisi yoksa kayıt canlı kabul edilmez. Word `~$` sahibi işaretçisi sadece kullanıcı gösterimi için fallback'tir; tek başına dosyanın kesin kilitli olduğunu kanıtlamaz.
+- SMB `NetFileEnum` ve `openfiles.exe` sorguları ortama/izinlere bağlıdır; NAS sunucuları veya Windows erişim sınırları sonucu engelleyebilir. İşletim sistemi kilidi doğrulanamadığında PULSE dosyayı müsait varsaymaz ve belirsiz durumu açıkça gösterir.
+- Kısayol taşıma betiği masaüstü, Başlat menüsü ve başlangıç klasöründeki bilinen uygulama kısayollarıyla sınırlıdır; proje, Word, ortak veri, browser profile veya uninstall registry kayıtlarını toplu silmez.

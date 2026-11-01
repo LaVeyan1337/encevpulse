@@ -1,0 +1,30 @@
+PULSE 2.0.0 — ENCTakip'ten PULSE'a geçiş
+========================================
+
+PROGRAM ADI VE GÖRÜNÜM
+- Uygulamanın kullanıcıya görünen adı PULSE olarak değiştirildi.
+- Modern mavi/turkuaz/mor gradyanlı logo, Windows uygulama simgesi, görev çubuğu ve sistem tepsisi simgesi eklendi.
+- Uygulama ayarlarının yeni konumu %LOCALAPPDATA%\PULSE olarak belirlendi. Eski %LOCALAPPDATA%\ENCTakipPulse içindeki dosyalar eksik olanlar için kopyalanır; kaynak klasör silinmez.
+
+MEVCUT PULSE / ENCTakip-Pulse İSTEMCİLERİ
+- Kaynak güncelleyicisi ortak güncelleme klasörünü kullanıyorsa, yayıncı bilgisayarda PUBLISH_PULSE.bat çalıştırılıp varsayılan ortak klasör seçildiğinde 2.0.0 güncellemesi istemcilere sunulur.
+- İstemci, yeni sürümü ortak güncelleme dosyası üzerinden indirir; paket SHA-256 ve sürüm açısından doğrulanır, mevcut dosyalar için yedek alınır ve PULSE 2.0.0 ile yeniden başlatılır.
+- START_PULSE.bat yeni sürümle çalıştığında eski ENCTakip / ENCTakipPulse / ENÇEV PULSE kısayollarını kaldıran ve masaüstü ile Başlat menüsüne PULSE kısayolu oluşturan geçiş işlemi çalışır.
+- Otomatik başlaması önceden ayarlı olan eski istemcilerde başlangıç girdisi PULSE olarak taşınır.
+
+ESKİ / GÜNCELLEME ALTYAPISI OLMAYAN ENCTAKİP BİLGİSAYARLARI
+- Bu bilgisayarların eski programı ortak PULSE güncelleme paketini okumuyorsa tek başına merkezi güncelleme almaz.
+- Böyle bilgisayarlarda bu paketi klasöre çıkarın ve PULSE_SETUP.bat dosyasını bir kez çalıştırın.
+- Kurulum, PULSE dosyalarını %LOCALAPPDATA%\Programs\PULSE konumuna yerleştirir; önceki uygulama klasörü varsa PULSE.backup_... adıyla yedekler; gerekli Python paketlerini kurar ve kısayolları değiştirir.
+- Kullanıcının kişisel ayarları ve notları korunur. Ortak proje/kurum görüşü/dilekçe/sohbet verilerine dokunulmaz. Eski programın tüm dosyaları veya kayıt defteri girdileri zorla silinmez; yalnızca bilinen program kısayolları temizlenir.
+
+EDGE / CHROME e-ÇED EKLENTİSİ
+- Tarayıcı eklentileri tarayıcıda “paketlenmemiş” olarak yüklenir; tarayıcı bunları masaüstü uygulamasından bağımsız olarak çalıştırır.
+- Eklentiyi bir kez %LOCALAPPDATA%\Programs\PULSE\browser_extension yoluna yönlendirin. Sonraki PULSE yayınlarında kaynak dosyalar bu klasörde yenilenir; Edge/Chrome uzantılar sayfasında Yenile ve ardından portal sekmesini yenile yeterlidir. İlk klasör geçişinde eşleştirme anahtarı/site izinleri yeniden girilebilir. Ayrıntı için PULSE_EKLENTI_GUNCELLEME_REHBERI.txt dosyasına bakın.
+- Site izinleri ve Pulse eşleştirme anahtarı tarayıcı profiline özgüdür; geçiş sırasında gerekirse yeniden kontrol edin.
+
+GÜVENLİK / GERİ DÖNÜŞ
+- Kurulum sırasında PULSE pencerelerini kapatın.
+- Kurulum paketi eski uygulama klasörünü otomatik olarak silmez; tarihli yedek bırakır.
+- Kısayol temizliği kullanıcı masaüstü, Başlat menüsü, ortak masaüstü/ortak Başlat menüsü ve başlangıç klasörüyle sınırlıdır. Paylaşılan ağ klasörleri, Word dosyaları, projeler, tarayıcı profilleri veya kayıt defteri uninstall kayıtları silinmez.
+- Çalışan her bilgisayarın kendi geçişini tamamlaması gerekir. Ortak sunucuya bir sürüm yayınlamak, kapalı veya güncelleme istemcisi bulunmayan eski ENCTakip kurulumunu kendiliğinden dönüştüremez.

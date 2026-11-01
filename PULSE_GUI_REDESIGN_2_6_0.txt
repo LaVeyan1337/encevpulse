@@ -1,0 +1,11 @@
+PULSE 2.6.0 — GUI TASARIM NOTU (ÖNCEKİ KATMAN)
+
+Bu dosyanın önceki notları, Stitch HTML ekranları eklenmeden önceki yerel Qt görünümünü tarif ediyordu. Bu kaynak pakette Genel Bakış ve Görevler & Süreç ekranları için asıl tasarım varlıkları aşağıdaki dosyalardadır:
+- assets/stitch_overview.html
+- assets/stitch_tasks.html
+- assets/stitch_design.css
+- assets/stitch_app.js
+
+İki Stitch ekranı mevcut MainWindow içindeki QWebEngineView sayfalarıdır; ayrı uygulama penceresi değildir. Diğer PULSE modülleri ve iş mantığı mevcut native Python sayfalarında kalır. Kurulum, geri dönüş ve test sınırları için STITCH_INTEGRATION_GUIDE.txt ile README.txt dosyalarını okuyun.
+
+Test: TEST_RESULTS_2_6_0.txt içinde güncel otomatik ve tarayıcı tabanlı doğrulama bulunur. Gerçek Windows Qt penceresinin test edilmediği ayrıca belirtilmiştir.
