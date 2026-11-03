@@ -69,6 +69,7 @@ export function ChatWorkspace({
   const [search,setSearch]=useState('');
   const [searchResults,setSearchResults]=useState<Array<Record<string,any>>>([]);
   const [searchOpen,setSearchOpen]=useState(false);
+  const [searchTargetMessageId,setSearchTargetMessageId]=useState<string|null>(null);
   const [actionBusy,setActionBusy]=useState(false);
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
@@ -190,6 +191,15 @@ export function ChatWorkspace({
     }
   },[messages.length,selectedId]);
 
+  useEffect(()=>{
+    if(!searchTargetMessageId)return;
+    const target=document.getElementById('message-'+searchTargetMessageId);
+    if(target){
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      setSearchTargetMessageId(null);
+    }
+  },[messages,searchTargetMessageId]);
+
   async function loadOlderMessages() {
     if(!selectedId||!hasMoreMessages||loadingOlder||messages.length===0)return;
     const oldest=messages[0];
@@ -231,6 +241,57 @@ export function ChatWorkspace({
       setSendState('failed');
       setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
     } finally {setSending(false);}
+  }
+
+  async function openSearchResult(result:Record<string,any>) {
+    if(typeof result.conversationId!=='string'||typeof result.id!=='string')return;
+    const conversationId=result.conversationId as string;
+    const targetId=result.id as string;
+    setSelectedId(conversationId);
+    setError('');
+    setSearchOpen(false);
+    setDetail(null);
+    setMessages([]);
+    setMessageLoading(true);
+    setSearchTargetMessageId(null);
+    try {
+      const [detailResult,firstPage]=await Promise.all([
+        request('chat/conversations/'+conversationId),
+        request('chat/conversations/'+conversationId+'/messages'),
+      ]);
+      let collected=(firstPage.messages??[]) as Message[];
+      let page=firstPage.page;
+      let pageCount=0;
+      while(page?.hasMore&&!collected.some(message=>message.id===targetId)&&pageCount<100) {
+        const cursor=page.nextCursor as {createdAt:string;id:string}|null;
+        if(!cursor)break;
+        const next=await request(
+          'chat/conversations/'+conversationId+'/messages?beforeCreatedAt='+
+          encodeURIComponent(cursor.createdAt)+'&beforeId='+encodeURIComponent(cursor.id),
+        );
+        const older=(next.messages??[]) as Message[];
+        collected=[...older,...collected];
+        page=next.page;
+        pageCount+=1;
+      }
+      setDetail(detailResult as ChatDetail);
+      setMessages(collected);
+      setHasMoreMessages(Boolean(page?.hasMore));
+      const found=collected.some(message=>message.id===targetId);
+      if(found) {
+        setSearchTargetMessageId(targetId);
+        const latest=collected[collected.length-1];
+        if(latest) {
+          await request('chat/conversations/'+conversationId+'/read','POST',{messageId:latest.id});
+          setConversations(items=>items.map(item=>item.id===conversationId?{...item,unreadCount:0}:item));
+        }
+        await loadConversations();
+      } else {
+        setError('Aranan mesaj bulundu ancak son 5.000 mesaj içinde yüklenemedi. Aramayı daraltıp yeniden deneyin.');
+      }
+    } catch(cause) {
+      setError(cause instanceof Error?cause.message:'Arama sonucundaki mesaj açılamadı.');
+    } finally {setMessageLoading(false);}
   }
 
   async function startDirect(person:DirectoryPerson) {
@@ -370,7 +431,7 @@ export function ChatWorkspace({
           <div className="chat-search-results">
             <div className="chat-search-results-head"><strong>Arama sonuçları</strong><button type="button" onClick={()=>setSearchOpen(false)}>Kapat</button></div>
             {searchResults.length===0?<p>Eşleşen mesaj yok.</p>:searchResults.map((item,index)=>(
-              <button type="button" key={item.id??index} onClick={()=>{setSearchOpen(false);void openConversation(item.conversationId);}}>
+              <button type="button" key={item.id??index} onClick={()=>void openSearchResult(item)}>
                 <strong>{item.conversationName}</strong><span>{item.senderName} · {timeLabel(item.createdAt)}</span><p>{item.body}</p>
               </button>
             ))}
