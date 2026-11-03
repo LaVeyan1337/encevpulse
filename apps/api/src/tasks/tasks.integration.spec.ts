@@ -62,7 +62,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       userIds.push(user.rows[0].id);
       await pool.query('INSERT INTO user_role_assignments (user_id,role_id,assigned_by) VALUES ($1,$2,$1)', [userIds.at(-1), role.rows[0].id]);
     }
-    app = await NestFactory.create(ApplicationModule, { logger: false });
+    app = await NestFactory.create(ApplicationModule, { logger: ['error'] });
     app.setGlobalPrefix('api');
     await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
@@ -149,7 +149,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       taskIds.push(taskId);
 
       const created = await api(base, bob, `tasks/${taskId}/comments`, 'POST', { body: 'İlk görev yorumu' });
-      assert.equal(created.response.status, 201);
+      assert.equal(created.response.status, 201, JSON.stringify(created.data));
       assert.equal(created.data.comment.authorName, `Task fixture ${names[1]}`);
       assert.equal(created.data.comment.version, 1);
 
