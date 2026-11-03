@@ -1611,6 +1611,7 @@ export function Workspace({
           {section === 'people' && (
             <PeopleDirectory
               people={people}
+              currentUserId={user.id}
               onMessage={(person) => {
                 setChatStartUserId(person.id);
                 setChatStartConversationId(null);
