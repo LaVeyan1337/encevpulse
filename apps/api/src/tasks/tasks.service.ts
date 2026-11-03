@@ -231,18 +231,18 @@ export class TasksService {
       );
       await client.query(
         `INSERT INTO notifications (recipient_user_id, actor_user_id, task_id, event_type, idempotency_key)
-         SELECT DISTINCT recipients.user_id, $2, $1, 'task.comment',
-                'task.comment:' || $3::text || ':' || recipients.user_id::text
+         SELECT DISTINCT recipients.user_id, $2::uuid, $1::uuid, 'task.comment',
+                'task.comment:' || $3::uuid::text || ':' || recipients.user_id::text
          FROM (
-           SELECT t.created_by AS user_id FROM tasks t WHERE t.id = $1
+           SELECT t.created_by AS user_id FROM tasks t WHERE t.id = $1::uuid
            UNION
-           SELECT t.assignee_id FROM tasks t WHERE t.id = $1
+           SELECT t.assignee_id FROM tasks t WHERE t.id = $1::uuid
            UNION
            SELECT pm.user_id FROM project_members pm
-           JOIN tasks t ON t.project_id = pm.project_id WHERE t.id = $1
+           JOIN tasks t ON t.project_id = pm.project_id WHERE t.id = $1::uuid
          ) recipients
          JOIN users recipient ON recipient.id = recipients.user_id AND recipient.status = 'active'
-         WHERE recipients.user_id <> $2
+         WHERE recipients.user_id <> $2::uuid
          ON CONFLICT (idempotency_key) DO NOTHING`,
         [taskId, user.id, comment.id],
       );
