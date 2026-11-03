@@ -38,7 +38,7 @@
 
 | Varlık | Temel alanlar / ilişkiler | Not |
 |---|---|---|
-| `projects` | id, name, description, status, created_by, owner_user_id, starts_on, target_on, version, status_before_archive, created_at, updated_at, archived_at | `0005_project_workflow.sql` ile proje sahibi, başlangıç/hedef tarihleri, yaşam döngüsü ve sürüm kontrolü uygulandı; arşiv önceki durumu saklar. |
+| `projects` | id, name, description, status, created_by, owner_user_id, starts_on, target_on, version, status_before_archive, created_at, updated_at, archived_at | `0005_project_workflow.sql` ile proje sahibi, başlangıç/hedef tarihleri, yaşam döngüsü ve sürüm kontrolü uygulandı. Yeni arşivler önceki durumu saklar; eski `archived` kayıtlarında bilinmeyen önceki durum tahmin edilmez, geri yüklemede kullanıcıdan seçmesi istenir. |
 | `project_members` | project_id, user_id, added_by, added_at | Üyelik bileşik primary key ile tektir; proje görevi görünürlüğü üyelikten gelir. Proje sahibi üyeliği zorunludur; sahip/oluşturan proje yönetebilir, üye proje bağlamını okuyabilir. |
 | `project_audit_events` | id, project_id, actor_user_id, event_type, details, created_at | Proje oluşturma, güncelleme, üye değişikliği ve arşiv/geri yükleme olayları append-only trigger ile korunur; event metadata'sı proje içeriğini veya sırları kopyalamaz. |
 | `tasks` | id, project_id nullable, title, description, status, priority, created_by, assignee_id, starts_on, due_on, archived_at, position, version | Proje dışı kişisel görev desteklenir. `version` eşzamanlı düzenleme çakışmasını yakalar. |
