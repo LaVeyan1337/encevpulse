@@ -227,3 +227,10 @@ test('Üst bildirim menüsü sohbet bildirimini okuyup doğru konuşmayı açar'
   assert.match(service, /'chat\.message'::text AS "eventType"/);
   assert.match(service, /UPDATE chat_notifications cn SET read_at/);
 });
+
+test('Takvim çalışma alanı navigasyonda yalnızca modül izniyle görünür', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /hasModulePermission\('calendar'\)/);
+  assert.match(workspace, /setSection\('calendar'\)/);
+  assert.match(workspace, /Takvim &amp; Yasal Süreçler/);
+});

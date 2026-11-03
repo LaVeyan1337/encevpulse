@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Drawer } from './drawer';
 import { ChatWorkspace } from './chat-workspace';
 import { PeopleDirectory } from './people-directory';
+import { CalendarWorkspace } from './calendar-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
@@ -152,7 +153,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'people' | 'chat' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -302,7 +303,7 @@ export function Workspace({
 
   useEffect(()=>{
     if(hasModulePermission(section))return;
-    const next=(['overview','tasks','projects','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
+    const next=(['overview','tasks','projects','calendar','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
     if(next[0])setSection(next[0]);
   },[section,hasModulePermission]);
 
@@ -824,7 +825,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -873,6 +874,19 @@ export function Workspace({
           >
             <Icon name="check" />
             <span>Görevler</span>
+          </button>
+          )}
+          {hasModulePermission('calendar') && (
+          <button
+            type="button"
+            className={section === 'calendar' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('calendar');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="calendar-days" />
+            <span>Takvim &amp; Yasal Süreçler</span>
           </button>
           )}
           {hasModulePermission('people') && (
@@ -1631,6 +1645,21 @@ export function Workspace({
                 </div>
               )}
             </section>
+          )}
+
+          {section === 'calendar' && hasModulePermission('calendar') && (
+            <CalendarWorkspace
+              request={request}
+              people={people}
+              projects={projects}
+              canCreate={hasModulePermission('calendar','create')}
+              canUpdate={hasModulePermission('calendar','update')}
+              canDelete={hasModulePermission('calendar','delete')}
+              canViewTasks={hasModulePermission('tasks')}
+              canViewProjects={hasModulePermission('projects')}
+              onTaskOpen={(taskId) => void openChatTask(taskId)}
+              onProjectOpen={(projectId) => void openProject(projectId)}
+            />
           )}
 
           {section === 'people' && (

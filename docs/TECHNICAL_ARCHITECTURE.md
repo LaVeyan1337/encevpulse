@@ -74,7 +74,7 @@ NestJS içinde modül sınırları iş alanlarına göre kurulur; örneğin:
 - `Tasks & Projects`: görevler, durum geçmişi ve proje ilişkileri.
 - `Chat`: konuşmalar, üyelik, mesajlar, yanıtlar, reaksiyonlar, okundu imleçleri ve ek metadata'sı.
 - `Notifications`: uygulama içi bildirimler ve tercihleri.
-- `Calendar & Legal Rules`: tarih kuralları ve süreç tarihleri.
+- `Calendar`: kişisel/ortak/proje etkinlikleri ve görev/proje tarih izdüşümleri uygulanmıştır. `Legal Rules` ve süreç tarihleri için onaylı kural motoru henüz eklenmemiştir.
 - `Institutions & Processes`: kurum rehberi, kurum görüşleri ve e-ÇED kayıtları.
 - `Documents`: dosya metadata'sı ve sağlayıcı arayüzü; ilk aşamada yalnızca yerel sahte sağlayıcı.
 - `Audit`: değiştirilemeyen işlem olayları.

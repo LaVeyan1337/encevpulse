@@ -1,6 +1,6 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (SSE sohbeti ve modül bazlı rol/izin matrisi)
+**Son güncelleme:** 3 Kasım 2026 (takvim temeli ve görev/proje tarih entegrasyonu)
 
 ## Gerçekten uygulananlar
 
@@ -88,6 +88,16 @@
 - **Son hareketler:** Erişilebilen görevlerdeki gerçek audit olaylarını listeler; tıklanan görev detay panelinde açılır.
 - Veri bulunmadığında sade, dürüst Türkçe boş durum (empty state) gösterilir; sahte sayaç veya örnek veri üretilmez.
 
+### G. Takvim temeli
+- `calendar` modülü migration ile etkinleştirildi; gezinme görünürlüğü ve API işlemleri rol/modül izin matrisi üzerinden denetlenir.
+- Aylık, haftalık, günlük ve ajanda görünümleri; ay/hafta/gün gezinmesi ve Türkiye saat diliminde tarih/saat gösterimi vardır.
+- Kişisel, ortak ve proje bağlantılı etkinlikler; toplantı, etkinlik, hatırlatma ve teslim/son tarih türleri desteklenir. Etkinliklerde tüm gün veya saat aralığı, konum, açıklama ve katılımcı alanları bulunur.
+- Proje etkinliği oluştururken aktörün etkin proje üyeliği; proje katılımcılarının da etkin proje üyeliği sunucuda doğrulanır. Kişisel etkinlik katılımcısızdır. Ortak etkinlik, takvim görüntüleme izni bulunan kullanıcılarca görülebilir.
+- Etkinlik düzenleme sürüm kontrolüyle yapılır. Silme yerine arşivleme uygulanır; oluşturma, güncelleme ve arşivleme olayları append-only denetim tablosuna yazılır. Etkinliği oluşturan veya bağlı projenin sahibi yönetebilir.
+- Görev başlangıç/teslim tarihleri ve proje başlangıç/hedef tarihleri takvimde mevcut kayıtlardan salt okunur kilometre taşı olarak hesaplanır; ikinci bir kopya kayıt oluşturulmaz. Kayıtlar yalnız ilgili görev/proje erişim kapsamı ve modül izinleri varsa gösterilir.
+- Takvim liste API'si tarih aralığını doğrular, en fazla 93 günlük pencere kabul eder ve tüm gün/saatli kayıtların kesişimini `Europe/Istanbul` saat dilimine göre hesaplar.
+- **Henüz bu aşamada yok:** otomatik hatırlatma bildirimi/arka plan zamanlayıcısı, kurum tatil takvimi, yasal süre kural motoru, İDK/kurum görüşü süreçleri ve Windows/reverse-proxy kabul testi. Bunlar doğrulanmış kural ve süreç gereksinimleriyle sonraki aşamada geliştirilecek.
+
 ## Doğrulama ve test sonuçları
 
 - Önceki kaynak sürümünde API/Web build, TypeScript ve görev/proje/yorum testleri CI'da başarılıydı. Bu sonuç yeni çalışan/sohbet kodunun test edildiği anlamına gelmez.
@@ -108,4 +118,5 @@
   - Yerel Windows ortamında kontrollü uygulama ve gerçek tarayıcı görsel kabul testlerini tamamlama.
   - Başlangıç rol/modül izinlerini, ekip hiyerarşisini ve kayıt kapsamını süreç sahipleriyle onaylama; ardından Windows tarayıcı ve reverse-proxy kabul testlerini tamamlama.
   - Mesaj saklama/düzenleme/silme süre politikası ve SSE bağlantısının gerçek Windows/reverse-proxy kabul testi.
-  - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
+  - Yasal süreç kayıtları, kurum görüşleri ve e-ÇED bağlantıları; süreç sahiplerince onaylanmış iş akışı, mevzuat dayanağı ve tatil kaynağıyla aşamalı olarak eklenir.
+  - Takvim etkinlikleri için arka plan hatırlatma/uyarı işleri, bildirim idempotency ve teslimat kayıtlarıyla tasarlanır.

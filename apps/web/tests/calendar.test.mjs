@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+
+test('Takvim ekranı gerçek API kayıtlarını ve mevcut görev/proje tarih izdüşümlerini kullanır', async () => {
+  const calendar = await readFile(new URL('../app/components/calendar-workspace.tsx', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../app/calendar.css', import.meta.url), 'utf8');
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const api = await readFile(new URL('../../api/src/calendar/calendar.controller.ts', import.meta.url), 'utf8');
+  const service = await readFile(new URL('../../api/src/calendar/calendar.service.ts', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../../drizzle/0011_calendar_foundation.sql', import.meta.url), 'utf8');
+  const root = await readFile(new URL('../app/root.tsx', import.meta.url), 'utf8');
+
+  assert.match(workspace, /<CalendarWorkspace/);
+  assert.match(workspace, /hasModulePermission\('calendar'\)/);
+  assert.match(calendar, /calendar\?from=/);
+  assert.match(calendar, /aria-label="Takvim görünümü"/);
+  assert.match(calendar, /\['month', 'Ay'\]/);
+  assert.match(calendar, /\['week', 'Hafta'\]/);
+  assert.match(calendar, /\['day', 'Gün'\]/);
+  assert.match(calendar, /\['agenda', 'Ajanda'\]/);
+  assert.match(calendar, /calendar\/events/);
+  assert.match(calendar, /onTaskOpen/);
+  assert.match(calendar, /onProjectOpen/);
+  assert.match(calendar, /Europe\/Istanbul/);
+  assert.match(api, /@Get\(\)/);
+  assert.match(api, /@Post\('events'\)/);
+  assert.match(api, /@Patch\('events\/:id'\)/);
+  assert.match(api, /@Post\('events\/:id\/archive'\)/);
+  assert.match(service, /taskMilestones/);
+  assert.match(service, /projectMilestones/);
+  assert.match(service, /CALENDAR_EVENT_CHANGED/);
+  assert.match(migration, /CREATE TABLE calendar_events/);
+  assert.match(migration, /calendar_event_audit_events_append_only/);
+  assert.match(root, /import '\.\/calendar\.css'/);
+  assert.match(styles, /\.calendar-days-grid/);
+  assert.match(styles, /@media\(max-width:640px\)/);
+  assert.doesNotMatch(calendar, /örnek kayıt|sahte veri/i);
+});

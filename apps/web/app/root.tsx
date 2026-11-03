@@ -6,6 +6,7 @@ import './motion.css';
 import './projects.css';
 import './brand.css';
 import './people-chat.css';
+import './calendar.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (

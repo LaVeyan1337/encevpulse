@@ -1,6 +1,6 @@
 # ENCEV PULSE — Mantıksal Veritabanı Tasarımı
 
-**Durum:** Kimlik/oturum, temel proje/görev ve görev atama bildirimi için `drizzle/0001_authentication.sql`, `drizzle/0002_tasks_and_projects.sql` ve `drizzle/0003_notifications.sql` migration'ları yerel geliştirme veritabanına uygulanmıştır; kalan ürün tabloları mantıksal tasarım önerisidir.
+**Durum:** Kimlik/oturum, proje/görev, bildirim, sohbet, rol/modül izinleri ve takvim temeli ilgili migration'larla uygulanmıştır. Yasal süreç ve kurum görüşü varlıklarının önemli bölümü hâlâ mantıksal tasarım aşamasındadır.
 **Tarih:** 3 Kasım 2026  
 **Güvenlik:** Bu tasarım şirket dosya sunucusuna bağlanmaz; gerçek dosyaları okumaz veya kopyalamaz.
 

@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { ChatModule } from './chat/chat.module.js';
+import { CalendarModule } from './calendar/calendar.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ChatModule } from './chat/chat.module.js';
     HealthModule,
     AuthModule,
     TasksModule,
+    CalendarModule,
     ChatModule,
   ],
 })
