@@ -591,6 +591,102 @@ export function Workspace({
     }
   }
 
+  async function loadProjects(nextView: 'active' | 'archived') {
+    setProjectView(nextView);
+    setLoading(true);
+    setError('');
+    try {
+      const result = await request(`projects?view=${nextView}`);
+      setProjects(Array.isArray(result.projects) ? result.projects as Project[] : []);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Projeler alınamadı.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openProject(projectId: string) {
+    setProjectDetailOpen(true);
+    setProjectLoading(true);
+    setProjectEditing(false);
+    setProjectError('');
+    setProjectDetail(null);
+    setProjectTab('overview');
+    try {
+      const result = await request(`projects/${projectId}`);
+      setProjectDetail(result as ProjectDetails);
+    } catch (cause) {
+      setProjectError(cause instanceof Error ? cause.message : 'Proje ayrıntıları alınamadı.');
+    } finally {
+      setProjectLoading(false);
+    }
+  }
+
+  async function saveProjectDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!projectDetail) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setProjectError('');
+    try {
+      const result = await request(`projects/${projectDetail.project.id}`, 'PATCH', {
+        version: projectDetail.project.version,
+        name: form.get('name'),
+        description: form.get('description'),
+        status: form.get('status'),
+        ownerId: form.get('ownerId'),
+        startsOn: form.get('startsOn') || null,
+        targetOn: form.get('targetOn') || null,
+        memberIds: form.getAll('members').map(String),
+      });
+      setProjectDetail(result as ProjectDetails);
+      setProjectEditing(false);
+      setMessage('Proje bilgileri güncellendi.');
+      const list = await request(`projects?view=${projectView}`);
+      setProjects(Array.isArray(list.projects) ? list.projects as Project[] : []);
+    } catch (cause) {
+      setProjectError(cause instanceof Error ? cause.message : 'Proje güncellenemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleProjectArchive() {
+    if (!projectDetail) return;
+    const archived = Boolean(projectDetail.project.archivedAt);
+    const question = archived
+      ? 'Bu projeyi arşivden çıkarmak istiyor musunuz?'
+      : 'Bu projeyi arşivlemek istiyor musunuz? Projeye bağlı görevler silinmeyecek.';
+    if (!window.confirm(question)) return;
+    setBusy(true);
+    setProjectError('');
+    try {
+      await request(`projects/${projectDetail.project.id}/${archived ? 'restore' : 'archive'}`, 'POST', {
+        version: projectDetail.project.version,
+      });
+      setProjectDetailOpen(false);
+      setProjectDetail(null);
+      const list = await request(`projects?view=${projectView}`);
+      setProjects(Array.isArray(list.projects) ? list.projects as Project[] : []);
+      setMessage(archived ? 'Proje arşivden çıkarıldı.' : 'Proje arşivlendi.');
+    } catch (cause) {
+      setProjectError(cause instanceof Error ? cause.message : 'Proje arşiv işlemi tamamlanamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openProjectTask(taskId: string) {
+    setProjectDetailOpen(false);
+    setSection('tasks');
+    try {
+      const result = await request(`tasks/${taskId}`);
+      setSelected(result.task as Task);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Görev açılamadı.');
+    }
+  }
+
   async function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -598,9 +694,12 @@ export function Workspace({
     setError('');
     const members = form.getAll('members').map(String);
     try {
-      await request('tasks/projects', 'POST', {
+      await request('projects', 'POST', {
         name: form.get('name'),
         description: form.get('description'),
+        status: form.get('status') || 'planning',
+        startsOn: form.get('startsOn') || null,
+        targetOn: form.get('targetOn') || null,
         memberIds: members,
       });
       setProjectFormOpen(false);
