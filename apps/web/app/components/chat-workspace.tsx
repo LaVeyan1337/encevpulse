@@ -98,14 +98,16 @@ export function ChatWorkspace({
       const older=current.filter(item=>!latestIds.has(item.id));
       return [...older,...list];
     });
-    setHasMoreMessages(Boolean(result.page?.hasMore));
+    setHasMoreMessages(current => preserveHistory && messages.length > 0
+      ? current && Boolean(result.page?.hasMore)
+      : Boolean(result.page?.hasMore));
     if(markRead&&list.length) {
       const latest=list[list.length-1];
       await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
       setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
     }
     return list;
-  },[request,currentUserId]);
+  },[request,currentUserId,messages.length]);
 
   const openConversation=useCallback(async(id:string)=>{
     setSelectedId(id);
@@ -173,11 +175,11 @@ export function ChatWorkspace({
   useEffect(()=>{
     if(!selectedId)return;
     const timer=window.setInterval(()=>{
-      if(document.visibilityState!=='visible'||sending||actionBusy)return;
+      if(document.visibilityState!=='visible'||sending||actionBusy||loadingOlder)return;
       void Promise.all([loadConversations(),loadMessages(selectedId,true,true)]).catch(()=>undefined);
     },2800);
     return ()=>window.clearInterval(timer);
-  },[selectedId,loadConversations,loadMessages,sending,actionBusy]);
+  },[selectedId,loadConversations,loadMessages,sending,actionBusy,loadingOlder]);
 
   useEffect(()=>{
     const element=scrollRef.current;
