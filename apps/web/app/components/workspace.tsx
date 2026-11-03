@@ -108,10 +108,12 @@ export interface Summary {
 
 export interface Notification {
   id: string;
-  eventType: 'task.assigned' | 'task.comment';
-  taskId: string;
+  eventType: 'task.assigned' | 'task.comment' | 'chat.message';
+  taskId: string | null;
+  conversationId: string | null;
   taskTitle: string;
   actorName: string | null;
+  preview: string | null;
   createdAt: string;
   readAt: string | null;
 }
@@ -248,6 +250,7 @@ export function Workspace({
   const [people, setPeople] = useState<Person[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [chatStartUserId, setChatStartUserId] = useState<string | null>(null);
+  const [chatStartConversationId, setChatStartConversationId] = useState<string | null>(null);
   const [projectView, setProjectView] = useState<'active' | 'archived'>('active');
   const [projectDetail, setProjectDetail] = useState<ProjectDetails | null>(null);
   const [projectDetailOpen, setProjectDetailOpen] = useState(false);
@@ -462,10 +465,17 @@ export function Workspace({
         );
         setUnreadCount((count) => Math.max(0, count - 1));
       }
+      setNotificationsOpen(false);
+      if (notification.eventType === 'chat.message' && notification.conversationId) {
+        setChatStartConversationId(notification.conversationId);
+        setChatStartUserId(null);
+        setSection('chat');
+        return;
+      }
+      if (!notification.taskId) throw new Error('Bildirim kaydının hedef görevi bulunamadı.');
       const result = await request(`tasks/${notification.taskId}`);
       setSelected(result.task as Task);
       setSection('tasks');
-      setNotificationsOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Bildirim açılamadı.');
     }
@@ -623,7 +633,10 @@ export function Workspace({
     }
   }
 
-  const clearChatStart = useCallback(() => setChatStartUserId(null), []);
+  const clearChatStart = useCallback(() => {
+    setChatStartUserId(null);
+    setChatStartConversationId(null);
+  }, []);
 
   async function openChatTask(taskId: string) {
     try {
@@ -979,8 +992,13 @@ export function Workspace({
                       <span className="notification-title">{notification.taskTitle}</span>
                       <span className="notification-description">
                         {notification.actorName ?? 'Bir kullanıcı'}{' '}
-                        {notification.eventType === 'task.comment' ? 'göreve yorum ekledi' : 'görevi size atadı'}
+                        {notification.eventType === 'chat.message'
+                          ? 'sohbete yeni mesaj gönderdi'
+                          : notification.eventType === 'task.comment'
+                            ? 'göreve yorum ekledi'
+                            : 'görevi size atadı'}
                       </span>
+                      {notification.preview && <span className="notification-preview">{notification.preview}</span>}
                       <time>{dateTimeLabel(notification.createdAt)}</time>
                     </button>
                   ))
@@ -1574,6 +1592,7 @@ export function Workspace({
               people={people}
               onMessage={(person) => {
                 setChatStartUserId(person.id);
+                setChatStartConversationId(null);
                 setSection('chat');
               }}
             />
@@ -1585,6 +1604,7 @@ export function Workspace({
               people={people}
               currentUserId={user.id}
               startUserId={chatStartUserId}
+              initialConversationId={chatStartConversationId}
               onStartConsumed={clearChatStart}
               onTaskOpen={(taskId) => void openChatTask(taskId)}
             />
