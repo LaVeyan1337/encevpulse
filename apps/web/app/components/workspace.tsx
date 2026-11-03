@@ -385,6 +385,19 @@ export function Workspace({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    if (section !== 'people' && section !== 'chat' && section !== 'projects') return;
+    let cancelled = false;
+    request('tasks/people')
+      .then((result) => {
+        if (!cancelled && Array.isArray(result.people)) setPeople(result.people as Person[]);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Çalışan listesi yenilenemedi.');
+      });
+    return () => { cancelled = true; };
+  }, [section, request]);
+
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSettledQuery(query), 250);
