@@ -31,6 +31,13 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
   assert.match(workspace, /Devam ediyor/);
   assert.match(workspace, /Bekliyor/);
 
+  // Scope C: Görev yorumları ve kullanıcıya ait yorum kontrolleri
+  assert.match(workspace, /task-comments-section/);
+  assert.match(workspace, /Yorum gönder/);
+  assert.match(workspace, /Düzenle/);
+  assert.match(workspace, /Bu yorum silindi/);
+  assert.match(workspace, /tasks\/\$\{selected\.id\}\/comments/);
+
   // Doğal dil kontrolü: yasaklı sloganlar ve teknik sızıntılar bulunmamalı
   assert.doesNotMatch(
     workspace,
