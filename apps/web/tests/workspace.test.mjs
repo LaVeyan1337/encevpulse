@@ -111,3 +111,43 @@ test('Projeler çalışma alanı gerçek liste, detay, üyelik ve yaşam döngü
   assert.match(api, /@Post\('projects\/:id\/archive'\)/);
   assert.match(api, /@Post\('projects\/:id\/restore'\)/);
 });
+
+
+test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanır', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const people = await readFile(new URL('../app/components/people-directory.tsx', import.meta.url), 'utf8');
+  const avatars = await readFile(new URL('../app/components/avatars.tsx', import.meta.url), 'utf8');
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  const authService = await readFile(new URL('../../api/src/auth/auth.service.ts', import.meta.url), 'utf8');
+  const authController = await readFile(new URL('../../api/src/auth/auth.controller.ts', import.meta.url), 'utf8');
+  const chatController = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../drizzle/0006_people_and_chat.sql', import.meta.url), 'utf8');
+
+  assert.match(workspace, /<PeopleDirectory/);
+  assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /setChatStartUserId\(person.id\)/);
+  assert.match(people, /Çalışan rehberi/);
+  assert.match(people, /Meslek|Birim/);
+  assert.match(people, /Sohbet/);
+  assert.match(avatars, /avatar-/);
+  assert.match(chat, /chat-rail/);
+  assert.match(chat, /chat-thread/);
+  assert.match(chat, /chat-context/);
+  assert.match(chat, /chat\/conversations/);
+  assert.match(chat, /chat\/messages/);
+  assert.match(chat, /clientRequestId/);
+  assert.match(chat, /create-task/);
+  assert.match(authService, /job_title/);
+  assert.match(authService, /department/);
+  assert.match(authService, /avatar_key/);
+  assert.match(authService, /updateUserProfile/);
+  assert.match(authController, /@Get\('people'\)/);
+  assert.match(authController, /@Get\('roles'\)/);
+  assert.match(authController, /@Patch\('users\/:id\/profile'\)/);
+  assert.match(chatController, /@Patch\('conversations\/:id\/members\/:userId\/role'\)/);
+  assert.match(chatController, /@Post\('messages\/:id\/create-task'\)/);
+  assert.match(migration, /CREATE TABLE conversations/);
+  assert.match(migration, /CREATE TABLE messages/);
+  assert.match(migration, /CREATE TABLE message_reactions/);
+  assert.match(migration, /CREATE TABLE conversation_read_cursors/);
+});
