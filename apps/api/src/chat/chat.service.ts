@@ -132,7 +132,8 @@ export class ChatService {
     const rows=await this.db.query(
       `SELECT m.id,m.conversation_id AS "conversationId",m.sender_id AS "senderId",
           u.display_name AS "senderName",u.avatar_key AS "senderAvatarKey",m.body,m.reply_to_id AS "replyToId",
-          parent.body AS "replyBody",parent_user.display_name AS "replySenderName",m.version,
+          CASE WHEN parent.deleted_at IS NULL THEN parent.body ELSE 'Bu mesaj silindi' END AS "replyBody",
+          parent_user.display_name AS "replySenderName",m.version,
           m.created_at AS "createdAt",m.edited_at AS "editedAt",m.deleted_at AS "deletedAt",
           m.pinned_at AS "pinnedAt",(m.sender_id=$4) AS "isMine",
           COALESCE((SELECT json_agg(json_build_object(
