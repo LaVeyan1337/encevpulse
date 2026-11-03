@@ -355,12 +355,13 @@ export class ChatService {
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      const found=await client.query(`SELECT m.conversation_id,m.deleted_at,cm.member_role
+      const found=await client.query(`SELECT m.conversation_id,m.deleted_at,cm.member_role,c.conversation_type
         FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id
+        JOIN conversations c ON c.id=m.conversation_id
         WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!found.rowCount||found.rows[0].deleted_at) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
-      const {conversation_id:conversationId,member_role:role}=found.rows[0];
-      if(role!=='owner'&&role!=='admin') throw new ForbiddenException({code:'CHAT_PIN_DENIED',message:'Sabit mesaj yönetimi grup yöneticilerine açıktır.'});
+      const {conversation_id:conversationId,member_role:role,conversation_type:type}=found.rows[0];
+      if(type==='group'&&role!=='owner'&&role!=='admin') throw new ForbiddenException({code:'CHAT_PIN_DENIED',message:'Grup sohbetinde sabitleme yalnızca yöneticilere açıktır.'});
       await client.query(`UPDATE messages SET pinned_at=$1,pinned_by=$2,version=version+1 WHERE id=$3`,[unpin?null:new Date(),unpin?null:user.id,id]);
       await client.query(`INSERT INTO message_events(message_id,conversation_id,actor_user_id,event_type)
         VALUES($1,$2,$3,$4)`,[id,conversationId,user.id,unpin?'unpinned':'pinned']);
@@ -401,14 +402,15 @@ export class ChatService {
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      const members=await client.query(`SELECT member_role FROM conversation_members
-        WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL FOR UPDATE`,[id,user.id]);
+      const members=await client.query(`SELECT cm.member_role,c.conversation_type FROM conversation_members cm
+        JOIN conversations c ON c.id=cm.conversation_id
+        WHERE cm.conversation_id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!members.rowCount) throw new NotFoundException({code:'CONVERSATION_NOT_FOUND',message:'Sohbet bulunamadı.'});
       const target=await client.query(`SELECT member_role FROM conversation_members
         WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL FOR UPDATE`,[id,targetId]);
       if(!target.rowCount) throw new NotFoundException({code:'CHAT_MEMBER_NOT_FOUND',message:'Sohbet üyesi bulunamadı.'});
-      if(target.rows[0].member_role==='owner') throw new ConflictException({code:'CHAT_OWNER_REQUIRED',message:'Sohbet sahibi ayrılmadan önce sahipliği devretmelidir.'});
       if(user.id!==targetId&&members.rows[0].member_role!=='owner'&&members.rows[0].member_role!=='admin') throw new ForbiddenException({code:'CHAT_MEMBER_MANAGE_DENIED',message:'Bu üye için kaldırma yetkiniz yok.'});
+      if(target.rows[0].member_role==='owner'&&(members.rows[0].conversation_type==='group'||user.id!==targetId)) throw new ConflictException({code:'CHAT_OWNER_REQUIRED',message:'Grup sahibi ayrılmadan önce sahipliği devretmelidir.'});
       await client.query(`UPDATE conversation_members SET left_at=now() WHERE conversation_id=$1 AND user_id=$2`,[id,targetId]);
       await client.query('COMMIT');
     } catch(error) { await client.query('ROLLBACK'); throw error; }
