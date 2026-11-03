@@ -4,6 +4,8 @@ import './app.css';
 import './bitrix-glass.css';
 import './motion.css';
 import './projects.css';
+import './brand.css';
+import './people-chat.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
