@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
 
@@ -357,6 +357,7 @@ export class TasksService {
   }
 
   async projects(user: AuthUser, view = 'active') {
+    await this.assertProjectWorkflowMigration();
     if (!['active', 'archived', 'all'].includes(view)) throw invalid('Proje görünümü geçersiz.');
     const result = await this.db.query(
       `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",p.owner_user_id AS "ownerId",
@@ -381,6 +382,7 @@ export class TasksService {
   }
 
   async projectDetails(user: AuthUser, id: string) {
+    await this.assertProjectWorkflowMigration();
     assertUuid(id);
     const projectResult=await this.db.query(
       `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",creator.display_name AS "creatorName",
@@ -426,6 +428,7 @@ export class TasksService {
   }
 
   async createProject(user: AuthUser, input: unknown) {
+    await this.assertProjectWorkflowMigration();
     const value=objectInput(input);
     const allowed=new Set(['name','description','memberIds','status','startsOn','targetOn']);
     if(Object.keys(value).some((key)=>!allowed.has(key))) throw invalid('Proje alanlarını kontrol edin.');
@@ -470,6 +473,7 @@ export class TasksService {
   }
 
   async updateProject(user: AuthUser, id: string, input: unknown) {
+    await this.assertProjectWorkflowMigration();
     assertUuid(id);
     const value=objectInput(input);
     const allowed=new Set(['version','name','description','status','ownerId','startsOn','targetOn','memberIds']);
@@ -540,6 +544,7 @@ export class TasksService {
   }
 
   async archiveProject(user: AuthUser, id: string, input: unknown, restore: boolean): Promise<void> {
+    await this.assertProjectWorkflowMigration();
     assertUuid(id);
     const value=objectInput(input);
     const allowedKeys = restore ? new Set(['version', 'restoreStatus']) : new Set(['version']);
@@ -705,6 +710,31 @@ export class TasksService {
     if (!UUID.test(userId)) throw invalid('Görev sorumlusu geçersiz.');
     const result = await client.query("SELECT 1 FROM users WHERE id = $1 AND status = 'active'", [userId]);
     if (!result.rowCount) throw invalid('Etkin olmayan bir kullanıcı görev sorumlusu olamaz.');
+  }
+
+  private async assertProjectWorkflowMigration(): Promise<void> {
+    try {
+      const applied = await this.db.query(
+        `SELECT 1 FROM app_schema_migrations WHERE version = $1`,
+        ['0005_project_workflow.sql'],
+      );
+      if (!applied.rowCount) {
+        throw new ServiceUnavailableException({
+          code: 'PROJECT_MIGRATION_REQUIRED',
+          message: 'Projeler veritabanı güncellemesi eksik. Projeleri kullanmak için `npm run db:migrate --workspace @encev-pulse/api` komutunu çalıştırın ve API hizmetini yeniden başlatın.',
+        });
+      }
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if (code === '42P01' || code === '42703') {
+        throw new ServiceUnavailableException({
+          code: 'PROJECT_MIGRATION_REQUIRED',
+          message: 'Projeler veritabanı güncellemesi eksik. Projeleri kullanmak için `npm run db:migrate --workspace @encev-pulse/api` komutunu çalıştırın ve API hizmetini yeniden başlatın.',
+        });
+      }
+      throw error;
+    }
   }
 
   private async assertProjectMember(client: import('pg').PoolClient, projectId: string, actorId: string, assigneeId: string) {
