@@ -12,6 +12,8 @@ test('Takvim ekranı gerçek API kayıtlarını ve mevcut görev/proje tarih izd
   const root = await readFile(new URL('../app/root.tsx', import.meta.url), 'utf8');
 
   assert.match(workspace, /<CalendarWorkspace/);
+  assert.match(workspace, /name: 'home'.*'calendar-days'/);
+  assert.match(workspace, /name === 'calendar-days'/);
   assert.match(workspace, /hasModulePermission\('calendar'\)/);
   assert.match(calendar, /calendar\?from=/);
   assert.match(calendar, /aria-label="Takvim görünümü"/);

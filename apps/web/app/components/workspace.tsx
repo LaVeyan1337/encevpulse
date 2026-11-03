@@ -2524,7 +2524,7 @@ export function Workspace({
   );
 }
 
-function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' }) {
+function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' | 'calendar-days' }) {
   let path = null;
   if (name === 'home') {
     path = (
@@ -2553,6 +2553,14 @@ function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message
       <>
         <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7h2A7.5 7.5 0 0 1 20 14.5z" />
         <path d="M8 12h8M8 15h5" />
+      </>
+    );
+  } else if (name === 'calendar-days') {
+    path = (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 10h18" />
+        <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
       </>
     );
   } else if (name === 'folder') {
