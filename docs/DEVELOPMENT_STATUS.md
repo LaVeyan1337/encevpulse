@@ -69,19 +69,21 @@
 - **API Build:** `@encev-pulse/api` `nest build` hatasız geçti.
 - **Web Build:** `@encev-pulse/web` `react-router build` SPA çıktısı hatasız geçti.
 - **TypeScript Typecheck:** İki workspace'te de `tsc --noEmit` hatasız geçti (0 hata).
-- **API Entegrasyon Testleri:** 18 geçti:
+- **API Entegrasyon Testleri:** 19 geçti:
   - Yerel auth akışı: Origin, CSRF challenge, yanlış parola doğrulaması, oturum süresi, çıkış, yönetici kullanıcı oluşturma, geçici parola ve rate limit.
   - Argon2id parola hashi doğrulaması ve kullanıcı başına farklı salt.
   - Health/readiness kontrolleri (PostgreSQL canlı kontrolü).
   - Görev CRUD, sürüm kontrolü (version conflict 409), arşivleme, geri yükleme, proje üyeliği, bildirimler, genel özet ve göreve özel audit geçmişi (`GET /tasks/:id/activity`).
   - Görev yorumları: erişim sınırı, yalnız yazarın düzenleme/silme yetkisi, sürüm çakışması, silinen metnin boşaltılması ve yorum bildirimi.
-- **Web Testleri:** 7 geçti:
+  - Proje çalışma alanı: sahip/üye erişimi, detay, durum/tarih, üye değişikliği, sürüm çakışması, arşiv/geri yükleme ve önceki durumu bilinmeyen eski arşiv kaydında açık durum seçimi.
+- **Web Testleri:** 8 geçti:
   - Same-origin API istemcisi doğrulaması.
   - Tema kalıcılığı ve yerel depolama bağımsızlığı.
   - Doğal kurumsal ürün dili ve pazarlama sloganı/tanılama sızıntısı yokluğu.
   - Workspace Genel Bakış metrikleri, Görev Geçmişi, Kanban sürükle-bırak, arama ve görev yorum arayüzü kontrolleri.
   - Cam görsel katmanının kök uygulamaya bağlanması.
   - Ghost skeleton, sayfa/drawer animasyonları ve hareket azaltma tercihinin kontrolü.
+  - Proje listesi, proje detay sekmeleri, edit/üyelik, arşiv/geri yükleme ve eski arşiv durum seçimi.
 - **Güvenlik Sınırı:** Testler ve geliştirme yalnızca izole yerel PostgreSQL (`127.0.0.1:5432`) ve fixture verileriyle yürütüldü; şirket dosya sunucusuna (`\\192.168.1.55\Genel Evrak`) hiçbir ağ isteği gönderilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
