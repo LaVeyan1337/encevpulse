@@ -197,3 +197,15 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(api, /@Post\('messages\/\:id\/create-task'\)/);
   assert.match(api, /@Patch\('conversations\/\:id\/members\/\:userId\/role'\)/);
 });
+
+
+test('Üst bildirim menüsü sohbet bildirimini okuyup doğru konuşmayı açar', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const service = await readFile(new URL('../../api/src/tasks/tasks.service.ts', import.meta.url), 'utf8');
+  assert.match(workspace, /eventType === 'chat\.message'/);
+  assert.match(workspace, /setChatStartConversationId\(notification\.conversationId\)/);
+  assert.match(workspace, /initialConversationId=\{chatStartConversationId\}/);
+  assert.match(workspace, /notification\.preview/);
+  assert.match(service, /'chat\.message'::text AS "eventType"/);
+  assert.match(service, /UPDATE chat_notifications cn SET read_at/);
+});
