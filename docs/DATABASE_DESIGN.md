@@ -38,8 +38,9 @@
 
 | Varlık | Temel alanlar / ilişkiler | Not |
 |---|---|---|
-| `projects` | id, name, description, status, created_by, created_at, updated_at, archived_at | Temel proje kaydı; silinmek yerine arşivlenir. |
-| `project_members` | project_id, user_id, added_by, added_at | Üyelik bileşik primary key ile tektir; proje görevi görünürlüğü üyelikten gelir. |
+| `projects` | id, name, description, status, created_by, owner_user_id, starts_on, target_on, version, status_before_archive, created_at, updated_at, archived_at | `0005_project_workflow.sql` ile proje sahibi, başlangıç/hedef tarihleri, yaşam döngüsü ve sürüm kontrolü uygulandı; arşiv önceki durumu saklar. |
+| `project_members` | project_id, user_id, added_by, added_at | Üyelik bileşik primary key ile tektir; proje görevi görünürlüğü üyelikten gelir. Proje sahibi üyeliği zorunludur; sahip/oluşturan proje yönetebilir, üye proje bağlamını okuyabilir. |
+| `project_audit_events` | id, project_id, actor_user_id, event_type, details, created_at | Proje oluşturma, güncelleme, üye değişikliği ve arşiv/geri yükleme olayları append-only trigger ile korunur; event metadata'sı proje içeriğini veya sırları kopyalamaz. |
 | `tasks` | id, project_id nullable, title, description, status, priority, created_by, assignee_id, starts_on, due_on, archived_at, position, version | Proje dışı kişisel görev desteklenir. `version` eşzamanlı düzenleme çakışmasını yakalar. |
 | `task_audit_events` | id, task_id, actor_user_id, action, changes, occurred_at | Temel görev oluşturma/değişiklik/arşiv olayları eklemelidir; içerik değerleri değil değişen alan adları saklanır. UPDATE/DELETE trigger ile reddedilir. |
 | `notifications` | id, recipient_user_id, actor_user_id, task_id, event_type, idempotency_key, created_at, read_at | Görev atama ve görev yorumu bildirimi; olay, görev/yorum transaction'ında oluşur. Alıcı, görev kapsamı kontrolünü geçmeden bildirim veya görev başlığını göremez. |
@@ -51,6 +52,8 @@
 Görevlerde `(assignee_id, status, due_on)`, `(created_by, status, due_on)`, `(project_id, status, position)` ve `(user_id, project_id)` üyelik indeksleri kullanılır. Görev API'si sayfa başına en çok 200 satır ve 10.000'e kadar offset kabul eder; büyüyen veri kümelerinde kararlı keyset cursor'a geçilmelidir. Arşivlenmiş kayıtları liste dışına alan sorgular tüm ekranlarda tutarlı olmalıdır.
 
 İlk görev erişim kuralı: kaydı oluşturan, atanan kullanıcı veya bağlı projenin üyesi görevi okuyabilir ve güncelleyebilir. Proje görevi oluşturulurken hem işlemi yapanın hem de atanan kullanıcının proje üyesi olması şarttır. Yetkisiz görev kimliği 404 döner. Her görev güncellemesi beklenen `version` değerini gönderir; sürüm uyuşmazlığı 409 döner. Oluşturma, alan değişikliği, arşivleme ve geri yükleme ile görev audit satırı tek transaction içinde yazılır.
+
+Proje yaşam döngüsü için 0005 migration'ı uygulanmıştır. Proje listesi/detayı erişim kapsamına göre filtrelenir; sahip ve üyeler sunucu tarafında doğrulanır. Düzenleme, üyelik değişikliği ve arşiv işlemleri transaction ve `version` kontrolü ile yapılır; çakışma 409 döner. Proje audit olayları append-only saklanır.
 
 Görev yorumları için 0004 migration'ı uygulanmıştır. Yorum okuma görevin mevcut erişim kuralını izler; yorum eklemek/düzenlemek/silmek için görev arşivlenmemiş olmalıdır. Düzenleme ve silme yalnız yorumu yazan kullanıcıya açıktır; sürüm alanı çakışmayı 409 ile bildirir. Yorum metni 4.000 karakterle sınırlandırılmıştır. Silme işlemi gövdeyi boşaltır, ancak yorum kaydı ve metin içermeyen olay geçmişi korunur. Yorum bildirimi aynı transaction içinde yalnız etkin ve göreve erişebilen diğer kullanıcılara yazılır.
 
