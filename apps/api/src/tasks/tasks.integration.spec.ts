@@ -207,6 +207,28 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.equal(restoredDetail.response.status, 200);
       assert.equal(restoredDetail.data.project.status, 'active');
       assert.ok(restoredDetail.data.activity.some((event: { eventType: string }) => event.eventType === 'restored'));
+
+      const archivedAgain = await api(base, alice, `projects/${projectId}/archive`, 'POST', {
+        version: restoredDetail.data.project.version,
+      });
+      assert.equal(archivedAgain.response.status, 204);
+      const legacyDetail = await api(base, alice, `projects/${projectId}`);
+      assert.equal(legacyDetail.data.project.statusBeforeArchive, 'active');
+
+      // Simulate a legacy archived row that predates status_before_archive.
+      await pool.query('UPDATE projects SET status_before_archive = NULL WHERE id = $1', [projectId]);
+      const noRestoreChoice = await api(base, alice, `projects/${projectId}/restore`, 'POST', {
+        version: legacyDetail.data.project.version,
+      });
+      assert.equal(noRestoreChoice.response.status, 400);
+
+      const explicitRestore = await api(base, alice, `projects/${projectId}/restore`, 'POST', {
+        version: legacyDetail.data.project.version,
+        restoreStatus: 'on_hold',
+      });
+      assert.equal(explicitRestore.response.status, 204);
+      const restoredLegacy = await api(base, alice, `projects/${projectId}`);
+      assert.equal(restoredLegacy.data.project.status, 'on_hold');
     });
 
     await t.test('görev yorumları: yetki, düzenleme, silme, sürüm ve bildirim', async () => {
