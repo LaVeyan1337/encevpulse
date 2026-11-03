@@ -54,6 +54,16 @@ export class ChatController {
     return this.chat.addMembers(await this.auth.authorizeRequest(request, true), id, body);
   }
 
+  @Patch('conversations/:id/members/:userId/role')
+  async updateMemberRole(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() body: unknown,
+  ) {
+    return this.chat.updateMemberRole(await this.auth.authorizeRequest(request, true), id, userId, body);
+  }
+
   @Delete('conversations/:id/members/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeMember(@Req() request: Request, @Param('id') id: string, @Param('userId') userId: string) {
