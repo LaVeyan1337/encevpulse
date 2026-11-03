@@ -302,7 +302,7 @@ export function Workspace({
 
   useEffect(()=>{
     if(hasModulePermission(section))return;
-    const next:(Section[])=['overview','tasks','projects','people','chat','users'].filter(item=>hasModulePermission(item));
+    const next=(['overview','tasks','projects','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
     if(next[0])setSection(next[0]);
   },[section,hasModulePermission]);
 
