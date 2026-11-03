@@ -69,6 +69,8 @@
 - Konuşma arama, son 50 mesaj ve daha eski mesajları imleçle sayfalama, okundu imleçleri, okunmamış sayacı ve sabitlenmiş mesajlar yer alır.
 - Grup sahibi yönetici/üye atayabilir; owner/admin/member izinleri API'de doğrulanır. Üye ekleme, çıkarma ve rol değişiklikleri değiştirilemez olay tablosunda kaydedilir.
 - Mesajdan görev oluşturma, kaynak mesaja geri bağlantı ve yinelenen görev üretimini önleyen tekillik kuralı içerir.
+- Sohbet mesaj bildirimleri görev bildirimleriyle aynı üst menüde toplanır; bildirime tıklama hedef konuşmayı açar, okundu durumu ve genel okunmamış sayacı güncellenir.
+- Sohbet listesinde, doğrudan konuşma başlığında, üye listesinde ve mesajlarda aynı çalışan avatarı kullanılır. Arama sonucu seçildiğinde mesajın kendisi bulunana kadar geçmiş sayfaları yüklenir ve mesaj ekranda ortalanır.
 - Tarayıcı tarafında yaklaşık 3 saniyelik yenileme kullanılır; bu sürüm WebSocket/SSE değildir ve gerçek zamanlı push olarak tanımlanmamalıdır.
 - Sohbet eki yükleme kapalıdır. Eklerin izinli MIME türleri, boyut sınırı, zararlı yazılım taraması ve saklama süresi karara bağlanmamıştır. Sesli/görüntülü görüşme düğmesi eklenmemiştir.
 ### D. Gerçek Genel Bakış
@@ -87,7 +89,8 @@
 
 - Önceki kaynak sürümünde API/Web build, TypeScript ve görev/proje/yorum testleri CI'da başarılıydı. Bu sonuç yeni çalışan/sohbet kodunun test edildiği anlamına gelmez.
 - Yeni çalışan profili testleri; alanlar, avatar, roller, rehber API'si ve profil güncellemesini kapsayacak şekilde genişletildi.
-- Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, mesaj, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi ve mesajdan görev oluşturmayı kapsar.
+- Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, idempotent mesaj gönderimi, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi, birleşik bildirim akışı ve mesajdan görev oluşturmayı kapsar.
+- Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
 - Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
 - **Güncel özellik dalının tam test/build doğrulaması henüz tamamlanmadı.** Son kod güncellemeleri GitHub içeriği üzerinden ayrı commitler olarak işlendi; kullanılan CI tetikleyicisi bu commitlerden otomatik yeni koşu başlatmadı. Son kullanıcı push'uyla CI tekrar çalıştırılmalıdır. Güncel kod için başarılı derleme/test iddiası yoktur.
 - CI tasarımı yalnızca GitHub Actions'ın geçici PostgreSQL 18.6 servisini ve sahte fixture kullanıcılarını kullanır. Yerel Windows kurulumu, tarayıcı etkileşimleri ve mevcut yerel veritabanı bu oturumda test edilmedi.
