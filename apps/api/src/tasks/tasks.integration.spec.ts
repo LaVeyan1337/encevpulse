@@ -140,6 +140,75 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.equal(invalidPage.response.status, 400);
     });
 
+    await t.test('proje çalışma alanı: detay, durum, tarih, üyelik, sürüm ve arşiv', async () => {
+      const created = await api(base, alice, 'projects', 'POST', {
+        name: 'Project workspace fixture',
+        description: 'Project detail integration coverage',
+        status: 'planning',
+        startsOn: '2026-11-04',
+        targetOn: '2026-12-31',
+        memberIds: [userIds[1]],
+      });
+      assert.equal(created.response.status, 201, JSON.stringify(created.data));
+      const projectId = created.data.project.id as string;
+      projectIds.push(projectId);
+      assert.equal(created.data.project.ownerId, userIds[0]);
+      assert.equal(created.data.project.startsOn, '2026-11-04');
+      assert.equal(created.data.project.targetOn, '2026-12-31');
+
+      const detail = await api(base, alice, `projects/${projectId}`);
+      assert.equal(detail.response.status, 200);
+      assert.equal(detail.data.project.status, 'planning');
+      assert.equal(detail.data.members.length, 2);
+      assert.ok(detail.data.members.some((member: { id: string; isOwner: boolean }) => member.id === userIds[0] && member.isOwner));
+      assert.ok(detail.data.activity.some((event: { eventType: string }) => event.eventType === 'created'));
+
+      const hidden = await api(base, outsider, `projects/${projectId}`);
+      assert.equal(hidden.response.status, 404);
+
+      const updated = await api(base, alice, `projects/${projectId}`, 'PATCH', {
+        version: detail.data.project.version,
+        name: 'Project workspace revised',
+        status: 'active',
+        memberIds: [userIds[2]],
+      });
+      assert.equal(updated.response.status, 200, JSON.stringify(updated.data));
+      assert.equal(updated.data.project.name, 'Project workspace revised');
+      assert.equal(updated.data.project.status, 'active');
+      assert.equal(updated.data.members.length, 2);
+      assert.ok(updated.data.members.some((member: { id: string }) => member.id === userIds[2]));
+
+      const stale = await api(base, alice, `projects/${projectId}`, 'PATCH', {
+        version: detail.data.project.version,
+        name: 'Stale overwrite',
+      });
+      assert.equal(stale.response.status, 409);
+
+      const removedMember = await api(base, bob, `projects/${projectId}`);
+      assert.equal(removedMember.response.status, 404);
+      const newMember = await api(base, outsider, `projects/${projectId}`, 'PATCH', {
+        version: updated.data.project.version,
+        description: 'Unauthorized metadata edit',
+      });
+      assert.equal(newMember.response.status, 403);
+
+      const activeList = await api(base, alice, 'projects');
+      assert.ok(activeList.data.projects.some((project: { id: string }) => project.id === projectId));
+      const archived = await api(base, alice, `projects/${projectId}/archive`, 'POST', { version: updated.data.project.version });
+      assert.equal(archived.response.status, 204);
+      const hiddenFromActive = await api(base, alice, 'projects');
+      assert.ok(!hiddenFromActive.data.projects.some((project: { id: string }) => project.id === projectId));
+      const archivedList = await api(base, alice, 'projects?view=archived');
+      assert.ok(archivedList.data.projects.some((project: { id: string }) => project.id === projectId));
+
+      const restored = await api(base, alice, `projects/${projectId}/restore`, 'POST', { version: updated.data.project.version + 1 });
+      assert.equal(restored.response.status, 204);
+      const restoredDetail = await api(base, alice, `projects/${projectId}`);
+      assert.equal(restoredDetail.response.status, 200);
+      assert.equal(restoredDetail.data.project.status, 'active');
+      assert.ok(restoredDetail.data.activity.some((event: { eventType: string }) => event.eventType === 'restored'));
+    });
+
     await t.test('görev yorumları: yetki, düzenleme, silme, sürüm ve bildirim', async () => {
       const taskResult = await api(base, alice, 'tasks', 'POST', {
         title: 'Comment fixture task', assigneeId: userIds[1],
@@ -215,11 +284,13 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('BEGIN');
         await cleanup.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
         await cleanup.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
+        await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM notifications WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comment_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_audit_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM tasks WHERE id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM project_audit_events WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM projects WHERE id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM auth_sessions WHERE user_id = ANY($1::uuid[])', [userIds]);
@@ -228,6 +299,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
         await cleanup.query('ALTER TABLE task_comment_events ENABLE TRIGGER task_comment_events_append_only');
         await cleanup.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
+        await cleanup.query('ALTER TABLE project_audit_events ENABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('COMMIT');
       } catch (error) {
         await cleanup.query('ROLLBACK');
