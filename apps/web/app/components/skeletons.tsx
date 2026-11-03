@@ -100,3 +100,37 @@ export function TaskBoardSkeleton({ layout }: { layout: 'board' | 'list' }) {
     </div>
   );
 }
+
+export function TimelineSkeleton() {
+  return (
+    <div className="inline-skeleton-rows" role="status" aria-label="Görev geçmişi yükleniyor" aria-busy="true">
+      {[0, 1, 2].map((row) => (
+        <div className="inline-skeleton-row" key={row} aria-hidden="true">
+          <GhostLine className="ghost-avatar" />
+          <div className="inline-skeleton-copy">
+            <GhostLine className="ghost-list-main" />
+            <GhostLine className="ghost-subheading" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CommentListSkeleton() {
+  return (
+    <div className="inline-skeleton-rows" role="status" aria-label="Görev yorumları yükleniyor" aria-busy="true">
+      {[0, 1, 2].map((row) => (
+        <div className="skeleton-comment" key={row} aria-hidden="true">
+          <div className="skeleton-comment-meta">
+            <GhostLine className="ghost-avatar" />
+            <GhostLine className="ghost-person" />
+            <GhostLine className="ghost-date" />
+          </div>
+          <GhostLine className="ghost-task-title" />
+          <GhostLine className="ghost-task-title ghost-task-title-short" />
+        </div>
+      ))}
+    </div>
+  );
+}
