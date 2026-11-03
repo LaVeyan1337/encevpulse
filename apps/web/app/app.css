@@ -2101,8 +2101,10 @@ select.form-group,
   border-radius: 13px;
   box-shadow: var(--shadow-sm);
 }
+.summary-card > * { position: relative; z-index: 1; }
 .summary-card::after {
   content: '';
+  z-index: 0;
   position: absolute;
   width: 104px;
   height: 104px;
@@ -2288,11 +2290,16 @@ select:focus-visible, textarea:focus-visible {
   .kanban-column { padding: 14px; }
 }
 @media (max-width: 1050px) {
+  :root { --sidebar-w: 210px; }
   .workspace-content { padding-inline: 24px; }
   .drawer-lg { width: min(680px, 100vw); }
 }
 @media (max-width: 760px) {
-  .workspace-sidebar { padding-inline: 8px; }
+  .workspace-sidebar { width: 100%; padding: 0 8px; box-shadow: 0 -8px 28px rgba(0, 0, 0, .08); }
+  .workspace-sidebar.mobile-open { width: 100%; padding: 0 12px 18px; box-shadow: none; }
+  .workspace-topbar { height: 58px; }
+  .task-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .task-filters { flex-direction: column; align-items: stretch; gap: 8px; }
   .workspace-content { padding: 20px 16px 32px; }
   .workspace-heading { align-items: flex-start; }
   .summary-card { min-height: 104px; }
