@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Drawer } from './drawer';
 import { ChatWorkspace } from './chat-workspace';
 import { PeopleDirectory } from './people-directory';
+import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
 export interface User {
@@ -1010,19 +1011,30 @@ export function Workspace({
           {/* User Profile Menu */}
           <details className="user-menu">
             <summary>
-              <span className="user-avatar">
-                {user.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-              </span>
+              <EmployeeAvatar avatarKey={user.avatarKey} name={user.displayName} size="sm"/>
               <span className="user-menu-name">{user.displayName}</span>
               <span className="chevron">⌄</span>
             </summary>
             <div className="user-menu-popover">
               <div className="user-profile-summary">
                 <strong>{user.displayName}</strong>
+                <span>{user.jobTitle || 'Görev belirtilmedi'} · {user.department || 'Birim belirtilmedi'}</span>
                 <span>{user.email}</span>
-                <span className="user-role-tag">
-                  {user.roles.includes('system_admin') ? 'Sistem Yöneticisi' : 'Çalışan'}
-                </span>
+                <div className="user-profile-roles">
+                  {user.roles.map((role) => (
+                    <span className="user-role-tag" key={role}>
+                      {({
+                        employee:'Çalışan',
+                        team_lead:'Ekip sorumlusu',
+                        project_manager:'Proje yöneticisi',
+                        process_owner:'Süreç sahibi',
+                        document_steward:'Belge sorumlusu',
+                        auditor:'Denetçi',
+                        system_admin:'Sistem yöneticisi',
+                      } as Record<string,string>)[role] ?? role}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="user-menu-divider" />
               <button
