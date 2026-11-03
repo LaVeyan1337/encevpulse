@@ -61,7 +61,7 @@ export class ChatService {
       const client=await this.db.pool.connect();
       try {
         await client.query('BEGIN');
-        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2))`,[low,high]);
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))`,[low,high]);
         const found=await client.query(`SELECT id FROM conversations WHERE conversation_type='direct'
           AND direct_user_low=$1 AND direct_user_high=$2 AND archived_at IS NULL FOR UPDATE`,[low,high]);
         if(found.rowCount) {
