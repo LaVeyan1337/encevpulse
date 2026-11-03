@@ -274,6 +274,11 @@ export default function Home() {
         return;
       }
       const user = result.user as ManagedUser;
+      if (editing && view.status === 'authenticated' && user.id === view.user.id) {
+        setView((current) => current.status === 'authenticated'
+          ? { ...current, user: { ...current.user, ...user } }
+          : current);
+      }
       setManagedUsers((users) =>
         (editing ? users.map((item) => item.id === user.id ? user : item) : [...users, user])
           .sort((left, right) => left.displayName.localeCompare(right.displayName, 'tr')),
