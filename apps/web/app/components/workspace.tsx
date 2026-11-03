@@ -34,6 +34,11 @@ export interface Person {
   id: string;
   displayName: string;
   username: string;
+  email?: string;
+  jobTitle?: string;
+  department?: string;
+  avatarKey?: string;
+  roles?: string[];
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
@@ -138,7 +143,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -328,14 +333,12 @@ export function Workspace({
         taskResult,
         summaryResult,
         peopleResult,
-        projectResult,
         notificationResult,
         activityResult,
       ] = await Promise.all([
         request(taskListPath(0)),
         request('tasks/summary'),
         request('tasks/people'),
-        request('tasks/projects'),
         request('notifications'),
         request('tasks/activity'),
       ]);
@@ -351,7 +354,14 @@ export function Workspace({
       });
       setUpcoming(summaryResult.upcoming as Task[]);
       setPeople(peopleResult.people as Person[]);
-      setProjects(projectResult.projects as Project[]);
+      try {
+        const projectResult = await request('tasks/projects');
+        setProjects(projectResult.projects as Project[]);
+        setProjectError('');
+      } catch (projectCause) {
+        setProjects([]);
+        setProjectError(projectCause instanceof Error ? projectCause.message : 'Projeler yüklenemedi.');
+      }
       setNotifications(notificationResult.notifications as Notification[]);
       setUnreadCount(Number(notificationResult.unreadCount) || 0);
       setActivity(activityResult.activity as Activity[]);
@@ -755,7 +765,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -801,6 +811,28 @@ export function Workspace({
           >
             <Icon name="check" />
             <span>Görevler</span>
+          </button>
+          <button
+            type="button"
+            className={section === 'people' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('people');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="users" />
+            <span>Çalışanlar</span>
+          </button>
+          <button
+            type="button"
+            className={section === 'chat' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('chat');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="message" />
+            <span>Sohbet</span>
           </button>
           <button
             type="button"
@@ -2350,7 +2382,7 @@ export function Workspace({
   );
 }
 
-function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'search' | 'bell' | 'menu' }) {
+function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' }) {
   let path = null;
   if (name === 'home') {
     path = (
@@ -2372,6 +2404,13 @@ function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'search'
         <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="10" cy="7" r="4" />
         <path d="M20 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />
+      </>
+    );
+  } else if (name === 'message') {
+    path = (
+      <>
+        <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7h2A7.5 7.5 0 0 1 20 14.5z" />
+        <path d="M8 12h8M8 15h5" />
       </>
     );
   } else if (name === 'folder') {
