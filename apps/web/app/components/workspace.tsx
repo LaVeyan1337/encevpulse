@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Drawer } from './drawer';
+import { ChatWorkspace } from './chat-workspace';
+import { PeopleDirectory } from './people-directory';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
 export interface User {
@@ -242,6 +244,7 @@ export function Workspace({
   const [upcoming, setUpcoming] = useState<Task[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [chatStartUserId, setChatStartUserId] = useState<string | null>(null);
   const [projectView, setProjectView] = useState<'active' | 'archived'>('active');
   const [projectDetail, setProjectDetail] = useState<ProjectDetails | null>(null);
   const [projectDetailOpen, setProjectDetailOpen] = useState(false);
@@ -617,6 +620,19 @@ export function Workspace({
     }
   }
 
+  const clearChatStart = useCallback(() => setChatStartUserId(null), []);
+
+  async function openChatTask(taskId: string) {
+    try {
+      const result = await request(`tasks/${taskId}`);
+      setSection('tasks');
+      setSelected(result.task as Task);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Mesajdan oluşturulan görev açılamadı.');
+    }
+  }
+
   async function openProject(projectId: string) {
     setProjectDetailOpen(true);
     setProjectLoading(true);
@@ -710,7 +726,7 @@ export function Workspace({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
-    setError('');
+    setProjectError('');
     const members = form.getAll('members').map(String);
     try {
       await request('projects', 'POST', {
@@ -725,7 +741,7 @@ export function Workspace({
       setMessage('Proje oluşturuldu.');
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Proje oluşturulamadı.');
+      setProjectError(cause instanceof Error ? cause.message : 'Proje oluşturulamadı.');
     } finally {
       setBusy(false);
     }
@@ -1550,9 +1566,31 @@ export function Workspace({
             </section>
           )}
 
+          {section === 'people' && (
+            <PeopleDirectory
+              people={people}
+              onMessage={(person) => {
+                setChatStartUserId(person.id);
+                setSection('chat');
+              }}
+            />
+          )}
+
+          {section === 'chat' && (
+            <ChatWorkspace
+              request={request}
+              people={people}
+              currentUserId={user.id}
+              startUserId={chatStartUserId}
+              onStartConsumed={clearChatStart}
+              onTaskOpen={(taskId) => void openChatTask(taskId)}
+            />
+          )}
+
           {/* Project Workspace */}
           {section === 'projects' && (
             <section className="projects-section" aria-label="Projeler">
+              {projectError && <p className="auth-error" role="alert">{projectError}</p>}
               <div className="projects-toolbar">
                 <div>
                   <strong>{projectView === 'active' ? 'Çalışma alanındaki projeler' : 'Arşivlenmiş projeler'}</strong>
