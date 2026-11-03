@@ -140,6 +140,50 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.equal(invalidPage.response.status, 400);
     });
 
+    await t.test('görev yorumları: yetki, düzenleme, silme, sürüm ve bildirim', async () => {
+      const taskResult = await api(base, alice, 'tasks', 'POST', {
+        title: 'Comment fixture task', assigneeId: userIds[1],
+      });
+      assert.equal(taskResult.response.status, 201);
+      const taskId = taskResult.data.task.id as string;
+      taskIds.push(taskId);
+
+      const created = await api(base, bob, `tasks/${taskId}/comments`, 'POST', { body: 'İlk görev yorumu' });
+      assert.equal(created.response.status, 201);
+      assert.equal(created.data.comment.authorName, `Task fixture ${names[1]}`);
+      assert.equal(created.data.comment.version, 1);
+
+      const outsiderRead = await api(base, outsider, `tasks/${taskId}/comments`);
+      assert.equal(outsiderRead.response.status, 404);
+      const otherUserEdit = await api(base, alice, `tasks/${taskId}/comments/${created.data.comment.id}`, 'PATCH', {
+        body: 'Başkasının yorumu', version: 1,
+      });
+      assert.equal(otherUserEdit.response.status, 403);
+
+      const edited = await api(base, bob, `tasks/${taskId}/comments/${created.data.comment.id}`, 'PATCH', {
+        body: 'Düzenlenmiş görev yorumu', version: 1,
+      });
+      assert.equal(edited.response.status, 200);
+      assert.equal(edited.data.comment.body, 'Düzenlenmiş görev yorumu');
+      assert.equal(edited.data.comment.version, 2);
+
+      const staleDelete = await api(base, bob, `tasks/${taskId}/comments/${created.data.comment.id}`, 'DELETE', { version: 1 });
+      assert.equal(staleDelete.response.status, 409);
+
+      const deleted = await api(base, bob, `tasks/${taskId}/comments/${created.data.comment.id}`, 'DELETE', { version: 2 });
+      assert.equal(deleted.response.status, 204);
+      const listed = await api(base, alice, `tasks/${taskId}/comments`);
+      assert.equal(listed.response.status, 200);
+      assert.equal(listed.data.comments.length, 1);
+      assert.equal(listed.data.comments[0].body, '');
+      assert.ok(listed.data.comments[0].deletedAt);
+
+      const inbox = await api(base, alice, 'notifications');
+      assert.ok(inbox.data.notifications.some((notification: { taskId: string; eventType: string }) =>
+        notification.taskId === taskId && notification.eventType === 'task.comment',
+      ));
+    });
+
     await t.test('sürüm çakışması, durum güncelleme, arşiv ve geri yükleme', async () => {
       const taskId = taskIds[0];
       const initial = await api(base, alice, `tasks/${taskId}`);
@@ -170,7 +214,10 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       try {
         await cleanup.query('BEGIN');
         await cleanup.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
+        await cleanup.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
         await cleanup.query('DELETE FROM notifications WHERE task_id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM task_comment_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_audit_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM tasks WHERE id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id = ANY($1::uuid[])', [projectIds]);
@@ -179,6 +226,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('DELETE FROM user_role_assignments WHERE user_id = ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM auth_audit_events WHERE actor_user_id = ANY($1::uuid[]) OR target_user_id = ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
+        await cleanup.query('ALTER TABLE task_comment_events ENABLE TRIGGER task_comment_events_append_only');
         await cleanup.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
         await cleanup.query('COMMIT');
       } catch (error) {
