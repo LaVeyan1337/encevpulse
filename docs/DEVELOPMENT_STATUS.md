@@ -21,7 +21,7 @@
 
 ### B. Profesyonel ana uygulama arayüzü
 - Modern, Bitrix24 kullanım kolaylığına yakın, ENCEV PULSE'a özgü kurumsal tasarım sistemi.
-- Sabit sol navigasyon: Genel Bakış, Görevler ve sistem yöneticisine özel Kullanıcılar.
+- Sabit sol navigasyon: Genel Bakış, Görevler, Projeler ve sistem yöneticisine özel Kullanıcılar.
 - Üst bar (topbar):
   - Üst arama alanı (topbar-search): Görev filtreleme ve anlık arama ile tam senkronize.
   - Bildirim menüsü: Görev atama bildirimleri, okunmamış rozeti ve bildirime tıklandığında görevi sağ çekmecede açma.
@@ -44,6 +44,10 @@
   - **Temel görev geçmişi (Task audit trail)**: `/api/tasks/:id/activity` uç noktası üzerinden göreve ait tüm hareketleri (oluşturulma, alan güncellemeleri, arşivleme, geri yükleme) aktör ve zaman bilgisiyle listeler.
 - Görev arşivleme ve arşivden geri yükleme (iyimser eşzamanlılık ve sürüm doğrulaması ile).
 - Proje oluşturma ve üyeleri atama çekmecesi.
+- **Projeler çalışma alanı:** erişilebilen projeleri aktif/arşiv görünümünde listeleme; gerçek görev sayısı/tamamlanma oranı, sahip, üye sayısı ve tarihleri gösteren kartlar.
+- **Proje detayı:** genel bakış, bağlı görevler ve üyeler sekmeleri; görevden mevcut görev detayına geçiş; proje audit hareketleri.
+- **Proje yönetimi:** proje adı/açıklaması, hazırlık/aktif/beklemede/tamamlandı durumu, sahip, başlangıç/hedef tarihleri ve üyelik düzenleme; sürüm çakışması kontrolü; arşivleme ve arşivden geri yükleme.
+- Proje erişimi API'de doğrulanır; sahip ve oluşturan düzenleme/arşiv yetkisine sahiptir, üyeler proje bağlamını okuyabilir. Proje arşivi bağlı görevleri silmez.
 - Görev içi yorumlar: görev erişim kuralına bağlı listeleme/ekleme; yalnız yorum yazarının düzenleme ve silme yetkisi; 4.000 karakter sınırı; iyimser sürüm kontrolü.
 - Yorum silme metni boşaltır; yorum kaydı ve metin içermeyen, eklemeli yorum olay geçmişi korunur.
 - Yorum eklendiğinde görev kaydına erişebilen diğer etkin kullanıcılara aynı transaction içinde tekil uygulama içi bildirim yazılır.
@@ -85,6 +89,6 @@
 - Yerel ilk yönetici hesabı kullanıcı tarafından oluşturuldu; parola ve kimlik bilgileri bu belgeye yazılmaz.
 - **Sıradaki geliştirme alanları:**
   - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
-  - Temel Projeler iş akışının tamamlanması: proje ayrıntısı, düzenleme, durum/tarih yönetimi, üyelik değişiklikleri ve görev bağlantıları.
-  - Üç panelli şirket içi sohbet: kalıcı mesajlar, yanıtlar, reaksiyonlar, düzenleme/silme, okundu bilgisi, arama ve mesajdan görev oluşturma; WebSocket/outbox ile gerçek zamanlı dağıtım.
+  - Sohbet: üç panelli, kalıcı mesajlaşma; yanıt, reaksiyon, düzenleme/silme, okundu bilgisi, arama ve mesajdan görev oluşturma.
+  - Sohbetin gönderim/okunma ve gerçek zamanlı teslim politikası için outbox akışının uygulanması; tek instance çalışma sınırları doğrulanmadan Redis/mikroservis eklenmez.
   - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
