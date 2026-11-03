@@ -746,7 +746,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -792,6 +792,17 @@ export function Workspace({
           >
             <Icon name="check" />
             <span>Görevler</span>
+          </button>
+          <button
+            type="button"
+            className={section === 'projects' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('projects');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Projeler</span>
           </button>
           {user.roles.includes('system_admin') && (
             <button
@@ -965,6 +976,17 @@ export function Workspace({
               <p className="eyebrow">ENCEV PULSE</p>
               <h1>{sectionTitle}</h1>
             </div>
+            {section === 'projects' && (
+              <div className="heading-actions">
+                <button
+                  type="button"
+                  className="primary-button compact-button"
+                  onClick={() => setProjectFormOpen(true)}
+                >
+                  Proje oluştur
+                </button>
+              </div>
+            )}
             {section === 'tasks' && (
               <div className="heading-actions">
                 <button
@@ -1482,6 +1504,77 @@ export function Workspace({
                   >
                     {loadingMore ? 'Yükleniyor…' : 'Daha fazla görev göster'}
                   </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Project Workspace */}
+          {section === 'projects' && (
+            <section className="projects-section" aria-label="Projeler">
+              <div className="projects-toolbar">
+                <div>
+                  <strong>{projectView === 'active' ? 'Çalışma alanındaki projeler' : 'Arşivlenmiş projeler'}</strong>
+                  <span>{projects.length} proje</span>
+                </div>
+                <div className="project-view-switch" role="group" aria-label="Proje görünümü">
+                  <button type="button" aria-pressed={projectView === 'active'} onClick={() => void loadProjects('active')}>Aktif</button>
+                  <button type="button" aria-pressed={projectView === 'archived'} onClick={() => void loadProjects('archived')}>Arşiv</button>
+                </div>
+              </div>
+              {loading ? (
+                <ProjectGridSkeleton />
+              ) : projects.length === 0 ? (
+                <div className="large-empty empty-state">
+                  <Icon name="folder" />
+                  <strong>{projectView === 'active' ? 'Henüz proje bulunmuyor' : 'Arşivlenmiş proje yok'}</strong>
+                  <span>{projectView === 'active' ? 'Oluşturduğunuz veya üyesi olduğunuz projeler burada görünür.' : 'Arşivlenen projeler bu alanda listelenir.'}</span>
+                  {projectView === 'active' && (
+                    <button type="button" className="primary-button compact-button" onClick={() => setProjectFormOpen(true)}>İlk projeyi oluştur</button>
+                  )}
+                </div>
+              ) : (
+                <div className="project-grid">
+                  {projects.map((project) => {
+                    const completed = Number(project.completedTaskCount ?? 0);
+                    const total = Number(project.taskCount ?? 0);
+                    const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+                    return (
+                      <button
+                        type="button"
+                        className={`project-card${project.archivedAt ? ' project-card-archived' : ''}`}
+                        key={project.id}
+                        onClick={() => void openProject(project.id)}
+                        aria-label={`${project.name} projesini aç`}
+                      >
+                        <div className="project-card-top">
+                          <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                          <span className="project-card-code">#{project.id.slice(0, 6).toUpperCase()}</span>
+                        </div>
+                        <h2>{project.name}</h2>
+                        <p className="project-card-description">{project.description || 'Proje açıklaması eklenmemiş.'}</p>
+                        <div className="project-card-dates">
+                          <span>Başlangıç <strong>{dateLabel(project.startsOn ?? null)}</strong></span>
+                          <span>Hedef <strong>{dateLabel(project.targetOn ?? null)}</strong></span>
+                        </div>
+                        <div className="project-progress-heading">
+                          <span>Görev ilerlemesi</span>
+                          <strong>{total > 0 ? `${progress}%` : 'Görev yok'}</strong>
+                        </div>
+                        <div className="project-progress-track" aria-label={`Tamamlanan görev: ${completed} / ${total}`}>
+                          <span style={{ width: `${progress}%` }} />
+                        </div>
+                        <div className="project-card-footer">
+                          <span className="project-card-owner">
+                            <span className="assignee-avatar-sm">{(project.ownerName || 'S').trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                            <span>{project.ownerName || 'Sahip bilgisi yok'}</span>
+                          </span>
+                          <span>{Number(project.memberCount ?? 0)} üye</span>
+                          <span>{total} görev</span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -2007,7 +2100,7 @@ export function Workspace({
   );
 }
 
-function Icon({ name }: { name: 'home' | 'check' | 'users' | 'search' | 'bell' | 'menu' }) {
+function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'search' | 'bell' | 'menu' }) {
   let path = null;
   if (name === 'home') {
     path = (
@@ -2029,6 +2122,13 @@ function Icon({ name }: { name: 'home' | 'check' | 'users' | 'search' | 'bell' |
         <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
         <circle cx="10" cy="7" r="4" />
         <path d="M20 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />
+      </>
+    );
+  } else if (name === 'folder') {
+    path = (
+      <>
+        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+        <path d="M3.5 9h17" />
       </>
     );
   } else if (name === 'search') {
