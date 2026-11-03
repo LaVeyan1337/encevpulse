@@ -128,7 +128,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
          VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
         [usernames[index],`${usernames[index]}@encev.com.tr`,['Chat Owner','Chat Admin','Chat Member','Chat Observer'][index],
           ['Proje yöneticisi','Biyolog','ÇED uzmanı','Gözlemci'][index],['Projeler','Flora-Fauna','ÇED','Gözlem'][index],
-          ['fox','panda','otter'][index],hash],
+          ['fox','panda','otter','deer'][index],hash],
       );
       userIds.push(user.rows[0].id);
       await pool.query(
