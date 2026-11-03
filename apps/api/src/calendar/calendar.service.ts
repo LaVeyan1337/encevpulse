@@ -38,7 +38,7 @@ export class CalendarService {
 
     const events = await this.db.query(
       `SELECT e.id, e.title, e.description, e.event_type AS "eventType", e.visibility,
-              e.project_id AS "projectId", p.name AS "projectName", e.all_day AS "allDay",
+              e.project_id AS "projectId", p.name AS "projectName", p.owner_user_id AS "projectOwnerId", e.all_day AS "allDay",
               e.starts_at AS "startsAt", e.ends_at AS "endsAt",
               e.starts_on::text AS "startsOn", e.ends_on::text AS "endsOn",
               e.location, e.version, e.created_by AS "createdBy",
@@ -201,7 +201,7 @@ export class CalendarService {
   private async eventById(id: string) {
     const result = await this.db.query(
       `SELECT e.id,e.title,e.description,e.event_type AS "eventType",e.visibility,
-              e.project_id AS "projectId",p.name AS "projectName",e.all_day AS "allDay",
+              e.project_id AS "projectId",p.name AS "projectName",p.owner_user_id AS "projectOwnerId",e.all_day AS "allDay",
               e.starts_at AS "startsAt",e.ends_at AS "endsAt",
               e.starts_on::text AS "startsOn",e.ends_on::text AS "endsOn",
               e.location,e.version,e.created_by AS "createdBy",

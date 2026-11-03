@@ -1652,6 +1652,7 @@ export function Workspace({
               request={request}
               people={people}
               projects={projects}
+              currentUserId={user.id}
               canCreate={hasModulePermission('calendar','create')}
               canUpdate={hasModulePermission('calendar','update')}
               canDelete={hasModulePermission('calendar','delete')}

@@ -176,6 +176,22 @@ test('takvim API: kişisel, ortak ve proje etkinlikleri; kapsam, tarih izdüşü
     const bobEventIds = bobCalendar.data.events.map((event: { id: string }) => event.id);
     assert.ok(bobEventIds.includes(eventIds[0]), 'Proje üyesi proje etkinliğini görebilmeli.');
     assert.ok(bobEventIds.includes(eventIds[1]), 'Ortak etkinlik diğer takvim kullanıcılarına görünmeli.');
+    const memberCannotEdit = await api(base, bob, `calendar/events/${eventIds[0]}`, 'PATCH', {
+      title: 'Üyenin izinsiz düzenlemesi',
+      description: '',
+      eventType: 'meeting',
+      visibility: 'project',
+      projectId,
+      allDay: true,
+      startsOn: '2026-12-10',
+      endsOn: '2026-12-10',
+      startsAt: null,
+      endsAt: null,
+      location: '',
+      attendeeIds: [userIds[1]],
+      version: 1,
+    });
+    assert.equal(memberCannotEdit.response.status, 403);
     assert.ok(!bobEventIds.includes(eventIds[2]), 'Kişisel etkinlik başka kullanıcıya görünmemeli.');
     assert.ok(bobCalendar.data.milestones.some((item: { kind: string; entityId: string }) => item.kind === 'task_start' && item.entityId === taskIds[0]));
     assert.ok(bobCalendar.data.milestones.some((item: { kind: string; entityId: string }) => item.kind === 'task_due' && item.entityId === taskIds[0]));

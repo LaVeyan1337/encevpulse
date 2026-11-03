@@ -13,6 +13,7 @@ interface CalendarEvent {
   visibility: Visibility;
   projectId: string | null;
   projectName: string | null;
+  projectOwnerId: string | null;
   allDay: boolean;
   startsAt: string | null;
   endsAt: string | null;
@@ -213,6 +214,7 @@ export function CalendarWorkspace({
   request,
   people,
   projects,
+  currentUserId,
   canCreate,
   canUpdate,
   canDelete,
@@ -224,6 +226,7 @@ export function CalendarWorkspace({
   request: Request;
   people: Person[];
   projects: Project[];
+  currentUserId: string;
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
@@ -312,6 +315,7 @@ export function CalendarWorkspace({
 
   const entriesForDay = (day: string) => allEntries.filter((entry) => entry.date === day);
   const visibleProjects = projects.filter((project) => project.status !== 'archived' && !project.archivedAt);
+  const canManageSelectedEvent = Boolean(selectedEvent && (selectedEvent.createdBy === currentUserId || selectedEvent.projectOwnerId === currentUserId));
 
   function changeSelectedDate(day: string) {
     setSelectedDate(day);
@@ -681,8 +685,8 @@ export function CalendarWorkspace({
                 )}
               </div>
               <div className="calendar-form-actions">
-                {canUpdate && <button type="button" className="secondary-button" onClick={() => openEdit(selectedEvent)}>Düzenle</button>}
-                {canDelete && <button type="button" className="danger-button" onClick={() => void archiveEvent(selectedEvent)} disabled={busy}>Arşivle</button>}
+                {canUpdate && canManageSelectedEvent && <button type="button" className="secondary-button" onClick={() => openEdit(selectedEvent)}>Düzenle</button>}
+                {canDelete && canManageSelectedEvent && <button type="button" className="danger-button" onClick={() => void archiveEvent(selectedEvent)} disabled={busy}>Arşivle</button>}
               </div>
             </div>
           ) : (

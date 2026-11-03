@@ -19,6 +19,9 @@ test('Takvim ekranı gerçek API kayıtlarını ve mevcut görev/proje tarih izd
   assert.match(calendar, /aria-label="Takvim görünümü"/);
   assert.match(calendar, /view === 'month' \? 7 : days\.length/);
   assert.match(calendar, /className="calendar-day-select"/);
+  assert.match(calendar, /currentUserId/);
+  assert.match(calendar, /canManageSelectedEvent/);
+  assert.match(calendar, /selectedEvent\.projectOwnerId === currentUserId/);
   assert.match(calendar, /<div className="calendar-cell-entries">/);
   assert.match(calendar, /\['month', 'Ay'\]/);
   assert.match(calendar, /\['week', 'Hafta'\]/);
