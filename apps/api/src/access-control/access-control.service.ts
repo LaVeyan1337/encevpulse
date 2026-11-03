@@ -19,11 +19,11 @@ export class AccessControlService {
          JOIN roles r ON r.id=ura.role_id
          JOIN role_module_permissions p ON p.role_id=r.id
          JOIN app_modules m ON m.module_key=p.module_key
-         WHERE ura.user_id=$1 AND r.code=ANY($2::text[])
+         WHERE ura.user_id=$1 AND r.code=ANY(string_to_array($2,','))
            AND p.module_key=$3 AND m.is_enabled=true
            AND p.permission_key IN ($4,'manage')
        ) AS allowed`,
-      [user.id,user.roles,moduleKey,action],
+      [user.id,user.roles.join(','),moduleKey,action],
     );
     if(!result.rows[0]?.allowed) throw new ForbiddenException({
       code:'MODULE_PERMISSION_DENIED',message:'Bu işlem için modül yetkiniz bulunmuyor.',module:moduleKey,action,
@@ -48,10 +48,10 @@ export class AccessControlService {
          COALESCE(array_agg(DISTINCT p.permission_key) FILTER (WHERE p.permission_key IS NOT NULL),ARRAY[]::text[]) AS actions
        FROM app_modules m
        LEFT JOIN role_module_permissions p ON p.module_key=m.module_key
-         AND p.role_id IN (SELECT id FROM roles WHERE code=ANY($1::text[]))
+         AND p.role_id IN (SELECT id FROM roles WHERE code=ANY(string_to_array($1,',')))
        GROUP BY m.module_key,m.display_name,m.is_enabled,m.sort_order
        ORDER BY m.sort_order,m.display_name`,
-      [roleCodes],
+      [roleCodes.join(',')],
     );
     const modules=result.rows.map(row=>{
       const actions=new Set(row.actions);
@@ -119,8 +119,8 @@ export class AccessControlService {
       await client.query('DELETE FROM role_module_permissions WHERE role_id=$1 AND module_key=$2',[role.rows[0].id,moduleKey]);
       if(actions.length) await client.query(
         `INSERT INTO role_module_permissions(role_id,module_key,permission_key,assigned_by)
-         SELECT $1,$2,permissions.permission_key,$3 FROM unnest($4::text[]) AS permissions(permission_key)`,
-        [role.rows[0].id,moduleKey,actor.id,actions],
+         SELECT $1,$2,permissions.permission_key,$3 FROM unnest(string_to_array($4,',')) AS permissions(permission_key)`,
+        [role.rows[0].id,moduleKey,actor.id,actions.join(',')],
       );
       await client.query(
         `INSERT INTO auth_audit_events(actor_user_id,action,details)
