@@ -1481,9 +1481,7 @@ export function Workspace({
                                 <span className="task-card-title">{task.title}</span>
                                 <div className="task-card-meta">
                                   <span className="task-card-assignee">
-                                    <span className="assignee-avatar-sm">
-                                      {task.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                                    </span>
+                                    <EmployeeAvatar avatarKey={people.find((person) => person.id === task.assigneeId)?.avatarKey} name={task.assigneeName} size="sm"/>
                                     <span>{task.assigneeName}</span>
                                   </span>
                                   {task.dueOn && (
@@ -1556,9 +1554,7 @@ export function Workspace({
                           </td>
                           <td>
                             <span className="table-assignee">
-                              <span className="assignee-avatar-sm">
-                                {task.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                              </span>
+                              <EmployeeAvatar avatarKey={people.find((person) => person.id === task.assigneeId)?.avatarKey} name={task.assigneeName} size="sm"/>
                               <span>{task.assigneeName}</span>
                             </span>
                           </td>
@@ -1693,7 +1689,7 @@ export function Workspace({
                         </div>
                         <div className="project-card-footer">
                           <span className="project-card-owner">
-                            <span className="assignee-avatar-sm">{(project.ownerName || 'S').trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                            <EmployeeAvatar avatarKey={people.find((person) => person.id === project.ownerId)?.avatarKey} name={project.ownerName || 'Proje sahibi'} size="sm"/>
                             <span>{project.ownerName || 'Sahip bilgisi yok'}</span>
                           </span>
                           <span>{Number(project.memberCount ?? 0)} üye</span>
@@ -1930,9 +1926,7 @@ export function Workspace({
               <div>
                 <dt>Sorumlu</dt>
                 <dd className="detail-person">
-                  <span className="assignee-avatar-sm">
-                    {selected.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                  </span>
+                  <EmployeeAvatar avatarKey={people.find((person) => person.id === selected.assigneeId)?.avatarKey} name={selected.assigneeName} size="sm"/>
                   <span>{selected.assigneeName}</span>
                 </dd>
               </div>
@@ -2369,7 +2363,7 @@ export function Workspace({
                   <div className="project-member-list">
                     {projectDetail.members.map((member) => (
                       <div className="project-member-row" key={member.id}>
-                        <span className="user-avatar">{member.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                        <EmployeeAvatar avatarKey={people.find((person) => person.id === member.id)?.avatarKey} name={member.displayName} size="md"/>
                         <div><strong>{member.displayName}</strong><span>{member.username}</span></div>
                         {member.isOwner && <span className="project-owner-label">Proje sahibi</span>}
                       </div>
