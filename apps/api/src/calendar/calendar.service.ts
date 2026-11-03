@@ -84,7 +84,11 @@ export class CalendarService {
     ]);
     return {
       range: { from, to, timeZone: 'Europe/Istanbul' },
-      events: events.rows,
+      events: events.rows.map((event) => ({
+        ...event,
+        startsAt: isoInstant(event.startsAt),
+        endsAt: isoInstant(event.endsAt),
+      })),
       milestones: [...taskMilestones, ...projectMilestones].sort((a, b) =>
         String(a.date).localeCompare(String(b.date)) || String(a.title).localeCompare(String(b.title), 'tr'),
       ),
@@ -217,7 +221,14 @@ export class CalendarService {
       [id],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CALENDAR_EVENT_NOT_FOUND', message: 'Etkinlik bulunamadı.' });
-    return { event: result.rows[0] };
+    const event = result.rows[0];
+    return {
+      event: {
+        ...event,
+        startsAt: isoInstant(event.startsAt),
+        endsAt: isoInstant(event.endsAt),
+      },
+    };
   }
 
   private async lockManagedEvent(client: PoolClient, id: string, userId: string) {
@@ -418,4 +429,14 @@ function assertUuid(value: string): void {
 
 function invalid(message: string): BadRequestException {
   return new BadRequestException({ code: 'INVALID_CALENDAR_REQUEST', message });
+}
+
+
+function isoInstant(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  if (!Number.isFinite(parsed.getTime())) {
+    throw new Error('Database returned an invalid calendar timestamp.');
+  }
+  return parsed.toISOString();
 }
