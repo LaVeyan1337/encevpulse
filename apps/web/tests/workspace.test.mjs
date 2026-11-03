@@ -197,7 +197,7 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(chat, /Dosya ekleri bu sürümde güvenlik/);
   assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);
   assert.match(styles, /\.people-card/);
-  assert.match(motion, /@media\\(prefers-reduced-motion:reduce\\)\\{[\\s\\S]*?\\.chat-message/);
+  assert.match(motion, /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?\.chat-message/);
   assert.match(api, /@Post\('conversations\/\:id\/messages'\)/);
   assert.match(api, /@Patch\('messages\/\:id'\)/);
   assert.match(api, /@Post\('messages\/\:id\/create-task'\)/);
