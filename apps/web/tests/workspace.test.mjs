@@ -185,6 +185,11 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(chat, /replyToId/);
   assert.match(chat, /reactions/);
   assert.match(chat, /create-task/);
+  assert.match(chat, /Mesajdan görev/);
+  assert.match(chat, /taskDraftAssigneeId/);
+  assert.match(chat, /taskDraftProjectId/);
+  assert.match(chat, /Gruptan ayrıl/);
+  assert.match(chat, /Sohbet sahibi/);
   assert.match(chat, /\/members\/\$\{member\.id\}\/role/);
   assert.match(chat, /setInterval/);
   assert.match(chat, /Gönderim başarısız/);
