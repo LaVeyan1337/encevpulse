@@ -8,32 +8,32 @@
   font-family: 'Segoe UI', system-ui, Arial, sans-serif;
   color-scheme: dark;
 
-  --page: #0d1117;
-  --surface: #161b22;
-  --surface-raised: #1c2331;
-  --surface-hover: #232d3f;
-  --border: rgba(175, 202, 230, 0.1);
-  --border-strong: rgba(175, 202, 230, 0.18);
-  --text: #e6edf3;
-  --text-secondary: #8b98a9;
-  --text-muted: #58677a;
-  --accent: #2dd4bf;
-  --accent-hover: #5eead4;
-  --accent-deep: #0f9488;
-  --accent-subtle: rgba(45, 212, 191, 0.1);
-  --accent-subtle-hover: rgba(45, 212, 191, 0.16);
-  --danger: #f87171;
-  --danger-bg: rgba(248, 113, 113, 0.1);
-  --danger-border: rgba(248, 113, 113, 0.25);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.1);
-  --success: #34d399;
-  --success-bg: rgba(52, 211, 153, 0.1);
+  --page: #101722;
+  --surface: #182230;
+  --surface-raised: #202c3b;
+  --surface-hover: #29384a;
+  --border: rgba(185, 199, 218, .12);
+  --border-strong: rgba(185, 199, 218, .21);
+  --text: #edf1f6;
+  --text-secondary: #a7b3c2;
+  --text-muted: #77869a;
+  --accent: #d1a06a;
+  --accent-hover: #e0b782;
+  --accent-deep: #986b3b;
+  --accent-subtle: rgba(209, 160, 106, .13);
+  --accent-subtle-hover: rgba(209, 160, 106, .2);
+  --danger: #f07d7d;
+  --danger-bg: rgba(240, 125, 125, .11);
+  --danger-border: rgba(240, 125, 125, .28);
+  --warning: #e5b56b;
+  --warning-bg: rgba(229, 181, 107, .12);
+  --success: #79c6a3;
+  --success-bg: rgba(121, 198, 163, .12);
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
-  --shadow-md: 0 4px 12px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3);
-  --shadow-lg: 0 12px 32px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.35);
-  --shadow-drawer: -16px 0 48px rgba(0,0,0,.5), -4px 0 12px rgba(0,0,0,.3);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .16);
+  --shadow-md: 0 10px 26px rgba(0, 0, 0, .2);
+  --shadow-lg: 0 22px 56px rgba(0, 0, 0, .3);
+  --shadow-drawer: -18px 0 56px rgba(0, 0, 0, .34);
 
   --radius-sm: 5px;
   --radius-md: 8px;
@@ -41,40 +41,40 @@
   --radius-xl: 14px;
   --radius-full: 9999px;
 
-  --sidebar-w: 234px;
-  --topbar-h: 60px;
+  --sidebar-w: 248px;
+  --topbar-h: 66px;
   --transition: 0.15s ease;
 }
 
 /* ---- Tokens: Açık Tema ---- */
 :root[data-theme='light'] {
   color-scheme: light;
-  --page: #f4f6f8;
+  --page: #f0f2f5;
   --surface: #ffffff;
-  --surface-raised: #f0f4f7;
-  --surface-hover: #e8edf3;
-  --border: rgba(30, 50, 80, 0.1);
-  --border-strong: rgba(30, 50, 80, 0.18);
-  --text: #0f1923;
-  --text-secondary: #4a5a6a;
-  --text-muted: #8496a6;
-  --accent: #0d9488;
-  --accent-hover: #0f766e;
-  --accent-deep: #0a6b63;
-  --accent-subtle: rgba(13, 148, 136, 0.09);
-  --accent-subtle-hover: rgba(13, 148, 136, 0.15);
-  --danger: #dc2626;
-  --danger-bg: rgba(220, 38, 38, 0.07);
-  --danger-border: rgba(220, 38, 38, 0.2);
-  --warning: #d97706;
-  --warning-bg: rgba(217, 119, 6, 0.09);
-  --success: #059669;
-  --success-bg: rgba(5, 150, 105, 0.09);
+  --surface-raised: #f6f7f9;
+  --surface-hover: #eceff3;
+  --border: rgba(34, 48, 67, .1);
+  --border-strong: rgba(34, 48, 67, .17);
+  --text: #202a36;
+  --text-secondary: #586777;
+  --text-muted: #83909d;
+  --accent: #98652f;
+  --accent-hover: #7d5125;
+  --accent-deep: #70471f;
+  --accent-subtle: rgba(152, 101, 47, .1);
+  --accent-subtle-hover: rgba(152, 101, 47, .16);
+  --danger: #c74444;
+  --danger-bg: rgba(199, 68, 68, .07);
+  --danger-border: rgba(199, 68, 68, .2);
+  --warning: #a96c1d;
+  --warning-bg: rgba(169, 108, 29, .09);
+  --success: #267e5d;
+  --success-bg: rgba(38, 126, 93, .09);
 
-  --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,.1), 0 2px 6px rgba(0,0,0,.07);
-  --shadow-lg: 0 12px 32px rgba(0,0,0,.14), 0 4px 12px rgba(0,0,0,.09);
-  --shadow-drawer: -12px 0 40px rgba(0,0,0,.12), -2px 0 8px rgba(0,0,0,.07);
+  --shadow-sm: 0 2px 8px rgba(24, 39, 58, .045);
+  --shadow-md: 0 10px 26px rgba(24, 39, 58, .075);
+  --shadow-lg: 0 22px 56px rgba(24, 39, 58, .12);
+  --shadow-drawer: -18px 0 56px rgba(24, 39, 58, .15);
 }
 
 /* ============================================================
@@ -1961,65 +1961,6 @@ select.form-group,
 /* ============================================================
    ENCEV PULSE — Visual refinement / 2026
    ============================================================ */
-:root {
-  color-scheme: dark;
-  --page: #101722;
-  --surface: #182230;
-  --surface-raised: #202c3b;
-  --surface-hover: #29384a;
-  --border: rgba(185, 199, 218, .12);
-  --border-strong: rgba(185, 199, 218, .21);
-  --text: #edf1f6;
-  --text-secondary: #a7b3c2;
-  --text-muted: #77869a;
-  --accent: #d1a06a;
-  --accent-hover: #e0b782;
-  --accent-deep: #986b3b;
-  --accent-subtle: rgba(209, 160, 106, .13);
-  --accent-subtle-hover: rgba(209, 160, 106, .2);
-  --danger: #f07d7d;
-  --danger-bg: rgba(240, 125, 125, .11);
-  --danger-border: rgba(240, 125, 125, .28);
-  --warning: #e5b56b;
-  --warning-bg: rgba(229, 181, 107, .12);
-  --success: #79c6a3;
-  --success-bg: rgba(121, 198, 163, .12);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .16);
-  --shadow-md: 0 10px 26px rgba(0, 0, 0, .2);
-  --shadow-lg: 0 22px 56px rgba(0, 0, 0, .3);
-  --shadow-drawer: -18px 0 56px rgba(0, 0, 0, .34);
-  --sidebar-w: 248px;
-  --topbar-h: 66px;
-}
-:root[data-theme='light'] {
-  color-scheme: light;
-  --page: #f0f2f5;
-  --surface: #ffffff;
-  --surface-raised: #f6f7f9;
-  --surface-hover: #eceff3;
-  --border: rgba(34, 48, 67, .1);
-  --border-strong: rgba(34, 48, 67, .17);
-  --text: #202a36;
-  --text-secondary: #586777;
-  --text-muted: #83909d;
-  --accent: #98652f;
-  --accent-hover: #7d5125;
-  --accent-deep: #70471f;
-  --accent-subtle: rgba(152, 101, 47, .1);
-  --accent-subtle-hover: rgba(152, 101, 47, .16);
-  --danger: #c74444;
-  --danger-bg: rgba(199, 68, 68, .07);
-  --danger-border: rgba(199, 68, 68, .2);
-  --warning: #a96c1d;
-  --warning-bg: rgba(169, 108, 29, .09);
-  --success: #267e5d;
-  --success-bg: rgba(38, 126, 93, .09);
-  --shadow-sm: 0 2px 8px rgba(24, 39, 58, .045);
-  --shadow-md: 0 10px 26px rgba(24, 39, 58, .075);
-  --shadow-lg: 0 22px 56px rgba(24, 39, 58, .12);
-  --shadow-drawer: -18px 0 56px rgba(24, 39, 58, .15);
-}
-
 /* Layered workspace background and clearer navigation hierarchy */
 .workspace-shell {
   min-height: 100vh;
