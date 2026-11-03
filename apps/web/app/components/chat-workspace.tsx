@@ -33,6 +33,7 @@ export function ChatWorkspace({
   people,
   currentUserId,
   startUserId,
+  initialConversationId,
   onStartConsumed,
   onTaskOpen,
 }:{
@@ -40,6 +41,7 @@ export function ChatWorkspace({
   people:DirectoryPerson[];
   currentUserId:string;
   startUserId?:string|null;
+  initialConversationId?:string|null;
   onStartConsumed:()=>void;
   onTaskOpen:(taskId:string)=>void;
 }) {
@@ -133,6 +135,9 @@ export function ChatWorkspace({
           await loadConversations();
           await openConversation(id);
           onStartConsumed();
+        } else if(initialConversationId) {
+          await openConversation(initialConversationId);
+          onStartConsumed();
         } else if(list.length) {
           await openConversation(list[0].id);
         }
@@ -143,7 +148,7 @@ export function ChatWorkspace({
       }
     })();
     return ()=>{cancelled=true;};
-  },[loadConversations,openConversation,request,startUserId,onStartConsumed]);
+  },[loadConversations,openConversation,request,startUserId,initialConversationId,onStartConsumed]);
 
   useEffect(()=>{
     if(!selectedId)return;
