@@ -359,7 +359,7 @@ export class TasksService {
   async projects(user: AuthUser, view = 'active') {
     if (!['active', 'archived', 'all'].includes(view)) throw invalid('Proje görünümü geçersiz.');
     const result = await this.db.query(
-      \`SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",p.owner_user_id AS "ownerId",
+      `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",p.owner_user_id AS "ownerId",
               owner.display_name AS "ownerName",p.starts_on::text AS "startsOn",p.target_on::text AS "targetOn",
               p.version,p.archived_at AS "archivedAt",p.created_at AS "createdAt",
               COUNT(DISTINCT t.id)::int AS "taskCount",
@@ -375,7 +375,7 @@ export class TasksService {
          OR ($2='archived' AND (p.archived_at IS NOT NULL OR p.status='archived')) OR $2='all')
        GROUP BY p.id,owner.display_name
        ORDER BY CASE WHEN p.archived_at IS NULL AND p.status<>'archived' THEN 0 ELSE 1 END,
-                p.target_on NULLS LAST,p.updated_at DESC,p.name LIMIT 250\`,[user.id,view],
+                p.target_on NULLS LAST,p.updated_at DESC,p.name LIMIT 250`,[user.id,view],
     );
     return { projects: result.rows };
   }
@@ -383,7 +383,7 @@ export class TasksService {
   async projectDetails(user: AuthUser, id: string) {
     assertUuid(id);
     const projectResult=await this.db.query(
-      \`SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",creator.display_name AS "creatorName",
+      `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",creator.display_name AS "creatorName",
               p.owner_user_id AS "ownerId",owner.display_name AS "ownerName",p.starts_on::text AS "startsOn",
               p.target_on::text AS "targetOn",p.version,p.archived_at AS "archivedAt",p.created_at AS "createdAt",
               p.updated_at AS "updatedAt",COUNT(DISTINCT t.id)::int AS "taskCount",
@@ -395,30 +395,30 @@ export class TasksService {
        WHERE p.id=$1 AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS (
          SELECT 1 FROM project_members access_pm WHERE access_pm.project_id=p.id AND access_pm.user_id=$2
        ))
-       GROUP BY p.id,owner.display_name,creator.display_name\`,[id,user.id],
+       GROUP BY p.id,owner.display_name,creator.display_name`,[id,user.id],
     );
     if(!projectResult.rowCount) throw new NotFoundException({code:'PROJECT_NOT_FOUND',message:'Proje bulunamadı.'});
     const [members,tasks,activity]=await Promise.all([
       this.db.query(
-        \`SELECT u.id,u.display_name AS "displayName",u.username,(u.id=$3) AS "isOwner",pm.added_at AS "addedAt"
+        `SELECT u.id,u.display_name AS "displayName",u.username,(u.id=$3) AS "isOwner",pm.added_at AS "addedAt"
          FROM project_members pm JOIN users u ON u.id=pm.user_id
          WHERE pm.project_id=$1 AND (u.status='active' OR u.id=$3)
-         ORDER BY (u.id=$3) DESC,u.display_name\`,[id,user.id,projectResult.rows[0].ownerId],
+         ORDER BY (u.id=$3) DESC,u.display_name`,[id,user.id,projectResult.rows[0].ownerId],
       ),
       this.db.query(
-        \`SELECT t.id,t.title,t.status,t.priority,t.assignee_id AS "assigneeId",a.display_name AS "assigneeName",
+        `SELECT t.id,t.title,t.status,t.priority,t.assignee_id AS "assigneeId",a.display_name AS "assigneeName",
                 t.starts_on::text AS "startsOn",t.due_on::text AS "dueOn"
          FROM tasks t JOIN users a ON a.id=t.assignee_id
          WHERE t.project_id=$1 AND t.archived_at IS NULL
            AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
              SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
            ))
-         ORDER BY CASE WHEN t.status='done' THEN 1 ELSE 0 END,t.due_on NULLS LAST,t.updated_at DESC LIMIT 200\`,[id,user.id],
+         ORDER BY CASE WHEN t.status='done' THEN 1 ELSE 0 END,t.due_on NULLS LAST,t.updated_at DESC LIMIT 200`,[id,user.id],
       ),
       this.db.query(
-        \`SELECT e.id,e.event_type AS "eventType",e.details,e.created_at AS "createdAt",actor.display_name AS "actorName"
+        `SELECT e.id,e.event_type AS "eventType",e.details,e.created_at AS "createdAt",actor.display_name AS "actorName"
          FROM project_audit_events e LEFT JOIN users actor ON actor.id=e.actor_user_id
-         WHERE e.project_id=$1 ORDER BY e.created_at DESC,e.id DESC LIMIT 30\`,[id],
+         WHERE e.project_id=$1 ORDER BY e.created_at DESC,e.id DESC LIMIT 30`,[id],
       ),
     ]);
     return {project:projectResult.rows[0],members:members.rows,tasks:tasks.rows,activity:activity.rows};
@@ -442,25 +442,25 @@ export class TasksService {
     try {
       await client.query('BEGIN');
       if(memberIds.length){
-        const active=await client.query(\`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'\`,[memberIds]);
+        const active=await client.query(`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'`,[memberIds]);
         if(active.rowCount!==memberIds.length) throw invalid('Etkin olmayan bir kullanıcı proje üyesi olamaz.');
       }
       const inserted=await client.query(
-        \`INSERT INTO projects(name,description,status,created_by,owner_user_id,starts_on,target_on)
+        `INSERT INTO projects(name,description,status,created_by,owner_user_id,starts_on,target_on)
          VALUES($1,$2,$3,$4,$4,$5,$6)
          RETURNING id,name,description,status,created_by AS "createdBy",owner_user_id AS "ownerId",
-           starts_on::text AS "startsOn",target_on::text AS "targetOn",version,created_at AS "createdAt"\`,
+           starts_on::text AS "startsOn",target_on::text AS "targetOn",version,created_at AS "createdAt"`,
         [name,description,status,user.id,startsOn,targetOn],
       );
       const project=inserted.rows[0];
       await client.query(
-        \`INSERT INTO project_members(project_id,user_id,added_by)
-         SELECT $1,member_id,$2 FROM unnest($3::uuid[]) AS member_id ON CONFLICT DO NOTHING\`,
+        `INSERT INTO project_members(project_id,user_id,added_by)
+         SELECT $1,member_id,$2 FROM unnest($3::uuid[]) AS member_id ON CONFLICT DO NOTHING`,
         [project.id,user.id,[user.id,...memberIds]],
       );
       await client.query(
-        \`INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'created',$3)\`,[project.id,user.id,{fields:['name','description','status','startsOn','targetOn','memberIds']}],
+        `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
+         VALUES($1,$2,'created',$3)`,[project.id,user.id,{fields:['name','description','status','startsOn','targetOn','memberIds']}],
       );
       await client.query('COMMIT');
       return {project};
@@ -480,11 +480,11 @@ export class TasksService {
     try {
       await client.query('BEGIN');
       const found=await client.query(
-        \`SELECT p.id,p.name,p.description,p.status,p.created_by,p.owner_user_id,p.starts_on::text AS starts_on,
+        `SELECT p.id,p.name,p.description,p.status,p.created_by,p.owner_user_id,p.starts_on::text AS starts_on,
                 p.target_on::text AS target_on,p.version,p.archived_at
          FROM projects p WHERE p.id=$1 AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS (
            SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
-         )) FOR UPDATE\`,[id,user.id],
+         )) FOR UPDATE`,[id,user.id],
       );
       if(!found.rowCount) throw new NotFoundException({code:'PROJECT_NOT_FOUND',message:'Proje bulunamadı.'});
       const old=found.rows[0];
@@ -500,37 +500,37 @@ export class TasksService {
       const startsOn=Object.hasOwn(value,'startsOn')?projectDateInput(value.startsOn,'Başlangıç tarihi'):old.starts_on;
       const targetOn=Object.hasOwn(value,'targetOn')?projectDateInput(value.targetOn,'Hedef tarihi'):old.target_on;
       if(startsOn&&targetOn&&startsOn>targetOn) throw invalid('Başlangıç tarihi hedef tarihinden sonra olamaz.');
-      const currentResult=await client.query(\`SELECT user_id AS id FROM project_members WHERE project_id=$1\`,[id]);
+      const currentResult=await client.query(`SELECT user_id AS id FROM project_members WHERE project_id=$1`,[id]);
       const current=currentResult.rows.map((row)=>row.id as string);
       const requested=Array.isArray(value.memberIds)?[...new Set(value.memberIds as string[])]:current;
       const members=[...new Set([...requested,ownerId])];
       if(members.length>100||members.some((memberId)=>!UUID.test(memberId))) throw invalid('Proje üyeleri geçersiz.');
-      const active=await client.query(\`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'\`,[members]);
+      const active=await client.query(`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'`,[members]);
       if(active.rowCount!==members.length) throw invalid('Etkin olmayan bir kullanıcı proje üyesi olamaz.');
       const updated=await client.query(
-        \`UPDATE projects SET name=$1,description=$2,status=$3,owner_user_id=$4,starts_on=$5,target_on=$6,
-           updated_at=now(),version=version+1 WHERE id=$7 AND version=$8 AND archived_at IS NULL RETURNING id\`,
+        `UPDATE projects SET name=$1,description=$2,status=$3,owner_user_id=$4,starts_on=$5,target_on=$6,
+           updated_at=now(),version=version+1 WHERE id=$7 AND version=$8 AND archived_at IS NULL RETURNING id`,
         [name,description,status,ownerId,startsOn,targetOn,id,Number(value.version)],
       );
       if(!updated.rowCount) throw new ConflictException({code:'PROJECT_CHANGED',message:'Proje başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
       const removed=current.filter((memberId)=>!members.includes(memberId));
       const added=members.filter((memberId)=>!current.includes(memberId));
-      if(removed.length) await client.query(\`DELETE FROM project_members WHERE project_id=$1 AND user_id=ANY($2::uuid[])\`,[id,removed]);
+      if(removed.length) await client.query(`DELETE FROM project_members WHERE project_id=$1 AND user_id=ANY($2::uuid[])`,[id,removed]);
       if(added.length) await client.query(
-        \`INSERT INTO project_members(project_id,user_id,added_by)
-         SELECT $1,member_id,$2 FROM unnest($3::uuid[]) AS member_id ON CONFLICT DO NOTHING\`,[id,user.id,added],
+        `INSERT INTO project_members(project_id,user_id,added_by)
+         SELECT $1,member_id,$2 FROM unnest($3::uuid[]) AS member_id ON CONFLICT DO NOTHING`,[id,user.id,added],
       );
       await client.query(
-        \`INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'updated',$3)\`,[id,user.id,{fields:Object.keys(value).filter((key)=>key!=='version')}],
+        `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
+         VALUES($1,$2,'updated',$3)`,[id,user.id,{fields:Object.keys(value).filter((key)=>key!=='version')}],
       );
       for(const memberId of added) await client.query(
-        \`INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'member_added',$3)\`,[id,user.id,{userId:memberId}],
+        `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
+         VALUES($1,$2,'member_added',$3)`,[id,user.id,{userId:memberId}],
       );
       for(const memberId of removed) await client.query(
-        \`INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'member_removed',$3)\`,[id,user.id,{userId:memberId}],
+        `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
+         VALUES($1,$2,'member_removed',$3)`,[id,user.id,{userId:memberId}],
       );
       await client.query('COMMIT');
       return this.projectDetails(user,id);
@@ -546,10 +546,10 @@ export class TasksService {
     try {
       await client.query('BEGIN');
       const found=await client.query(
-        \`SELECT p.created_by,p.owner_user_id,p.status,p.status_before_archive,p.archived_at,p.version
+        `SELECT p.created_by,p.owner_user_id,p.status,p.status_before_archive,p.archived_at,p.version
          FROM projects p WHERE p.id=$1 AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS (
            SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
-         )) FOR UPDATE\`,[id,user.id],
+         )) FOR UPDATE`,[id,user.id],
       );
       if(!found.rowCount) throw new NotFoundException({code:'PROJECT_NOT_FOUND',message:'Proje bulunamadı.'});
       const old=found.rows[0];
@@ -557,14 +557,14 @@ export class TasksService {
       if(old.created_by!==user.id&&old.owner_user_id!==user.id&&!user.roles.includes('system_admin')) throw new ForbiddenException({code:'PROJECT_MANAGE_DENIED',message:'Bu proje için arşiv yetkiniz yok.'});
       if(restore){
         if(!old.archived_at&&old.status!=='archived') throw new ConflictException({code:'PROJECT_NOT_ARCHIVED',message:'Proje zaten arşivde değil.'});
-        await client.query(\`UPDATE projects SET status=COALESCE(status_before_archive,'planning'),status_before_archive=NULL,archived_at=NULL,updated_at=now(),version=version+1 WHERE id=$1 AND version=$2\`,[id,Number(value.version)]);
+        await client.query(`UPDATE projects SET status=COALESCE(status_before_archive,'planning'),status_before_archive=NULL,archived_at=NULL,updated_at=now(),version=version+1 WHERE id=$1 AND version=$2`,[id,Number(value.version)]);
       }else{
         if(old.archived_at||old.status==='archived') throw new ConflictException({code:'PROJECT_ALREADY_ARCHIVED',message:'Proje zaten arşivlenmiş.'});
-        await client.query(\`UPDATE projects SET status_before_archive=status,status='archived',archived_at=now(),updated_at=now(),version=version+1 WHERE id=$1 AND version=$2\`,[id,Number(value.version)]);
+        await client.query(`UPDATE projects SET status_before_archive=status,status='archived',archived_at=now(),updated_at=now(),version=version+1 WHERE id=$1 AND version=$2`,[id,Number(value.version)]);
       }
       await client.query(
-        \`INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,$3,'{}'::jsonb)\`,[id,user.id,restore?'restored':'archived'],
+        `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
+         VALUES($1,$2,$3,'{}'::jsonb)`,[id,user.id,restore?'restored':'archived'],
       );
       await client.query('COMMIT');
     } catch(error) { await client.query('ROLLBACK'); throw error; }
