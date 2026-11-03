@@ -52,6 +52,7 @@ export interface Project {
   targetOn?: string | null;
   version?: number;
   archivedAt?: string | null;
+  statusBeforeArchive?: ProjectStatus | null;
 }
 
 export interface ProjectMember {
@@ -243,6 +244,7 @@ export function Workspace({
   const [projectError, setProjectError] = useState('');
   const [projectEditing, setProjectEditing] = useState(false);
   const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members'>('overview');
+  const [projectRestoreStatus, setProjectRestoreStatus] = useState<'' | 'planning' | 'active' | 'on_hold' | 'completed'>('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -612,6 +614,7 @@ export function Workspace({
     setProjectError('');
     setProjectDetail(null);
     setProjectTab('overview');
+    setProjectRestoreStatus('');
     try {
       const result = await request(`projects/${projectId}`);
       setProjectDetail(result as ProjectDetails);
@@ -653,9 +656,14 @@ export function Workspace({
 
   async function toggleProjectArchive() {
     if (!projectDetail) return;
-    const archived = Boolean(projectDetail.project.archivedAt);
+    const archived = Boolean(projectDetail.project.archivedAt) || projectDetail.project.status === 'archived';
+    const legacyArchive = archived && !projectDetail.project.statusBeforeArchive;
+    if (legacyArchive && !projectRestoreStatus) {
+      setProjectError('Bu eski arşiv kaydının önceki durumu bilinmiyor. Geri yükleme durumunu seçin.');
+      return;
+    }
     const question = archived
-      ? 'Bu projeyi arşivden çıkarmak istiyor musunuz?'
+      ? 'Bu projeyi seçilen duruma geri yüklemek istiyor musunuz?'
       : 'Bu projeyi arşivlemek istiyor musunuz? Projeye bağlı görevler silinmeyecek.';
     if (!window.confirm(question)) return;
     setBusy(true);
@@ -663,6 +671,7 @@ export function Workspace({
     try {
       await request(`projects/${projectDetail.project.id}/${archived ? 'restore' : 'archive'}`, 'POST', {
         version: projectDetail.project.version,
+        ...(legacyArchive ? { restoreStatus: projectRestoreStatus } : {}),
       });
       setProjectDetailOpen(false);
       setProjectDetail(null);
@@ -2157,6 +2166,25 @@ export function Workspace({
                   </div>
                 </div>
               </div>
+
+              {projectDetail.project.status === 'archived' && !projectDetail.project.statusBeforeArchive && (
+                <section className="project-legacy-restore" aria-label="Eski proje arşivini geri yükleme">
+                  <div>
+                    <strong>Arşiv öncesi durum kaydı bulunmuyor</strong>
+                    <p>Bu proje önceki sürümde arşivlenmiş. Geri yüklemek için yeni durumunu seç.</p>
+                  </div>
+                  <label>
+                    <span>Geri yüklenecek durum</span>
+                    <select value={projectRestoreStatus} onChange={(event) => setProjectRestoreStatus(event.target.value as typeof projectRestoreStatus)}>
+                      <option value="">Durum seçin…</option>
+                      <option value="planning">Hazırlık</option>
+                      <option value="active">Aktif</option>
+                      <option value="on_hold">Beklemede</option>
+                      <option value="completed">Tamamlandı</option>
+                    </select>
+                  </label>
+                </section>
+              )}
 
               <div className="project-detail-stats">
                 <div><span>Toplam görev</span><strong>{projectDetail.project.taskCount}</strong></div>
