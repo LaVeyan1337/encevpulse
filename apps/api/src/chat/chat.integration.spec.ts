@@ -24,13 +24,14 @@ function createSseEventReader(reader:ReadableStreamDefaultReader<Uint8Array>):Ss
   return {
     async next(timeoutMs=4000) {
       while(true) {
-        const boundary=buffer.indexOf('\n\n');
-        if(boundary>=0) {
+        const frameBoundary=/\r?\n\r?\n/.exec(buffer);
+        if(frameBoundary) {
+          const boundary=frameBoundary.index;
           const block=buffer.slice(0,boundary);
-          buffer=buffer.slice(boundary+2);
+          buffer=buffer.slice(boundary+frameBoundary[0].length);
           let event='message';
           const data:string[]=[];
-          for(const line of block.split('\n')) {
+          for(const line of block.split(/\r?\n/)) {
             if(line.startsWith('event:'))event=line.slice(6).trim();
             else if(line.startsWith('data:'))data.push(line.slice(5).trimStart());
           }
@@ -47,7 +48,7 @@ function createSseEventReader(reader:ReadableStreamDefaultReader<Uint8Array>):Ss
         if(result===null)return null;
         pending=null;
         if(result.done)return null;
-        buffer+=decoder.decode(result.value,{stream:true}).replace(/\r\n/g,'\n');
+        buffer+=decoder.decode(result.value,{stream:true});
       }
     },
     async close() {
@@ -59,6 +60,7 @@ function createSseEventReader(reader:ReadableStreamDefaultReader<Uint8Array>):Ss
 async function openChatEvents(base:string,client:Client):Promise<SseEventReader> {
   const response=await fetch(base+'/api/chat/events',{
     headers:{Origin:ORIGIN,Cookie:client.cookie,Accept:'text/event-stream'},
+    signal:AbortSignal.timeout(5000),
   });
   assert.equal(response.status,200);
   assert.match(response.headers.get('content-type')??'','text/event-stream');
