@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { applyTheme, readSavedTheme, type Theme } from '../theme';
 import { Workspace } from '../components/workspace';
 import { Drawer } from '../components/drawer';
+import { EmployeeAvatar } from '../components/avatars';
 
 interface User {
   id: string;
@@ -10,11 +11,19 @@ interface User {
   displayName: string;
   mustChangePassword: boolean;
   roles: string[];
+  jobTitle: string;
+  department: string;
+  avatarKey: string;
 }
 
 interface ManagedUser extends User {
   status: 'active' | 'disabled';
   createdAt: string;
+}
+
+interface RoleOption {
+  code: string;
+  displayName: string;
 }
 
 type ViewState =
@@ -50,13 +59,15 @@ export default function Home() {
   const [adminError, setAdminError] = useState('');
   const [adminMessage, setAdminMessage] = useState('');
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<RoleOption[]>([]);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [temporaryCredential, setTemporaryCredential] = useState<{
     username: string;
     password: string;
   } | null>(null);
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ displayName: '', username: '', email: '' });
+  const [newUser, setNewUser] = useState({ displayName: '', username: '', email: '', jobTitle: '', department: '', avatarKey: '', roleCodes: ['employee'] as string[] });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -89,17 +100,20 @@ export default function Home() {
     )
       return;
     let cancelled = false;
-    void fetch('/api/auth/users', { credentials: 'same-origin', cache: 'no-store' })
-      .then(async (response) => {
+    void Promise.all([
+      fetch('/api/auth/users', { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
         const result = await readBody(response);
         if (!response.ok) throw new Error('users');
-        if (!cancelled)
-          setManagedUsers(Array.isArray(result.users) ? (result.users as ManagedUser[]) : []);
-      })
-      .catch(() => {
-        if (!cancelled)
-          setAdminError('Kullanıcı listesi alınamadı. Sayfayı yenileyip tekrar deneyin.');
-      });
+        if (!cancelled) setManagedUsers(Array.isArray(result.users) ? result.users as ManagedUser[] : []);
+      }),
+      fetch('/api/auth/roles', { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+        const result = await readBody(response);
+        if (!response.ok) throw new Error('roles');
+        if (!cancelled) setAvailableRoles(Array.isArray(result.roles) ? result.roles as RoleOption[] : []);
+      }),
+    ]).catch(() => {
+      if (!cancelled) setAdminError('Kullanıcı veya rol listesi alınamadı. Sayfayı yenileyip tekrar deneyin.');
+    });
     return () => {
       cancelled = true;
     };
@@ -244,37 +258,69 @@ export default function Home() {
     setTemporaryCredential(null);
     setBusy(true);
     try {
-      const response = await fetch('/api/auth/users', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': view.csrfToken },
-        body: JSON.stringify(newUser),
-      });
+      const editing = Boolean(editingUserId);
+      const response = await fetch(
+        editing ? `/api/auth/users/${editingUserId}/profile` : '/api/auth/users',
+        {
+          method: editing ? 'PATCH' : 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': view.csrfToken },
+          body: JSON.stringify(newUser),
+        },
+      );
       const result = await readBody(response);
       if (!response.ok) {
-        setAdminError(
-          typeof result.message === 'string' ? result.message : 'Kullanıcı oluşturulamadı.',
-        );
+        setAdminError(typeof result.message === 'string' ? result.message : 'Kullanıcı kaydedilemedi.');
         return;
       }
       const user = result.user as ManagedUser;
       setManagedUsers((users) =>
-        [...users, user].sort((left, right) =>
-          left.displayName.localeCompare(right.displayName, 'tr'),
-        ),
+        (editing ? users.map((item) => item.id === user.id ? user : item) : [...users, user])
+          .sort((left, right) => left.displayName.localeCompare(right.displayName, 'tr')),
       );
-      setTemporaryCredential({
-        username: user.username,
-        password: String(result.temporaryPassword),
-      });
-      setAdminMessage('Kullanıcı hesabı oluşturuldu. Geçici parolayı güvenli yoldan iletin.');
-      setNewUser({ displayName: '', username: '', email: '' });
+      if (!editing) {
+        setTemporaryCredential({
+          username: user.username,
+          password: String(result.temporaryPassword),
+        });
+        setAdminMessage('Kullanıcı hesabı oluşturuldu. Geçici parolayı güvenli yoldan iletin.');
+      } else {
+        setAdminMessage('Çalışan profili ve rol bilgileri güncellendi.');
+      }
+      setNewUser({ displayName: '', username: '', email: '', jobTitle: '', department: '', avatarKey: '', roleCodes: ['employee'] });
+      setEditingUserId(null);
       setUserDrawerOpen(false);
     } catch {
-      setAdminError('Kullanıcı oluşturulamadı. Bir süre sonra yeniden deneyin.');
+      setAdminError('Kullanıcı kaydedilemedi. Bir süre sonra yeniden deneyin.');
     } finally {
       setBusy(false);
     }
+  }
+
+  function openCreateUser() {
+    setEditingUserId(null);
+    setAdminError('');
+    setAdminMessage('');
+    setTemporaryCredential(null);
+    setNewUser({ displayName: '', username: '', email: '', jobTitle: '', department: '', avatarKey: '', roleCodes: ['employee'] });
+    setUserDrawerOpen(true);
+  }
+
+  function openEditUser(user: ManagedUser) {
+    setEditingUserId(user.id);
+    setAdminError('');
+    setAdminMessage('');
+    setTemporaryCredential(null);
+    setNewUser({
+      displayName: user.displayName,
+      username: user.username,
+      email: user.email,
+      jobTitle: user.jobTitle ?? '',
+      department: user.department ?? '',
+      avatarKey: user.avatarKey ?? 'cat',
+      roleCodes: user.roles?.length ? user.roles : ['employee'],
+    });
+    setUserDrawerOpen(true);
   }
 
   async function handleResetPassword(user: ManagedUser) {
@@ -387,11 +433,7 @@ export default function Home() {
               <button
                 type="button"
                 className="primary-button compact-button"
-                onClick={() => {
-                  setAdminError('');
-                  setAdminMessage('');
-                  setUserDrawerOpen(true);
-                }}
+                onClick={openCreateUser}
               >
                 Yeni Kullanıcı Ekle
               </button>
@@ -458,11 +500,10 @@ export default function Home() {
                         <tr key={u.id} className={u.status === 'disabled' ? 'row-disabled' : ''}>
                           <td>
                             <div className="user-cell">
-                              <span className="assignee-avatar-sm">
-                                {u.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                              </span>
+                              <EmployeeAvatar avatarKey={u.avatarKey} name={u.displayName} size="md"/>
                               <div className="user-cell-meta">
                                 <strong>{u.displayName}</strong>
+                                <span>{u.jobTitle || 'Görev belirtilmedi'} · {u.department || 'Birim belirtilmedi'}</span>
                                 <span>{u.email}</span>
                               </div>
                             </div>
@@ -471,9 +512,13 @@ export default function Home() {
                             <code className="username-code">@{u.username}</code>
                           </td>
                           <td>
-                            <span className={isAdmin ? 'role-badge-admin' : 'role-badge'}>
-                              {isAdmin ? 'Sistem Yöneticisi' : 'Çalışan'}
-                            </span>
+                            <div className="user-role-stack">
+                              {u.roles?.map((role) => (
+                                <span key={role} className={role === 'system_admin' ? 'role-badge-admin' : 'role-badge'}>
+                                  {availableRoles.find((item) => item.code === role)?.displayName ?? (role === 'system_admin' ? 'Sistem Yöneticisi' : role)}
+                                </span>
+                              ))}
+                            </div>
                           </td>
                           <td>
                             <span className={`user-status user-status-${u.status}`}>
@@ -482,6 +527,15 @@ export default function Home() {
                           </td>
                           <td>
                             <div className="user-row-actions">
+                              <button
+                                type="button"
+                                className="user-action-button"
+                                onClick={() => openEditUser(u)}
+                                disabled={busy || u.status !== 'active'}
+                                title="Çalışan bilgilerini ve rollerini düzenle"
+                              >
+                                Profili düzenle
+                              </button>
                               <button
                                 type="button"
                                 className="user-action-button"
@@ -519,8 +573,8 @@ export default function Home() {
               isOpen={userDrawerOpen}
               onClose={() => setUserDrawerOpen(false)}
               size="md"
-              title="Yeni Çalışan Hesabı"
-              subtitle="Çalışan bilgilerini girerek sisteme dahil edin"
+              title={editingUserId ? 'Çalışan Profilini Düzenle' : 'Yeni Çalışan Hesabı'}
+              subtitle={editingUserId ? 'Meslek, birim, avatar ve sistem rollerini güncelleyin' : 'Çalışan kimliğini, mesleğini, birimini ve rollerini tanımlayın'}
               ariaLabelledBy="user-create-drawer-title"
               footer={
                 <>
@@ -537,7 +591,7 @@ export default function Home() {
                     className="primary-button"
                     disabled={busy}
                   >
-                    {busy ? 'Kaydediliyor…' : 'Kullanıcı oluştur'}
+                    {busy ? 'Kaydediliyor…' : editingUserId ? 'Profili kaydet' : 'Kullanıcı oluştur'}
                   </button>
                 </>
               }
@@ -565,6 +619,7 @@ export default function Home() {
                     autoCapitalize="none"
                     spellCheck={false}
                     value={newUser.username}
+                    disabled={Boolean(editingUserId)}
                     onChange={(event) =>
                       setNewUser({ ...newUser, username: event.target.value.toLowerCase() })
                     }
@@ -584,6 +639,7 @@ export default function Home() {
                     autoCapitalize="none"
                     spellCheck={false}
                     value={newUser.email}
+                    disabled={Boolean(editingUserId)}
                     onChange={(event) => setNewUser({ ...newUser, email: event.target.value })}
                     maxLength={254}
                     placeholder="Örn: ahmet@encev.com.tr"
@@ -591,10 +647,56 @@ export default function Home() {
                   />
                 </div>
 
+                <div className="drawer-profile-preview">
+                  <EmployeeAvatar avatarKey={newUser.avatarKey || undefined} name={newUser.displayName || 'Yeni çalışan'} size="xl"/>
+                  <div><strong>Çalışan profili</strong><span>{newUser.jobTitle || 'Meslek / unvan'} · {newUser.department || 'Birim'}</span></div>
+                  <span className="drawer-profile-random">{newUser.avatarKey ? 'Seçili avatar' : 'Rastgele avatar'}</span>
+                </div>
+                <div className="form-pair">
+                  <div className="form-group">
+                    <label htmlFor="new-job-title">Meslek / Unvan</label>
+                    <input id="new-job-title" value={newUser.jobTitle} onChange={(event) => setNewUser({ ...newUser, jobTitle: event.target.value })} maxLength={120} placeholder="Örn. Biyolog, ÇED Uzmanı"/>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="new-department">Birim</label>
+                    <input id="new-department" value={newUser.department} onChange={(event) => setNewUser({ ...newUser, department: event.target.value })} maxLength={100} placeholder="Örn. ÇED, Flora-Fauna"/>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="new-avatar">Profil avatarı</label>
+                  <select id="new-avatar" value={newUser.avatarKey} onChange={(event) => setNewUser({ ...newUser, avatarKey: event.target.value })}>
+                    <option value="">Rastgele seç</option>
+                    <option value="cat">🐱 Kedi</option><option value="fox">🦊 Tilki</option>
+                    <option value="panda">🐼 Panda</option><option value="rabbit">🐰 Tavşan</option>
+                    <option value="owl">🦉 Baykuş</option><option value="bear">🐻 Ayı</option>
+                    <option value="koala">🐨 Koala</option><option value="penguin">🐧 Penguen</option>
+                    <option value="otter">🦦 Su samuru</option><option value="deer">🦌 Geyik</option>
+                    <option value="raccoon">🦝 Rakun</option><option value="tiger">🐯 Kaplan</option>
+                  </select>
+                </div>
+                <fieldset className="member-picker user-role-picker">
+                  <legend>Sistem rolleri</legend>
+                  {availableRoles.map((role) => (
+                    <label key={role.code} className="member-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={newUser.roleCodes.includes(role.code)}
+                        onChange={(event) => setNewUser({
+                          ...newUser,
+                          roleCodes: event.target.checked
+                            ? [...new Set([...newUser.roleCodes, role.code])]
+                            : newUser.roleCodes.filter((item) => item !== role.code),
+                        })}
+                      />
+                      <span>{role.displayName}</span>
+                    </label>
+                  ))}
+                </fieldset>
                 <div className="drawer-notice-box">
                   <p>
-                    Hesap oluşturulduğunda sistem tarafından tek kullanımlık güvenli geçici bir parola
-                    üretilecektir. Bu parola ilk oturum açılışında değiştirilmelidir.
+                    {editingUserId
+                      ? 'Kullanıcının giriş adı ve e-posta adresi değişmeden kalır. Profil ve rol değişiklikleri denetim geçmişine kaydedilir.'
+                      : 'Hesap oluşturulduğunda tek kullanımlık geçici parola üretilir. Kullanıcı ilk girişte parolasını değiştirmelidir.'}
                   </p>
                 </div>
 
