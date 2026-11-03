@@ -1,0 +1,78 @@
+name: Temporary transfer verification
+
+on:
+  push:
+    branches:
+      - transfer/encev-pulse-source-20261103
+    paths:
+      - "apps/**"
+      - "drizzle/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/verify-transfer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: encev_pulse_dev
+          POSTGRES_USER: encev_dev
+          POSTGRES_PASSWORD: ci-only-password-not-a-user-secret
+          TZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U encev_dev -d encev_pulse_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout isolated source branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Create disposable CI-only environment
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_PASSWORD=ci-only-password-not-a-user-secret
+          DB_HOST=127.0.0.1
+          DB_PORT=5432
+          DB_NAME=encev_pulse_dev
+          DB_USER=encev_dev
+          API_PORT=3000
+          APP_ORIGIN=http://127.0.0.1:5173
+          AUTH_COOKIE_SECURE=false
+          AUTH_RATE_LIMIT_SECRET=ci-only-rate-limit-secret-not-for-deployment
+          TRUSTED_PROXY_IPS=
+          EOF
+      - name: Apply migrations to disposable PostgreSQL
+        run: npm run db:migrate --workspace @encev-pulse/api
+      - name: Run API and web tests
+        run: npm test
+      - name: TypeScript checks
+        run: npm run typecheck
+      - name: Production builds
+        run: npm run build
+      - name: Package validated source (tracked files only)
+        if: success()
+        run: git archive --format=zip --output=/tmp/encev-pulse-validated-source.zip HEAD
+      - name: Upload validated source archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: encev-pulse-validated-source
+          path: /tmp/encev-pulse-validated-source.zip
+          if-no-files-found: error
+          retention-days: 1
