@@ -41,7 +41,7 @@ export function ChatWorkspace({
   currentUserId:string;
   startUserId?:string|null;
   onStartConsumed:()=>void;
-  onTaskOpen:(task:Record<string,any>)=>void;
+  onTaskOpen:(taskId:string)=>void;
 }) {
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -87,7 +87,7 @@ export function ChatWorkspace({
     setMessages(list);
     if(markRead&&list.length) {
       const latest=list[list.length-1];
-      if(latest.senderId!==currentUserId) {
+      {
         await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
         setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
       }
@@ -240,7 +240,7 @@ export function ChatWorkspace({
     setActionBusy(true);
     try {
       const result=await request('chat/messages/'+message.id+'/create-task','POST',{});
-      onTaskOpen(result.task);
+      onTaskOpen(result.task.id);
     } catch(cause) {setError(cause instanceof Error?cause.message:'Mesajdan görev oluşturulamadı.');}
     finally {setActionBusy(false);}
   }
@@ -346,7 +346,7 @@ export function ChatWorkspace({
                     return (
                       <div className="chat-message-group" key={message.id}>
                         {showDate&&<div className="chat-date-divider"><span>{dateLabel(message.createdAt)}</span></div>}
-                        <article className={'chat-message'+(message.isMine?' own':'')}>
+                        <article id={'message-'+message.id} className={'chat-message'+(message.isMine?' own':'')}>
                           {!message.isMine&&<EmployeeAvatar avatarKey={message.senderAvatarKey} name={message.senderName} size="sm"/>}
                           <div className="chat-message-content">
                             <div className="chat-message-meta">
