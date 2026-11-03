@@ -267,6 +267,16 @@ export function ChatWorkspace({
     finally {setActionBusy(false);}
   }
 
+  async function updateMemberRole(member:ChatMember,role:'admin'|'member') {
+    if(!selectedId)return;
+    setActionBusy(true);
+    try {
+      const result=await request('chat/conversations/'+selectedId+'/members/'+member.id+'/role','PATCH',{role});
+      setDetail(result as ChatDetail);
+    } catch(cause) {setError(cause instanceof Error?cause.message:'Üye rolü değiştirilemedi.');}
+    finally {setActionBusy(false);}
+  }
+
   async function removeMember(member:ChatMember) {
     if(!selectedId||!window.confirm(member.displayName+' kişisini bu sohbetten çıkarmak istiyor musunuz?'))return;
     setActionBusy(true);
@@ -408,6 +418,11 @@ export function ChatWorkspace({
                 <div className="chat-member-row" key={member.id}>
                   <EmployeeAvatar avatarKey={member.avatarKey} name={member.displayName} size="md"/>
                   <div><strong>{member.displayName}</strong><span>{member.jobTitle||member.department||member.username}</span><small>{roleLabel(member.role)}</small></div>
+                  {selected.type==='group'&&detail.myRole==='owner'&&member.id!==currentUserId&&member.role!=='owner'&&(
+                    <select className="chat-member-role-select" value={member.role} onChange={event=>void updateMemberRole(member,event.target.value as 'admin'|'member')} disabled={actionBusy} aria-label={member.displayName+' rolü'}>
+                      <option value="member">Üye</option><option value="admin">Yönetici</option>
+                    </select>
+                  )}
                   {selected.type==='group'&&member.id!==currentUserId&&canManage&&member.role!=='owner'&&<button type="button" title="Üyeyi çıkar" onClick={()=>void removeMember(member)}>×</button>}
                 </div>
               ))}
