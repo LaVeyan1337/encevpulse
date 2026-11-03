@@ -9,6 +9,7 @@ on:
       - "drizzle/**"
       - "package.json"
       - "package-lock.json"
+      - "docs/**"
       - ".github/workflows/verify-transfer.yml"
   workflow_dispatch:
 
