@@ -214,18 +214,20 @@ export class ChatService {
         FROM conversation_members cm
         WHERE m.id=$2 AND m.sender_id=$3 AND m.version=$4 AND m.deleted_at IS NULL
           AND cm.conversation_id=m.conversation_id AND cm.user_id=$3 AND cm.left_at IS NULL
-        RETURNING m.id,m.conversation_id AS "conversationId",m.version,m.edited_at AS "editedAt"`,[body,id,user.id,version]);
+        RETURNING m.id,m.conversation_id AS "conversationId",m.version,m.edited_at AS "editedAt"`,
+        [body,id,user.id,version]);
       if(!updated.rowCount) {
         const exists=await client.query(`SELECT m.version,m.sender_id,m.deleted_at FROM messages m
           JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=$2 AND cm.left_at IS NULL
-          WHERE m.id=$1`,[id,user.id]);
+          WHERE m.id=$1 FOR UPDATE`,[id,user.id]);
         if(!exists.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
         if(exists.rows[0].sender_id!==user.id) throw new ForbiddenException({code:'MESSAGE_EDIT_DENIED',message:'Yalnızca kendi mesajınızı düzenleyebilirsiniz.'});
         if(exists.rows[0].version!==version) throw new ConflictException({code:'MESSAGE_CHANGED',message:'Mesaj başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
         throw new ConflictException({code:'MESSAGE_DELETED',message:'Silinmiş mesaj düzenlenemez.'});
       }
       await client.query(`INSERT INTO message_events(message_id,conversation_id,actor_user_id,event_type,details)
-        VALUES($1,$2,$3,'edited',$4)`,[id,updated.rows[0].conversationId,user.id,{version:updated.rows[0].version}]);
+        VALUES($1,$2,$3,'edited',$4)`,
+        [id,updated.rows[0].conversationId,user.id,{version:updated.rows[0].version}]);
       await client.query(`UPDATE conversations SET updated_at=now() WHERE id=$1`,[updated.rows[0].conversationId]);
       await client.query('COMMIT');
       return {message:updated.rows[0]};
