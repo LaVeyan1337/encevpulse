@@ -182,6 +182,20 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const list=await api(base,bob,'chat/conversations');
       assert.equal(list.response.status,200);
       assert.equal(list.data.conversations.find((item:{id:string})=>item.id===groupId).unreadCount,0);
+
+      const notificationFeed=await api(base,alice,'notifications');
+      assert.equal(notificationFeed.response.status,200);
+      const chatNotification=notificationFeed.data.notifications.find(
+        (item:{eventType:string;conversationId:string|null})=>item.eventType==='chat.message'&&item.conversationId===groupId,
+      );
+      assert.ok(chatNotification,'new chat messages must appear in the shared notification feed');
+      assert.equal(notificationFeed.data.unreadCount,1);
+      const markedNotification=await api(base,alice,`notifications/${chatNotification.id}/read`,'POST',{});
+      assert.equal(markedNotification.response.status,204);
+      const notificationAfterRead=await api(base,alice,'notifications');
+      const readItem=notificationAfterRead.data.notifications.find((item:{id:string})=>item.id===chatNotification.id);
+      assert.ok(readItem.readAt);
+      assert.equal(notificationAfterRead.data.unreadCount,0);
     });
 
     await t.test('mesajdan görev üretimi tekil ve mesaj bağlantılıdır; mesaj silme tombstone bırakır',async()=>{
