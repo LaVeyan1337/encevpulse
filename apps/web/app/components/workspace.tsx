@@ -10,6 +10,9 @@ export interface User {
   email: string;
   displayName: string;
   roles: string[];
+  jobTitle?: string;
+  department?: string;
+  avatarKey?: string;
 }
 
 export interface Task {
@@ -609,12 +612,12 @@ export function Workspace({
   async function loadProjects(nextView: 'active' | 'archived') {
     setProjectView(nextView);
     setLoading(true);
-    setError('');
+    setProjectError('');
     try {
       const result = await request(`projects?view=${nextView}`);
       setProjects(Array.isArray(result.projects) ? result.projects as Project[] : []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Projeler alınamadı.');
+      setProjectError(cause instanceof Error ? cause.message : 'Projeler alınamadı.');
     } finally {
       setLoading(false);
     }
