@@ -279,9 +279,14 @@ export class ChatService {
     if(!result.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Okunma imleci mesajı bulunamadı.'});
     await this.db.query(`INSERT INTO conversation_read_cursors(conversation_id,user_id,last_read_message_id)
       VALUES($1,$2,$3)
-      ON CONFLICT(conversation_id,user_id) DO UPDATE SET last_read_message_id=EXCLUDED.last_read_message_id,updated_at=now()
-      WHERE (SELECT created_at FROM messages WHERE id=conversation_read_cursors.last_read_message_id)
-        < (SELECT created_at FROM messages WHERE id=EXCLUDED.last_read_message_id)`,[id,user.id,messageId]);
+      ON CONFLICT(conversation_id,user_id) DO UPDATE
+        SET last_read_message_id=EXCLUDED.last_read_message_id,updated_at=now()
+      WHERE EXISTS (
+        SELECT 1 FROM messages previous_read,messages next_read
+        WHERE previous_read.id=conversation_read_cursors.last_read_message_id
+          AND next_read.id=EXCLUDED.last_read_message_id
+          AND (previous_read.created_at,previous_read.id)<(next_read.created_at,next_read.id)
+      )`,[id,user.id,messageId]);
     await this.db.query(`UPDATE chat_notifications n SET read_at=COALESCE(read_at,now())
       FROM messages notified
       WHERE n.message_id=notified.id AND n.recipient_user_id=$1 AND n.conversation_id=$2
