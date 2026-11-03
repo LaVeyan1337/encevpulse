@@ -17,6 +17,10 @@ export class ChatService {
           SELECT peer.display_name FROM conversation_members cm JOIN users peer ON peer.id=cm.user_id
           WHERE cm.conversation_id=c.id AND cm.user_id<>$1 AND cm.left_at IS NULL LIMIT 1
         ) ELSE c.title END AS "displayName",
+        CASE WHEN c.conversation_type='direct' THEN (
+          SELECT peer.avatar_key FROM conversation_members cm JOIN users peer ON peer.id=cm.user_id
+          WHERE cm.conversation_id=c.id AND cm.user_id<>$1 AND cm.left_at IS NULL LIMIT 1
+        ) ELSE NULL END AS "avatarKey",
         last.body AS "lastMessage",last.created_at AS "lastMessageAt",last.sender_id AS "lastSenderId",
         last.sender_name AS "lastSenderName",
         (SELECT count(*)::int FROM messages unread
