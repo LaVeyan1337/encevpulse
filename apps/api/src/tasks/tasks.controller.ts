@@ -72,8 +72,41 @@ export class TasksController {
   }
 
   @Get('tasks/projects')
-  async projects(@Req() request: Request) {
-    return this.tasks.projects(await this.auth.authorizeRequest(request));
+  async projects(@Req() request: Request, @Query('view') view?: string) {
+    return this.tasks.projects(await this.auth.authorizeRequest(request), view ?? 'active');
+  }
+
+  @Get('projects')
+  async projectList(@Req() request: Request, @Query('view') view?: string) {
+    return this.tasks.projects(await this.auth.authorizeRequest(request), view ?? 'active');
+  }
+
+  @Get('projects/:id')
+  async projectDetails(@Req() request: Request, @Param('id') id: string) {
+    return this.tasks.projectDetails(await this.auth.authorizeRequest(request), id);
+  }
+
+  @Patch('projects/:id')
+  async updateProject(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
+    return this.tasks.updateProject(await this.auth.authorizeRequest(request, true), id, body);
+  }
+
+  @Post('projects')
+  @HttpCode(HttpStatus.CREATED)
+  async createProjectWorkspace(@Req() request: Request, @Body() body: unknown) {
+    return this.tasks.createProject(await this.auth.authorizeRequest(request, true), body);
+  }
+
+  @Post('projects/:id/archive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async archiveProject(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
+    await this.tasks.archiveProject(await this.auth.authorizeRequest(request, true), id, body, false);
+  }
+
+  @Post('projects/:id/restore')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async restoreProject(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
+    await this.tasks.archiveProject(await this.auth.authorizeRequest(request, true), id, body, true);
   }
 
   @Get('tasks/:id')
