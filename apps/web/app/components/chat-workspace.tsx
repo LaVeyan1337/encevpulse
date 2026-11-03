@@ -130,11 +130,8 @@ export function ChatWorkspace({
         return;
       }
       if(initialLoadDone.current)return;
-      initialLoadDone.current=true;
-    } else {
-      if(lastExternalTarget.current===externalTarget)return;
-      lastExternalTarget.current=externalTarget;
-      initialLoadDone.current=true;
+    } else if(lastExternalTarget.current===externalTarget) {
+      return;
     }
     void (async()=>{
       setLoading(true);
@@ -146,13 +143,22 @@ export function ChatWorkspace({
           if(cancelled)return;
           const id=created.conversation?.id??created.id;
           await loadConversations();
+          if(cancelled)return;
           await openConversation(id);
+          if(cancelled)return;
+          lastExternalTarget.current=externalTarget;
           onStartConsumed();
         } else if(initialConversationId) {
           await openConversation(initialConversationId);
+          if(cancelled)return;
+          lastExternalTarget.current=externalTarget;
           onStartConsumed();
-        } else if(list.length) {
-          await openConversation(list[0].id);
+        } else {
+          if(list.length) {
+            await openConversation(list[0].id);
+            if(cancelled)return;
+          }
+          initialLoadDone.current=true;
         }
       } catch(cause) {
         if(!cancelled)setError(cause instanceof Error?cause.message:'Sohbet listesi alınamadı.');
