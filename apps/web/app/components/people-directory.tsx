@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { EmployeeAvatar } from './avatars';
 
 export interface DirectoryPerson {
@@ -82,7 +82,7 @@ export function PeopleDirectory({
       ) : (
         <div className="people-grid">
           {filtered.map((person,index)=>(
-            <article className="people-card" key={person.id} style={{'--people-index':index} as React.CSSProperties}>
+            <article className="people-card" key={person.id} style={{'--people-index':index} as CSSProperties}>
               <div className="people-card-head">
                 <EmployeeAvatar avatarKey={person.avatarKey} name={person.displayName} size="xl"/>
                 <div className="people-card-identity">
