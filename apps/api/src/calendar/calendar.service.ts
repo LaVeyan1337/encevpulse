@@ -71,7 +71,7 @@ export class CalendarService {
              AND e.starts_at < ($3::date::timestamp AT TIME ZONE 'Europe/Istanbul')
              AND e.ends_at > ($2::date::timestamp AT TIME ZONE 'Europe/Istanbul'))
          )
-       GROUP BY e.id, p.name, creator.display_name
+       GROUP BY e.id, p.name, p.owner_user_id, creator.display_name
        ORDER BY COALESCE(e.starts_at, e.starts_on::timestamp AT TIME ZONE 'Europe/Istanbul'),
                 e.title
        LIMIT 500`,
@@ -217,7 +217,7 @@ export class CalendarService {
        LEFT JOIN calendar_event_attendees a ON a.event_id=e.id
        LEFT JOIN users attendee ON attendee.id=a.user_id AND attendee.status='active'
        WHERE e.id=$1
-       GROUP BY e.id,p.name,creator.display_name`,
+       GROUP BY e.id,p.name,p.owner_user_id,creator.display_name`,
       [id],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CALENDAR_EVENT_NOT_FOUND', message: 'Etkinlik bulunamadı.' });
