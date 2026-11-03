@@ -75,7 +75,7 @@ Uygulamanın güncel görsel dili koyu lacivert/cam yüzeyler, doygun mavi navig
 - Sayfa başlıkları belirgin ama ölçülü; tablo ve form metinleri günlük kullanımda rahat okunur boyutta olmalıdır.
 - Mevcut temel boşluklar 8 px katları üzerinden ilerler: 4, 8, 12, 16, 24, 32 ve 48 px. Yeni ölçü gerekiyorsa komşu aralıklar tutarlı kalır.
 - Form alanı, düğme ve küçük etkileşimlerde köşe yuvarlatma tutarlı tutulur. Her yüzey karta dönüştürülmez.
-- Animasyon kısa ve işlevseldir; `prefers-reduced-motion` dikkate alınır.
+- Sayfa geçişi içerik alanında kısa bir ölçek/konum oturma animasyonu kullanır; başlangıçta hafif büyüklükten doğal boyuta oturur. Çekmeceler, açılır menüler, kartlar ve etkileşimli yüzeylerde kısa giriş/hover geri bildirimleri bulunur. Veri beklenirken ekranın gerçek yerleşimini temsil eden ghost skeleton gösterilir; örnek kayıt veya sahte sayaç kullanılmaz. Animasyonlar `prefers-reduced-motion` ayarında kapatılır ve performans için yalnızca gerekli katmanlarda çalışır.
 
 ## 7. Bileşen ve etkileşim kuralları
 
