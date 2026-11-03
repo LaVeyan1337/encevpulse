@@ -10,8 +10,7 @@ SET owner_user_id = created_by
 WHERE owner_user_id IS NULL;
 
 UPDATE projects
-SET archived_at = COALESCE(archived_at, now()),
-    status_before_archive = 'active'
+SET archived_at = COALESCE(archived_at, now())
 WHERE status = 'archived';
 
 ALTER TABLE projects
