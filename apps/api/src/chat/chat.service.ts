@@ -89,6 +89,9 @@ export class ChatService {
       await client.query(`INSERT INTO conversation_members(conversation_id,user_id,member_role)
         SELECT $1,member_id,CASE WHEN member_id=$2 THEN 'owner' ELSE 'member' END
         FROM unnest($3::uuid[]) AS member_id`,[id,user.id,[user.id,...memberIds]]);
+      await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,next_role)
+        SELECT $1,member_id,$2,'added',CASE WHEN member_id=$2 THEN 'owner' ELSE 'member' END
+        FROM unnest($3::uuid[]) AS member_id`,[id,user.id,[user.id,...memberIds]]);
       await client.query('COMMIT');
       return this.conversationDetails(user,id);
     } catch(error) { await client.query('ROLLBACK'); throw error; }
@@ -389,8 +392,38 @@ export class ChatService {
       if(active.rowCount!==ids.length) throw invalid('Etkin olmayan kullanıcı gruba eklenemez.');
       await client.query(`INSERT INTO conversation_members(conversation_id,user_id,member_role)
         SELECT $1,member_id,'member' FROM unnest($2::uuid[]) AS member_id
-        ON CONFLICT(conversation_id,user_id) DO UPDATE SET left_at=NULL,member_role='member'`,[id,ids]);
+        ON CONFLICT(conversation_id,user_id) DO UPDATE SET left_at=NULL,member_role='member',joined_at=now()`,[id,ids]);
+      await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,next_role)
+        SELECT $1,member_id,$3,'added','member' FROM unnest($2::uuid[]) AS member_id`,[id,ids,user.id]);
       await client.query(`UPDATE conversations SET updated_at=now() WHERE id=$1`,[id]);
+      await client.query('COMMIT');
+      return this.conversationDetails(user,id);
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+
+  async updateMemberRole(user: AuthUser,id: string,targetId: string,input: unknown) {
+    assertUuid(id); assertUuid(targetId);
+    const value=objectInput(input);
+    if(value.role!=='admin'&&value.role!=='member') throw invalid('Grup üyesi rolü geçersiz.');
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const actor=await client.query(`SELECT c.conversation_type,actor.member_role
+        FROM conversations c JOIN conversation_members actor ON actor.conversation_id=c.id
+        WHERE c.id=$1 AND actor.user_id=$2 AND actor.left_at IS NULL FOR UPDATE`,[id,user.id]);
+      if(!actor.rowCount) throw new NotFoundException({code:'CONVERSATION_NOT_FOUND',message:'Sohbet bulunamadı.'});
+      if(actor.rows[0].conversation_type!=='group') throw invalid('Bire bir sohbette üye rolü bulunmaz.');
+      if(actor.rows[0].member_role!=='owner') throw new ForbiddenException({code:'CHAT_ROLE_MANAGE_DENIED',message:'Üye rolleri yalnızca grup sahibi tarafından değiştirilebilir.'});
+      const target=await client.query(`SELECT member_role FROM conversation_members
+        WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL FOR UPDATE`,[id,targetId]);
+      if(!target.rowCount) throw new NotFoundException({code:'CHAT_MEMBER_NOT_FOUND',message:'Sohbet üyesi bulunamadı.'});
+      const previous=target.rows[0].member_role as string;
+      if(previous==='owner') throw new ConflictException({code:'CHAT_OWNER_IMMUTABLE',message:'Sohbet sahibi rolü bu ekrandan değiştirilemez.'});
+      if(previous===value.role) { await client.query('COMMIT'); return this.conversationDetails(user,id); }
+      await client.query(`UPDATE conversation_members SET member_role=$1 WHERE conversation_id=$2 AND user_id=$3`,[value.role,id,targetId]);
+      await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,previous_role,next_role)
+        VALUES($1,$2,$3,'role_changed',$4,$5)`,[id,targetId,user.id,previous,value.role]);
       await client.query('COMMIT');
       return this.conversationDetails(user,id);
     } catch(error) { await client.query('ROLLBACK'); throw error; }
@@ -412,6 +445,8 @@ export class ChatService {
       if(user.id!==targetId&&members.rows[0].member_role!=='owner'&&members.rows[0].member_role!=='admin') throw new ForbiddenException({code:'CHAT_MEMBER_MANAGE_DENIED',message:'Bu üye için kaldırma yetkiniz yok.'});
       if(target.rows[0].member_role==='owner'&&(members.rows[0].conversation_type==='group'||user.id!==targetId)) throw new ConflictException({code:'CHAT_OWNER_REQUIRED',message:'Grup sahibi ayrılmadan önce sahipliği devretmelidir.'});
       await client.query(`UPDATE conversation_members SET left_at=now() WHERE conversation_id=$1 AND user_id=$2`,[id,targetId]);
+      await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,previous_role)
+        VALUES($1,$2,$3,'removed',$4)`,[id,targetId,user.id,target.rows[0].member_role]);
       await client.query('COMMIT');
     } catch(error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
