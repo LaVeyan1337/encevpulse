@@ -134,3 +134,41 @@ export function CommentListSkeleton() {
     </div>
   );
 }
+
+export function ProjectGridSkeleton() {
+  return (
+    <section className="project-grid project-grid-skeleton" role="status" aria-label="Projeler yükleniyor" aria-busy="true">
+      {Array.from({ length: 6 }, (_, index) => (
+        <article className="project-card skeleton-project-card" key={index} aria-hidden="true">
+          <div className="skeleton-card-tags">
+            <GhostLine className="ghost-chip" />
+            <GhostLine className="ghost-chip ghost-chip-short" />
+          </div>
+          <GhostLine className="ghost-heading" />
+          <GhostLine className="ghost-subheading" />
+          <GhostLine className="ghost-task-title" />
+          <div className="skeleton-project-progress"><GhostLine /></div>
+          <div className="skeleton-card-footer">
+            <GhostLine className="ghost-person" />
+            <GhostLine className="ghost-date" />
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+export function ProjectDetailSkeleton() {
+  return (
+    <div className="project-detail-skeleton" role="status" aria-label="Proje ayrıntıları yükleniyor" aria-busy="true">
+      <div className="project-detail-skeleton-stats">
+        {[0, 1, 2, 3].map((item) => <GhostLine className="ghost-number" key={item} />)}
+      </div>
+      <div className="skeleton-panel-heading">
+        <GhostLine className="ghost-heading" />
+        <GhostLine className="ghost-subheading" />
+      </div>
+      {[0, 1, 2, 3].map((item) => <GhostLine className="ghost-list-main" key={item} />)}
+    </div>
+  );
+}
