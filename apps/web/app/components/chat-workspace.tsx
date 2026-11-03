@@ -398,8 +398,9 @@ export function ChatWorkspace({
     finally {setActionBusy(false);}
   }
 
-  async function updateMemberRole(member:ChatMember,role:'admin'|'member') {
+  async function updateMemberRole(member:ChatMember,role:'admin'|'member'|'owner') {
     if(!selectedId)return;
+    if(role==='owner'&&!window.confirm(member.displayName+' sohbet sahibi olacak; sizin rolünüz yöneticiye dönüşecek. Devam edilsin mi?'))return;
     setActionBusy(true);
     try {
       const result=await request('chat/conversations/'+selectedId+'/members/'+member.id+'/role','PATCH',{role});
@@ -565,14 +566,22 @@ export function ChatWorkspace({
                   <EmployeeAvatar avatarKey={member.avatarKey} name={member.displayName} size="md"/>
                   <div><strong>{member.displayName}</strong><span>{member.jobTitle||member.department||member.username}</span><small>{roleLabel(member.role)}</small></div>
                   {selected.type==='group'&&detail.myRole==='owner'&&member.id!==currentUserId&&member.role!=='owner'&&(
-                    <select className="chat-member-role-select" value={member.role} onChange={event=>void updateMemberRole(member,event.target.value as 'admin'|'member')} disabled={actionBusy} aria-label={member.displayName+' rolü'}>
-                      <option value="member">Üye</option><option value="admin">Yönetici</option>
+                    <select className="chat-member-role-select" value={member.role} onChange={event=>void updateMemberRole(member,event.target.value as 'admin'|'member'|'owner')} disabled={actionBusy} aria-label={member.displayName+' rolü'}>
+                      <option value="member">Üye</option><option value="admin">Yönetici</option><option value="owner">Sohbet sahibi</option>
                     </select>
                   )}
                   {selected.type==='group'&&member.id!==currentUserId&&canManage&&member.role!=='owner'&&<button type="button" title="Üyeyi çıkar" onClick={()=>void removeMember(member)}>×</button>}
                 </div>
               ))}
             </div>
+            {selected.type==='group'&&detail.myRole!=='owner'&&(
+              <div className="chat-leave-group">
+                <button type="button" disabled={actionBusy} onClick={()=>{
+                  const me=detail.members.find(member=>member.id===currentUserId);
+                  if(me)void removeMember(me);
+                }}>Gruptan ayrıl</button>
+              </div>
+            )}
             {showAddMembers&&(
               <div className="chat-add-members">
                 {activePeople.filter(person=>!detail.members.some(member=>member.id===person.id)).map(person=>(
