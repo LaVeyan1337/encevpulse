@@ -84,10 +84,15 @@ export function ChatWorkspace({
     setDetail(result as ChatDetail);
   },[request]);
 
-  const loadMessages=useCallback(async(id:string,markRead=true)=>{
+  const loadMessages=useCallback(async(id:string,markRead=true,preserveHistory=false)=>{
     const result=await request('chat/conversations/'+id+'/messages');
     const list=(result.messages??[]) as Message[];
-    setMessages(list);
+    setMessages(current=>{
+      if(!preserveHistory||current.length===0)return list;
+      const latestIds=new Set(list.map(item=>item.id));
+      const older=current.filter(item=>!latestIds.has(item.id));
+      return [...older,...list];
+    });
     setHasMoreMessages(Boolean(result.page?.hasMore));
     if(markRead&&list.length) {
       const latest=list[list.length-1];
@@ -144,7 +149,7 @@ export function ChatWorkspace({
     if(!selectedId)return;
     const timer=window.setInterval(()=>{
       if(document.visibilityState!=='visible'||sending||actionBusy)return;
-      void Promise.all([loadConversations(),loadMessages(selectedId)]).catch(()=>undefined);
+      void Promise.all([loadConversations(),loadMessages(selectedId,true,true)]).catch(()=>undefined);
     },2800);
     return ()=>window.clearInterval(timer);
   },[selectedId,loadConversations,loadMessages,sending,actionBusy]);
@@ -234,7 +239,7 @@ export function ChatWorkspace({
     try {
       const current=message.reactions.find(item=>item.code===code)?.reactedByMe;
       await request('chat/messages/'+message.id+'/reactions',current?'DELETE':'POST',{reaction:code});
-      if(selectedId)await loadMessages(selectedId,false);
+      if(selectedId)await loadMessages(selectedId,false,true);
     } catch(cause) {setError(cause instanceof Error?cause.message:'Tepki kaydedilemedi.');}
     finally {setActionBusy(false);}
   }
@@ -255,7 +260,7 @@ export function ChatWorkspace({
     setActionBusy(true);
     try {
       await request('chat/messages/'+message.id,'DELETE',{version:message.version});
-      if(selectedId)await Promise.all([loadMessages(selectedId,false),loadConversations()]);
+      if(selectedId)await Promise.all([loadMessages(selectedId,false,true),loadConversations()]);
     } catch(cause) {setError(cause instanceof Error?cause.message:'Mesaj silinemedi.');}
     finally {setActionBusy(false);}
   }
@@ -264,7 +269,7 @@ export function ChatWorkspace({
     setActionBusy(true);
     try {
       await request('chat/messages/'+message.id+(message.pinnedAt?'/unpin':'/pin'),'POST',{});
-      if(selectedId)await Promise.all([loadDetail(selectedId),loadMessages(selectedId,false)]);
+      if(selectedId)await Promise.all([loadDetail(selectedId),loadMessages(selectedId,false,true)]);
     } catch(cause) {setError(cause instanceof Error?cause.message:'Mesaj sabitlenemedi.');}
     finally {setActionBusy(false);}
   }
