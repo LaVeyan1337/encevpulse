@@ -36,12 +36,55 @@ export interface Person {
   username: string;
 }
 
+export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
+
 export interface Project {
   id: string;
   name: string;
   description: string;
-  status: string;
+  status: ProjectStatus;
   taskCount: number;
+  completedTaskCount?: number;
+  memberCount?: number;
+  ownerId?: string;
+  ownerName?: string;
+  startsOn?: string | null;
+  targetOn?: string | null;
+  version?: number;
+  archivedAt?: string | null;
+}
+
+export interface ProjectMember {
+  id: string;
+  displayName: string;
+  username: string;
+  isOwner: boolean;
+  addedAt: string;
+}
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: Priority;
+  assigneeId: string;
+  assigneeName: string;
+  startsOn: string | null;
+  dueOn: string | null;
+}
+
+export interface ProjectActivity {
+  id: string;
+  eventType: 'created' | 'updated' | 'member_added' | 'member_removed' | 'archived' | 'restored';
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface ProjectDetails {
+  project: Project & { createdBy: string; creatorName: string; updatedAt: string };
+  members: ProjectMember[];
+  tasks: ProjectTask[];
+  activity: ProjectActivity[];
 }
 
 export interface Summary {
@@ -94,7 +137,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -141,6 +184,21 @@ function priorityLabel(priority: Priority): string {
   return ({ low: 'Düşük', normal: 'Normal', high: 'Yüksek', urgent: 'Acil' })[priority] ?? priority;
 }
 
+function projectStatusLabel(status: ProjectStatus): string {
+  return ({ planning: 'Hazırlık', active: 'Aktif', on_hold: 'Beklemede', completed: 'Tamamlandı', archived: 'Arşiv' })[status] ?? status;
+}
+
+function projectEventLabel(eventType: ProjectActivity['eventType']): string {
+  return ({
+    created: 'projeyi oluşturdu',
+    updated: 'proje bilgilerini güncelledi',
+    member_added: 'projeye üye ekledi',
+    member_removed: 'proje üyeliğini kaldırdı',
+    archived: 'projeyi arşivledi',
+    restored: 'projeyi arşivden çıkardı',
+  })[eventType] ?? 'proje üzerinde işlem yaptı';
+}
+
 function isOverdue(dueOn: string | null, status: TaskStatus): boolean {
   if (!dueOn || status === 'done') return false;
   const today = new Date().toISOString().slice(0, 10);
@@ -178,6 +236,13 @@ export function Workspace({
   const [upcoming, setUpcoming] = useState<Task[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectView, setProjectView] = useState<'active' | 'archived'>('active');
+  const [projectDetail, setProjectDetail] = useState<ProjectDetails | null>(null);
+  const [projectDetailOpen, setProjectDetailOpen] = useState(false);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectError, setProjectError] = useState('');
+  const [projectEditing, setProjectEditing] = useState(false);
+  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members'>('overview');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [activity, setActivity] = useState<Activity[]>([]);
