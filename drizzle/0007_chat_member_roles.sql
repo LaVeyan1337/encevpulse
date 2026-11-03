@@ -14,6 +14,10 @@ CREATE TABLE conversation_member_events (
   )
 );
 
+CREATE UNIQUE INDEX conversation_members_single_active_owner_idx
+  ON conversation_members(conversation_id)
+  WHERE member_role='owner' AND left_at IS NULL;
+
 CREATE INDEX conversation_member_events_history_idx
   ON conversation_member_events(conversation_id,created_at DESC);
 
