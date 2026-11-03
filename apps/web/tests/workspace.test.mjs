@@ -97,6 +97,8 @@ test('Projeler çalışma alanı gerçek liste, detay, üyelik ve yaşam döngü
   assert.match(workspace, /aria-selected=\{projectTab === 'members'\}/);
   assert.match(workspace, /memberIds: form\.getAll\('members'\)/);
   assert.match(workspace, /Projeyi arşivle/);
+  assert.match(workspace, /Arşiv öncesi durum kaydı bulunmuyor/);
+  assert.match(workspace, /restoreStatus: projectRestoreStatus/);
   assert.match(workspace, /Proje sahibi/);
   assert.match(skeletons, /ProjectGridSkeleton/);
   assert.match(skeletons, /ProjectDetailSkeleton/);
