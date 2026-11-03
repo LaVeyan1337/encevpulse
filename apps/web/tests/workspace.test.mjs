@@ -178,6 +178,7 @@ test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet ba
 test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı kullanır', async () => {
   const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
   const styles = await readFile(new URL('../app/people-chat.css', import.meta.url), 'utf8');
+  const motion = await readFile(new URL('../app/motion.css', import.meta.url), 'utf8');
   const api = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
 
   assert.match(chat, /chat\/conversations/);
@@ -196,7 +197,7 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(chat, /Dosya ekleri bu sürümde güvenlik/);
   assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);
   assert.match(styles, /\.people-card/);
-  assert.match(styles, /prefers-reduced-motion/);
+  assert.match(motion, /@media\\(prefers-reduced-motion:reduce\\)\\{[\\s\\S]*?\\.chat-message/);
   assert.match(api, /@Post\('conversations\/\:id\/messages'\)/);
   assert.match(api, /@Patch\('messages\/\:id'\)/);
   assert.match(api, /@Post\('messages\/\:id\/create-task'\)/);
