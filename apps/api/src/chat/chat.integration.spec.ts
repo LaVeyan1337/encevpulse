@@ -63,7 +63,7 @@ async function openChatEvents(base:string,client:Client):Promise<SseEventReader>
     signal:AbortSignal.timeout(5000),
   });
   assert.equal(response.status,200);
-  assert.match(response.headers.get('content-type')??'',/text\\/event-stream/);
+  assert.ok((response.headers.get('content-type')??'').startsWith('text/event-stream'));
   assert.ok(response.body);
   return createSseEventReader(response.body.getReader());
 }
