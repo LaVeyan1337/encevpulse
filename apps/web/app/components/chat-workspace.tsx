@@ -47,6 +47,8 @@ export function ChatWorkspace({
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [detail,setDetail]=useState<ChatDetail|null>(null);
   const [messages,setMessages]=useState<Message[]>([]);
+  const [hasMoreMessages,setHasMoreMessages]=useState(false);
+  const [loadingOlder,setLoadingOlder]=useState(false);
   const [loading,setLoading]=useState(true);
   const [messageLoading,setMessageLoading]=useState(false);
   const [error,setError]=useState('');
@@ -67,6 +69,7 @@ export function ChatWorkspace({
   const [searchOpen,setSearchOpen]=useState(false);
   const [actionBusy,setActionBusy]=useState(false);
   const scrollRef=useRef<HTMLDivElement|null>(null);
+  const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const selected=useMemo(()=>conversations.find(item=>item.id===selectedId)??null,[conversations,selectedId]);
 
   const loadConversations=useCallback(async()=>{
@@ -85,6 +88,7 @@ export function ChatWorkspace({
     const result=await request('chat/conversations/'+id+'/messages');
     const list=(result.messages??[]) as Message[];
     setMessages(list);
+    setHasMoreMessages(Boolean(result.page?.hasMore));
     if(markRead&&list.length) {
       const latest=list[list.length-1];
       {
@@ -146,8 +150,37 @@ export function ChatWorkspace({
   },[selectedId,loadConversations,loadMessages,sending,actionBusy]);
 
   useEffect(()=>{
-    if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
+    const element=scrollRef.current;
+    if(!element)return;
+    const restore=pendingScrollRestore.current;
+    if(restore){
+      element.scrollTop=restore.top+(element.scrollHeight-restore.height);
+      pendingScrollRestore.current=null;
+    }else{
+      element.scrollTop=element.scrollHeight;
+    }
   },[messages.length,selectedId]);
+
+  async function loadOlderMessages() {
+    if(!selectedId||!hasMoreMessages||loadingOlder||messages.length===0)return;
+    const oldest=messages[0];
+    const element=scrollRef.current;
+    if(element)pendingScrollRestore.current={height:element.scrollHeight,top:element.scrollTop};
+    setLoadingOlder(true);
+    try{
+      const path='chat/conversations/'+selectedId+'/messages?beforeCreatedAt='+encodeURIComponent(oldest.createdAt)+'&beforeId='+encodeURIComponent(oldest.id);
+      const result=await request(path);
+      const older=(result.messages??[]) as Message[];
+      setMessages(current=>{
+        const known=new Set(current.map(item=>item.id));
+        return [...older.filter(item=>!known.has(item.id)),...current];
+      });
+      setHasMoreMessages(Boolean(result.page?.hasMore));
+    }catch(cause){
+      pendingScrollRestore.current=null;
+      setError(cause instanceof Error?cause.message:'Eski mesajlar yüklenemedi.');
+    }finally{setLoadingOlder(false);}
+  }
 
   async function sendMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -342,6 +375,13 @@ export function ChatWorkspace({
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>
             )}
             <div className="chat-message-scroll" ref={scrollRef}>
+              {!messageLoading&&hasMoreMessages&&(
+                <div className="chat-load-older">
+                  <button type="button" onClick={()=>void loadOlderMessages()} disabled={loadingOlder}>
+                    {loadingOlder?'Eski mesajlar yükleniyor…':'Daha eski mesajları yükle'}
+                  </button>
+                </div>
+              )}
               {messageLoading?(
                 <div className="chat-message-skeleton" role="status" aria-busy="true">
                   {[0,1,2,3].map(i=><div className={'chat-message-ghost ghost-'+i} key={i}><i/><span/><span/></div>)}
