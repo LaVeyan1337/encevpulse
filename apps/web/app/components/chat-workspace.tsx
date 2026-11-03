@@ -75,6 +75,7 @@ export function ChatWorkspace({
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
   const lastExternalTarget=useRef<string|null>(null);
+  const messageHistoryLoaded=useRef(false);
   const selected=useMemo(()=>conversations.find(item=>item.id===selectedId)??null,[conversations,selectedId]);
 
   const loadConversations=useCallback(async()=>{
@@ -92,28 +93,31 @@ export function ChatWorkspace({
   const loadMessages=useCallback(async(id:string,markRead=true,preserveHistory=false)=>{
     const result=await request('chat/conversations/'+id+'/messages');
     const list=(result.messages??[]) as Message[];
+    const hadHistory=preserveHistory&&messageHistoryLoaded.current;
     setMessages(current=>{
-      if(!preserveHistory||current.length===0)return list;
+      if(!hadHistory||current.length===0)return list;
       const latestIds=new Set(list.map(item=>item.id));
       const older=current.filter(item=>!latestIds.has(item.id));
       return [...older,...list];
     });
-    setHasMoreMessages(current => preserveHistory && messages.length > 0
+    setHasMoreMessages(current => hadHistory
       ? current && Boolean(result.page?.hasMore)
       : Boolean(result.page?.hasMore));
+    messageHistoryLoaded.current=true;
     if(markRead&&list.length) {
       const latest=list[list.length-1];
       await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
       setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
     }
     return list;
-  },[request,currentUserId,messages.length]);
+  },[request]);
 
   const openConversation=useCallback(async(id:string)=>{
     setSelectedId(id);
     setError('');
     setDetail(null);
     setMessages([]);
+    messageHistoryLoaded.current=false;
     setMessageLoading(true);
     try {
       await Promise.all([loadDetail(id),loadMessages(id)]);
@@ -236,7 +240,7 @@ export function ChatWorkspace({
         body:value,replyToId:currentReply,clientRequestId,
       });
       setSendState('sent');
-      await Promise.all([loadMessages(selectedId),loadConversations()]);
+      await Promise.all([loadMessages(selectedId,true,true),loadConversations()]);
     } catch(cause) {
       setDraft(value);
       setReplyTo(currentReply?messages.find(item=>item.id===currentReply)??null:null);
@@ -254,6 +258,7 @@ export function ChatWorkspace({
     setSearchOpen(false);
     setDetail(null);
     setMessages([]);
+    messageHistoryLoaded.current=false;
     setMessageLoading(true);
     setSearchTargetMessageId(null);
     try {
