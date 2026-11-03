@@ -244,6 +244,21 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(removed.response.status,204);
       const noLongerMember=await api(base,carol,`chat/conversations/${groupId}`);
       assert.equal(noLongerMember.response.status,404);
+
+      const transfer=await api(base,alice,`chat/conversations/${groupId}/members/${userIds[1]}/role`,'PATCH',{role:'owner'});
+      assert.equal(transfer.response.status,200);
+      assert.equal(transfer.data.myRole,'admin');
+      const newOwner=await api(base,bob,`chat/conversations/${groupId}`);
+      assert.equal(newOwner.response.status,200);
+      assert.equal(newOwner.data.myRole,'owner');
+
+      const ownerLeave=await api(base,alice,`chat/conversations/${groupId}/members/${userIds[0]}`,'DELETE',{});
+      assert.equal(ownerLeave.response.status,204);
+      const formerOwner=await api(base,alice,`chat/conversations/${groupId}`);
+      assert.equal(formerOwner.response.status,404);
+      const remainingOwner=await api(base,bob,`chat/conversations/${groupId}`);
+      assert.equal(remainingOwner.response.status,200);
+      assert.equal(remainingOwner.data.myRole,'owner');
     });
   } finally {
     if(app) await app.close();
