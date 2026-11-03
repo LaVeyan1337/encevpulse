@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Drawer } from './drawer';
-import { CommentListSkeleton, OverviewSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
+import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
 export interface User {
   id: string;
