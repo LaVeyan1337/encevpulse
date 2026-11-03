@@ -2071,9 +2071,9 @@ export function Workspace({
                 {(projectDetail.project.createdBy === user.id || projectDetail.project.ownerId === user.id || user.roles.includes('system_admin')) && (
                   <>
                     <button type="button" className="secondary-button" onClick={() => void toggleProjectArchive()} disabled={busy}>
-                      {projectDetail.project.archivedAt ? 'Arşivden çıkar' : 'Projeyi arşivle'}
+                      {projectDetail.project.archivedAt || projectDetail.project.status === 'archived' ? 'Arşivden çıkar' : 'Projeyi arşivle'}
                     </button>
-                    {!projectDetail.project.archivedAt && (
+                    {!projectDetail.project.archivedAt && projectDetail.project.status !== 'archived' && (
                       <button type="button" className="primary-button" onClick={() => {
                         setProjectError('');
                         setProjectEditing(true);
