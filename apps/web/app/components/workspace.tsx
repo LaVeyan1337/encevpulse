@@ -53,11 +53,24 @@ export interface Summary {
 
 export interface Notification {
   id: string;
+  eventType: 'task.assigned' | 'task.comment';
   taskId: string;
   taskTitle: string;
   actorName: string | null;
   createdAt: string;
   readAt: string | null;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  body: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  authorName: string;
+  isMine: boolean;
 }
 
 export interface Activity {
@@ -169,6 +182,13 @@ export function Workspace({
   const [activity, setActivity] = useState<Activity[]>([]);
   const [taskActivities, setTaskActivities] = useState<TaskActivityItem[]>([]);
   const [loadingTaskActivity, setLoadingTaskActivity] = useState(false);
+  const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
+  const [loadingTaskComments, setLoadingTaskComments] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentBody, setEditingCommentBody] = useState('');
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentError, setCommentError] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -282,6 +302,31 @@ export function Workspace({
     const timer = window.setTimeout(() => setSettledQuery(query), 250);
     return () => window.clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    if (!selected) {
+      setTaskComments([]);
+      setCommentDraft('');
+      setEditingCommentId(null);
+      setEditingCommentBody('');
+      setCommentError('');
+      return;
+    }
+    let cancelled = false;
+    setLoadingTaskComments(true);
+    setCommentError('');
+    request(`tasks/${selected.id}/comments`)
+      .then((res) => {
+        if (!cancelled) setTaskComments(Array.isArray(res.comments) ? (res.comments as TaskComment[]) : []);
+      })
+      .catch((cause) => {
+        if (!cancelled) setCommentError(cause instanceof Error ? cause.message : 'Yorumlar alınamadı.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTaskComments(false);
+      });
+    return () => { cancelled = true; };
+  }, [selected?.id, request]);
 
   // Load task-specific activity when a task is selected
   useEffect(() => {
@@ -420,6 +465,63 @@ export function Workspace({
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Görev güncellenemedi.');
+    }
+  }
+
+  async function submitTaskComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !commentDraft.trim()) return;
+    setCommentBusy(true);
+    setCommentError('');
+    try {
+      const result = await request(`tasks/${selected.id}/comments`, 'POST', { body: commentDraft });
+      setTaskComments((items) => [...items, result.comment as TaskComment]);
+      setCommentDraft('');
+      await refresh();
+    } catch (cause) {
+      setCommentError(cause instanceof Error ? cause.message : 'Yorum gönderilemedi.');
+    } finally {
+      setCommentBusy(false);
+    }
+  }
+
+  async function saveTaskComment(comment: TaskComment) {
+    if (!selected || !editingCommentBody.trim()) return;
+    setCommentBusy(true);
+    setCommentError('');
+    try {
+      const result = await request(`tasks/${selected.id}/comments/${comment.id}`, 'PATCH', {
+        body: editingCommentBody,
+        version: comment.version,
+      });
+      setTaskComments((items) => items.map((item) => item.id === comment.id ? result.comment as TaskComment : item));
+      setEditingCommentId(null);
+      setEditingCommentBody('');
+    } catch (cause) {
+      setCommentError(cause instanceof Error ? cause.message : 'Yorum güncellenemedi.');
+    } finally {
+      setCommentBusy(false);
+    }
+  }
+
+  async function removeTaskComment(comment: TaskComment) {
+    if (!selected) return;
+    if (!window.confirm('Bu yorumu silmek istediğinizden emin misiniz? Yorum metni kaldırılacaktır.')) return;
+    setCommentBusy(true);
+    setCommentError('');
+    try {
+      await request(`tasks/${selected.id}/comments/${comment.id}`, 'DELETE', { version: comment.version });
+      setTaskComments((items) => items.map((item) => item.id === comment.id
+        ? { ...item, body: '', deletedAt: new Date().toISOString(), version: item.version + 1 }
+        : item));
+      if (editingCommentId === comment.id) {
+        setEditingCommentId(null);
+        setEditingCommentBody('');
+      }
+    } catch (cause) {
+      setCommentError(cause instanceof Error ? cause.message : 'Yorum silinemedi.');
+    } finally {
+      setCommentBusy(false);
     }
   }
 
@@ -640,7 +742,8 @@ export function Workspace({
                     >
                       <span className="notification-title">{notification.taskTitle}</span>
                       <span className="notification-description">
-                        {notification.actorName ?? 'Bir kullanıcı'} görevi size atadı
+                        {notification.actorName ?? 'Bir kullanıcı'}{' '}
+                        {notification.eventType === 'task.comment' ? 'göreve yorum ekledi' : 'görevi size atadı'}
                       </span>
                       <time>{dateTimeLabel(notification.createdAt)}</time>
                     </button>
@@ -1486,6 +1589,103 @@ export function Workspace({
                 </div>
               )}
             </div>
+
+            <section className="task-comments-section" aria-label="Görev yorumları">
+              <div className="task-comments-heading">
+                <div>
+                  <h3>Yorumlar</h3>
+                  <span>{taskComments.filter((comment) => !comment.deletedAt).length} yorum</span>
+                </div>
+              </div>
+
+              {commentError && <p className="auth-error" role="alert">{commentError}</p>}
+
+              {loadingTaskComments ? (
+                <p className="muted-line">Yorumlar yükleniyor…</p>
+              ) : taskComments.length === 0 ? (
+                <p className="muted-line">Bu görevde henüz yorum yok.</p>
+              ) : (
+                <div className="task-comments-list">
+                  {taskComments.map((comment) => (
+                    <article className={`task-comment${comment.isMine ? ' task-comment-mine' : ''}`} key={comment.id}>
+                      <div className="task-comment-meta">
+                        <strong>{comment.authorName}</strong>
+                        <time>{dateTimeLabel(comment.createdAt)}</time>
+                        {comment.updatedAt !== comment.createdAt && !comment.deletedAt && (
+                          <span className="task-comment-edited">Düzenlendi</span>
+                        )}
+                        {comment.isMine && !comment.deletedAt && !selected.archivedAt && (
+                          <div className="task-comment-actions">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCommentId(comment.id);
+                                setEditingCommentBody(comment.body);
+                                setCommentError('');
+                              }}
+                              disabled={commentBusy}
+                            >Düzenle</button>
+                            <button
+                              type="button"
+                              onClick={() => void removeTaskComment(comment)}
+                              disabled={commentBusy}
+                            >Sil</button>
+                          </div>
+                        )}
+                      </div>
+
+                      {comment.deletedAt ? (
+                        <p className="task-comment-deleted">Bu yorum silindi.</p>
+                      ) : editingCommentId === comment.id ? (
+                        <div className="task-comment-edit">
+                          <textarea
+                            value={editingCommentBody}
+                            onChange={(event) => setEditingCommentBody(event.target.value)}
+                            maxLength={4000}
+                            rows={3}
+                            aria-label="Yorumu düzenle"
+                          />
+                          <div className="task-comment-edit-actions">
+                            <button type="button" className="secondary-button compact-button" onClick={() => {
+                              setEditingCommentId(null);
+                              setEditingCommentBody('');
+                            }} disabled={commentBusy}>İptal</button>
+                            <button type="button" className="primary-button compact-button" onClick={() => void saveTaskComment(comment)} disabled={commentBusy || !editingCommentBody.trim()}>
+                              {commentBusy ? 'Kaydediliyor…' : 'Kaydet'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="task-comment-body">{comment.body}</p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {!selected.archivedAt ? (
+                <form className="task-comment-compose" onSubmit={submitTaskComment}>
+                  <label htmlFor="task-comment-draft">Yorum ekle</label>
+                  <textarea
+                    id="task-comment-draft"
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    maxLength={4000}
+                    rows={3}
+                    placeholder="Görevle ilgili notunuzu yazın…"
+                    required
+                  />
+                  <div className="task-comment-compose-footer">
+                    <span>{commentDraft.length}/4000</span>
+                    <button type="submit" className="primary-button compact-button" disabled={commentBusy || !commentDraft.trim()}>
+                      {commentBusy ? 'Gönderiliyor…' : 'Yorum gönder'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <p className="muted-line">Arşivlenmiş görevlerde yorum eklenemez.</p>
+              )}
+            </section>
           </div>
         )}
       </Drawer>
