@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { resolve } from 'node:path';
@@ -87,10 +88,11 @@ async function main(): Promise<void> {
     );
     if (bootstrap.rowCount || existingAdmin.rowCount) throw new Error('İlk yönetici kurulumu daha önce tamamlanmış.');
 
+    const avatarKey = ['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'][randomInt(0,12)];
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO users (username, email, display_name, password_hash)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [username, email, displayName, passwordHash],
+      `INSERT INTO users (username, email, display_name, avatar_key, password_hash)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [username, email, displayName, avatarKey, passwordHash],
     );
     const userId = inserted.rows[0].id;
     await client.query(
