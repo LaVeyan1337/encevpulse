@@ -347,10 +347,13 @@ export class ChatService {
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      await this.requireMember(client,id,user.id);
       const source=await client.query(`SELECT m.id,m.body,m.conversation_id FROM messages m
-        JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=$2 AND cm.left_at IS NULL
-        WHERE m.id=$1 AND m.deleted_at IS NULL FOR UPDATE`,[id,user.id]);
+        JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
+        JOIN conversation_members cm ON cm.conversation_id=m.conversation_id
+          AND cm.user_id=$2 AND cm.left_at IS NULL
+        JOIN users actor ON actor.id=cm.user_id AND actor.status='active'
+        WHERE m.id=$1 AND m.deleted_at IS NULL
+        FOR UPDATE OF m`,[id,user.id]);
       if(!source.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Kaynak mesaj bulunamadı.'});
       const existing=await client.query(`SELECT task_id FROM message_task_links WHERE message_id=$1`,[id]);
       if(existing.rowCount) {
