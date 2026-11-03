@@ -130,11 +130,23 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
     let firstMessageId='';
     let replyMessageId='';
     await t.test('mesaj, yanıt, düzenleme, tepki, sabitleme, okundu ve arama',async()=>{
+      const firstRequestId=randomUUID();
       const sent=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
-        body:'Flora saha planı için toplantı yapalım.',clientRequestId:randomUUID(),
+        body:'Flora saha planı için toplantı yapalım.',clientRequestId:firstRequestId,
       });
       assert.equal(sent.response.status,201,JSON.stringify(sent.data));
       firstMessageId=sent.data.message.id;messageIds.push(firstMessageId);
+
+      const retried=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
+        body:'Flora saha planı için toplantı yapalım.',clientRequestId:firstRequestId,
+      });
+      assert.equal(retried.response.status,201);
+      assert.equal(retried.data.message.id,firstMessageId);
+      const conflictingRetry=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
+        body:'Farklı içerik',clientRequestId:firstRequestId,
+      });
+      assert.equal(conflictingRetry.response.status,409);
+      assert.equal(conflictingRetry.data.code,'MESSAGE_IDEMPOTENCY_CONFLICT');
 
       const reply=await api(base,bob,`chat/conversations/${groupId}/messages`,'POST',{
         body:'Perşembe günü uygunum.',replyToId:firstMessageId,clientRequestId:randomUUID(),
