@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Drawer } from './drawer';
+import { OverviewSkeleton, TaskBoardSkeleton } from './skeletons';
 
 export interface User {
   id: string;
@@ -794,7 +795,7 @@ export function Workspace({
         </header>
 
         {/* Content View */}
-        <main className="workspace-content">
+        <main key={section} className="workspace-content workspace-page-enter">
           <div className="workspace-heading">
             <div>
               <p className="eyebrow">ENCEV PULSE</p>
@@ -840,7 +841,8 @@ export function Workspace({
 
           {/* Overview Section */}
           {section === 'overview' && (
-            <section className="overview-section" aria-label="Görev özeti">
+            loading ? <OverviewSkeleton /> : (
+              <section className="overview-section" aria-label="Görev özeti">
               <div className="summary-grid">
                 <button
                   type="button"
@@ -1018,7 +1020,8 @@ export function Workspace({
                   )}
                 </section>
               </div>
-            </section>
+              </section>
+            )
           )}
 
           {/* Tasks Section */}
@@ -1116,7 +1119,7 @@ export function Workspace({
               </div>
 
               {loading ? (
-                <p className="muted-line">Görevler yükleniyor…</p>
+                <TaskBoardSkeleton layout={layout} />
               ) : filteredTasks.length === 0 ? (
                 <div className="large-empty empty-state">
                   <Icon name="check" />
