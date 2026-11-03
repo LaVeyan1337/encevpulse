@@ -53,6 +53,7 @@ export function ChatWorkspace({
   const [messages,setMessages]=useState<Message[]>([]);
   const [hasMoreMessages,setHasMoreMessages]=useState(false);
   const [loadingOlder,setLoadingOlder]=useState(false);
+  const [realtimeConnected,setRealtimeConnected]=useState(false);
   const [loading,setLoading]=useState(true);
   const [messageLoading,setMessageLoading]=useState(false);
   const [error,setError]=useState('');
@@ -183,13 +184,93 @@ export function ChatWorkspace({
   },[loadConversations,openConversation,request,startUserId,initialConversationId,onStartConsumed]);
 
   useEffect(()=>{
-    if(!selectedId)return;
-    const timer=window.setInterval(()=>{
-      if(document.visibilityState!=='visible'||sending||actionBusy||loadingOlder)return;
-      void Promise.all([loadConversations(),loadMessages(selectedId,true,true)]).catch(()=>undefined);
-    },2800);
-    return ()=>window.clearInterval(timer);
-  },[selectedId,loadConversations,loadMessages,sending,actionBusy,loadingOlder]);
+    let disposed=false;
+    let refreshing=false;
+    let refreshAgain=false;
+    let fallbackTimer:number|null=null;
+
+    const refresh=async()=>{
+      if(disposed||document.visibilityState!=='visible')return;
+      if(refreshing){refreshAgain=true;return;}
+      refreshing=true;
+      try{
+        do{
+          refreshAgain=false;
+          await loadConversations();
+          const activeId=selectedId;
+          if(activeId){
+            await Promise.all([
+              loadDetail(activeId),
+              loadMessages(activeId,true,true),
+            ]);
+          }
+        }while(refreshAgain&&!disposed);
+      }catch{
+        // REST remains authoritative; bounded fallback retries transient failures.
+      }finally{refreshing=false;}
+    };
+
+    const startFallback=()=>{
+      setRealtimeConnected(false);
+      if(fallbackTimer===null)fallbackTimer=window.setInterval(()=>void refresh(),15000);
+    };
+    const stopFallback=()=>{
+      if(fallbackTimer!==null)window.clearInterval(fallbackTimer);
+      fallbackTimer=null;
+      setRealtimeConnected(true);
+    };
+
+    const source=new EventSource('/api/chat/events');
+    source.onerror=()=>startFallback();
+
+    const connectionState=(event:Event)=>{
+      try{
+        const state=JSON.parse((event as MessageEvent<string>).data) as {realtime?:boolean};
+        if(state.realtime===true){
+          stopFallback();
+          void refresh();
+        }else startFallback();
+      }catch{startFallback();}
+    };
+
+    const conversationUpdated=(event:Event)=>{
+      let update:{conversationId?:string;eventType?:string;accessRevoked?:boolean};
+      try{update=JSON.parse((event as MessageEvent<string>).data) as typeof update;}
+      catch{return;}
+      if(update.conversationId===selectedId&&update.accessRevoked===true){
+        setSelectedId(null);
+        setDetail(null);
+        setMessages([]);
+        messageHistoryLoaded.current=false;
+        setError('Bu sohbetten çıkarıldınız; erişiminiz kaldırıldı.');
+        void loadConversations().catch(()=>undefined);
+        return;
+      }
+      void (async()=>{
+        await loadConversations();
+        if(update.conversationId!==selectedId)return;
+        await loadDetail(selectedId);
+        await loadMessages(selectedId,update.eventType!=='read.changed',true);
+      })().catch(()=>undefined);
+    };
+
+    const onVisibilityChange=()=>{
+      if(document.visibilityState==='visible')void refresh();
+    };
+
+    source.addEventListener('ready',connectionState);
+    source.addEventListener('heartbeat',connectionState);
+    source.addEventListener('conversation.updated',conversationUpdated);
+    document.addEventListener('visibilitychange',onVisibilityChange);
+
+    return ()=>{
+      disposed=true;
+      source.close();
+      if(fallbackTimer!==null)window.clearInterval(fallbackTimer);
+      document.removeEventListener('visibilitychange',onVisibilityChange);
+      setRealtimeConnected(false);
+    };
+  },[selectedId,loadConversations,loadDetail,loadMessages]);
 
   useEffect(()=>{
     const element=scrollRef.current;
@@ -479,7 +560,7 @@ export function ChatWorkspace({
             </button>
           ))}
         </div>
-        <div className="chat-rail-bottom"><span>{conversations.length} konuşma</span><span>Mesajlar yaklaşık 3 saniyede yenilenir</span></div>
+        <div className="chat-rail-bottom"><span>{conversations.length} konuşma</span><span>{realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span></div>
       </aside>
 
       <main className="chat-thread">
@@ -496,7 +577,7 @@ export function ChatWorkspace({
                     />}
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
-              <div className="chat-thread-actions"><span className="chat-live-indicator"><i/> Otomatik yenileme</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
+              <div className="chat-thread-actions"><span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
             </header>
             {detail.pinned.length>0&&(
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>

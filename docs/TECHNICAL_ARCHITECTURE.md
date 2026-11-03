@@ -8,7 +8,7 @@
 ENCEV PULSE için önerim, tek kod tabanında sınırları belirgin bir **modüler monolit** ve küçük sayıda dağıtım bileşenidir:
 
 - **Web arayüzü:** React + React Router Framework Mode, SPA çıktısı ve Vite derleme.
-- **Backend:** TypeScript/NestJS ile modüler API; aynı uygulama içinde WebSocket ağ geçidi.
+- **Backend:** TypeScript/NestJS ile modüler API; sohbetin şu anki canlı güncellemesi same-origin SSE ve PostgreSQL `LISTEN/NOTIFY` ile çalışır. WebSocket etkin değildir; ihtiyaç doğrulanırsa sonraki seçenek olarak değerlendirilir.
 - **Veri:** PostgreSQL; erişim yalnızca backend üzerinden.
 - **Veri erişimi:** Drizzle ORM ve incelemeye açık SQL migration dosyaları.
 - **Arka plan işleri:** İlk aşamada PostgreSQL transactional outbox ve aynı backend kodunu çalıştıran worker.
@@ -81,12 +81,12 @@ NestJS içinde modül sınırları iş alanlarına göre kurulur; örneğin:
 - `Documents`: dosya metadata'sı ve sağlayıcı arayüzü; ilk aşamada yalnızca yerel sahte sağlayıcı.
 - `Audit`: değiştirilemeyen işlem olayları.
 
-Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servis/API sınırlarından geçer. HTTP ve WebSocket aynı iş kurallarını, kimlik doğrulamayı ve yetkilendirmeyi kullanır. NestJS modülleri, bağımlılık enjeksiyonu ve WebSocket ağ geçitlerini destekler; bu düzenleme biçimi resmî belgelerinde tariflidir: [NestJS Modules](https://docs.nestjs.com/modules), [NestJS Gateways](https://docs.nestjs.com/websockets/gateways).
+Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servis/API sınırlarından geçer. HTTP ve SSE aynı session ve kaynak üyeliği denetimlerini kullanır. NestJS modülleri ve SSE yanıtlarını Observable üzerinden sunma desteği modül sınırını korur: [NestJS Modules](https://docs.nestjs.com/modules), [NestJS Server-Sent Events](https://docs.nestjs.com/techniques/server-sent-events).
 
 ### API yaklaşımı
 
 - JSON REST API. Şu anki uygulama yolları `/api/*` altındadır; dış sözleşme sabitlenmeden önce sürümleme politikası karara bağlanacaktır. Üretim modülleri için OpenAPI sözleşmesi hazırlanır.
-- WebSocket yalnızca sohbet/bildirim olayları ve anlık istemci güncellemeleri içindir.
+- Sohbet canlı güncellemeleri SSE üzerinden, tek yönlü ve içerik taşımayan invalidation sinyalleriyle iletilir. Mesaj gönderme, okuma ve diğer değişiklik komutları REST üzerinden yürür; SSE koparsa istemci sınırlı aralıklı REST yenilemesine döner. WebSocket mevcut uygulamada etkin değildir.
 - Liste uçları filtre, sıralama ve cursor/limit kabul eder; her alan sunucu tarafında izinli alan listesinden doğrulanır.
 - Her değişiklikte `request_id`, actor, zaman ve gerekliyse idempotency anahtarı tutulur.
 - API hata yanıtları sabit `code`, kullanıcıya uygun mesaj ve korelasyon kimliği döndürür; stack trace veya gizli veri döndürmez.
@@ -113,6 +113,8 @@ Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servi
 - **Üretim:** Reverse proxy aynı HTTPS hostunda statik SPA'yı ve `/api/*`, WebSocket yolunu NestJS'e yönlendirir. Cookie Secure ve host-only kalır; API'nin `TRUSTED_PROXY_IPS` allowlist'i yalnız proxy IP'lerinden gelen forwarded header'lara güvenmesini sağlar. Ayrı origin gerekli olursa CORS/cookie/CSRF tasarımı yeniden incelenir; credential'lı wildcard kullanılmaz.
 
 ## 4. Sohbet ve gerçek zamanlı akış
+
+**Mevcut uygulama:** SSE (`/api/chat/events`) + PostgreSQL `LISTEN/NOTIFY`. Migration tetikleyicileri mesaj, üyelik, tepki, okundu imleci ve mesaj-görev bağlantısı değişikliklerinde yalnızca konuşma ID'si/olay türü gibi içeriksiz veriler yayımlar. API listener aktif konuşma üyelerini veritabanından tekrar bulur ve kullanıcı başına SSE kanallarına invalidation sinyali gönderir. Tarayıcı içerik taşıyan bir push mesajı almaz; seçili konuşmayı ve listeyi yetkili REST uçlarından yeniler. Oturum akışı 60 saniyede tekrar doğrulanır; SSE veya PostgreSQL listener kesilirse yeniden bağlanma ve 15 saniyelik yedek sorgulama devreye girer. Bu başlangıç çözümü tek API örneği varsayar.
 
 1. İstemci command API'ye mesajı, `client_request_id` ile gönderir; unique constraint yinelenen komutu güvenli idempotent yanıta dönüştürür.
 2. Tek PostgreSQL transaction'ında üyelik/yetki doğrulaması, mesaj, gerekiyorsa revision, audit kaydı ve `outbox_events` satırı yazılır. Commit başarısızsa WebSocket olayı yoktur.

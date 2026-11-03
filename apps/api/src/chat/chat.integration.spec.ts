@@ -12,6 +12,60 @@ const ORIGIN = process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173';
 const PASSWORD = 'Yerel-Chat-Test-Parolasi-2026!';
 interface Client { cookie:string; csrf:string }
 
+type SseEventReader={
+  next:(timeoutMs?:number)=>Promise<{event:string;data:string}|null>;
+  close:()=>Promise<void>;
+};
+
+function createSseEventReader(reader:ReadableStreamDefaultReader<Uint8Array>):SseEventReader {
+  const decoder=new TextDecoder();
+  let buffer='';
+  let pending:Promise<ReadableStreamReadResult<Uint8Array>>|null=null;
+  return {
+    async next(timeoutMs=4000) {
+      while(true) {
+        const boundary=buffer.indexOf('\n\n');
+        if(boundary>=0) {
+          const block=buffer.slice(0,boundary);
+          buffer=buffer.slice(boundary+2);
+          let event='message';
+          const data:string[]=[];
+          for(const line of block.split('\n')) {
+            if(line.startsWith('event:'))event=line.slice(6).trim();
+            else if(line.startsWith('data:'))data.push(line.slice(5).trimStart());
+          }
+          if(data.length)return {event,data:data.join('\n')};
+          continue;
+        }
+        pending??=reader.read();
+        let timer:ReturnType<typeof setTimeout>|undefined;
+        const result=await Promise.race([
+          pending,
+          new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),timeoutMs);}),
+        ]);
+        if(timer)clearTimeout(timer);
+        if(result===null)return null;
+        pending=null;
+        if(result.done)return null;
+        buffer+=decoder.decode(result.value,{stream:true}).replace(/\r\n/g,'\n');
+      }
+    },
+    async close() {
+      try{await reader.cancel();}catch{/* stream may already be closed */}
+    },
+  };
+}
+
+async function openChatEvents(base:string,client:Client):Promise<SseEventReader> {
+  const response=await fetch(base+'/api/chat/events',{
+    headers:{Origin:ORIGIN,Cookie:client.cookie,Accept:'text/event-stream'},
+  });
+  assert.equal(response.status,200);
+  assert.match(response.headers.get('content-type')??'','text/event-stream');
+  assert.ok(response.body);
+  return createSseEventReader(response.body.getReader());
+}
+
 test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev bağlantısı', async (t) => {
   process.loadEnvFile(resolve(process.cwd(), '../../.env'));
   const pool = new Pool({
@@ -24,11 +78,15 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
     application_name:'encev-pulse-chat-tests',
   });
   const suffix=randomBytes(5).toString('hex');
-  const usernames=[`ca${suffix}`,`cb${suffix}`,`cc${suffix}`];
+  const usernames=[`ca${suffix}`,`cb${suffix}`,`cc${suffix}`,`cd${suffix}`];
   const userIds:string[]=[];
   const conversationIds:string[]=[];
   const messageIds:string[]=[];
   const taskIds:string[]=[];
+  const eventStreams:SseEventReader[]=[];
+  let aliceEvents:SseEventReader;
+  let bobEvents:SseEventReader;
+  let daveEvents:SseEventReader;
   let app:Awaited<ReturnType<typeof NestFactory.create>>|null=null;
 
   async function api(base:string,client:Client,path:string,method='GET',body?:unknown) {
@@ -68,8 +126,8 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const user=await pool.query<{id:string}>(
         `INSERT INTO users(username,email,display_name,job_title,department,avatar_key,password_hash)
          VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [usernames[index],`${usernames[index]}@encev.com.tr`,['Chat Owner','Chat Admin','Chat Member'][index],
-          ['Proje yöneticisi','Biyolog','ÇED uzmanı'][index],['Projeler','Flora-Fauna','ÇED'][index],
+        [usernames[index],`${usernames[index]}@encev.com.tr`,['Chat Owner','Chat Admin','Chat Member','Chat Observer'][index],
+          ['Proje yöneticisi','Biyolog','ÇED uzmanı','Gözlemci'][index],['Projeler','Flora-Fauna','ÇED','Gözlem'][index],
           ['fox','panda','otter'][index],hash],
       );
       userIds.push(user.rows[0].id);
@@ -83,7 +141,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
     app.setGlobalPrefix('api');
     await app.listen(0,'127.0.0.1');
     const base=`http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
-    const [alice,bob,carol]=await Promise.all(usernames.map(name=>signIn(base,name)));
+    const [alice,bob,carol,dave]=await Promise.all(usernames.map(name=>signIn(base,name)));
 
     await t.test('çalışan rehberi gerçek meslek, birim ve avatar bilgilerini verir',async()=>{
       const result=await api(base,alice,'auth/people');
@@ -106,12 +164,26 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(created.data.myRole,'owner');
       assert.equal(created.data.members.length,2);
 
-      const outsider=await api(base,carol,`chat/conversations/${groupId}`);
+      [aliceEvents,daveEvents]=await Promise.all([
+        openChatEvents(base,alice),openChatEvents(base,dave),
+      ]);
+      eventStreams.push(aliceEvents,daveEvents);
+      assert.equal((await aliceEvents.next())?.event,'ready');
+      assert.equal((await daveEvents.next())?.event,'ready');
+      const unauthenticated=await fetch(base+'/api/chat/events',{headers:{Origin:ORIGIN,Accept:'text/event-stream'}});
+      assert.equal(unauthenticated.status,401);
+
+      const outsider=await api(base,dave,`chat/conversations/${groupId}`);
       assert.equal(outsider.response.status,404);
 
       const added=await api(base,alice,`chat/conversations/${groupId}/members`,'POST',{userIds:[userIds[2]]});
       assert.equal(added.response.status,200);
       assert.equal(added.data.members.length,3);
+      const membershipPush=await aliceEvents.next(5000);
+      assert.ok(membershipPush);
+      assert.equal(membershipPush.event,'conversation.updated');
+      assert.equal(JSON.parse(membershipPush.data).eventType,'membership.changed');
+      assert.equal(await daveEvents.next(250),null,'non-members must not receive conversation events');
 
       const roleChanged=await api(base,alice,`chat/conversations/${groupId}/members/${userIds[1]}/role`,'PATCH',{role:'admin'});
       assert.equal(roleChanged.response.status,200);
@@ -125,17 +197,28 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
         `SELECT event_type,next_role FROM conversation_member_events WHERE conversation_id=$1 ORDER BY created_at,id`,[groupId],
       );
       assert.ok(memberEvents.rows.some(row=>row.event_type==='role_changed'&&row.next_role==='admin'));
+      const rolePush=await aliceEvents.next(5000);
+      assert.ok(rolePush);
+      assert.equal(JSON.parse(rolePush.data).eventType,'membership.changed');
+      assert.equal(await daveEvents.next(250),null);
     });
 
     let firstMessageId='';
     let replyMessageId='';
     await t.test('mesaj, yanıt, düzenleme, tepki, sabitleme, okundu ve arama',async()=>{
+      bobEvents=await openChatEvents(base,bob);
+      eventStreams.push(bobEvents);
+      assert.equal((await bobEvents.next())?.event,'ready');
       const firstRequestId=randomUUID();
       const sent=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
         body:'Flora saha planı için toplantı yapalım.',clientRequestId:firstRequestId,
       });
       assert.equal(sent.response.status,201,JSON.stringify(sent.data));
       firstMessageId=sent.data.message.id;messageIds.push(firstMessageId);
+      const messagePush=await bobEvents.next(5000);
+      assert.ok(messagePush,'committed messages must notify active conversation members');
+      assert.equal(messagePush.event,'conversation.updated');
+      assert.equal(JSON.parse(messagePush.data).eventType,'message.changed');
 
       const retried=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
         body:'Flora saha planı için toplantı yapalım.',clientRequestId:firstRequestId,
@@ -261,6 +344,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(remainingOwner.data.myRole,'owner');
     });
   } finally {
+    for(const stream of eventStreams)await stream.close();
     if(app) await app.close();
     const cleanup=await pool.connect();
     try {

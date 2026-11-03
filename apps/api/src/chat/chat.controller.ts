@@ -1,6 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Post, Patch, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Post, Patch, Query, Req, Sse } from '@nestjs/common';
 import type { Request } from 'express';
+import type { MessageEvent } from '@nestjs/common';
+import type { Observable } from 'rxjs';
 import { AuthService } from '../auth/auth.service.js';
+import { ChatEventsService } from './chat-events.service.js';
 import { ChatService } from './chat.service.js';
 
 @Controller('chat')
@@ -8,7 +11,19 @@ export class ChatController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(ChatService) private readonly chat: ChatService,
+    @Inject(ChatEventsService) private readonly chatEvents: ChatEventsService,
   ) {}
+
+  @Sse('events')
+  @Header('Cache-Control','no-cache, no-transform')
+  @Header('X-Accel-Buffering','no')
+  async events(@Req() request:Request):Promise<Observable<MessageEvent>> {
+    const user=await this.auth.authorizeRequest(request);
+    return this.chatEvents.subscribe(user.id,async()=>{
+      const session=await this.auth.currentSession(request);
+      return Boolean(session&&!session.user.mustChangePassword);
+    });
+  }
 
   @Get('conversations')
   async list(@Req() request: Request) {

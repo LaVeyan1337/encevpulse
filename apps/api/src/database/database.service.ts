@@ -26,7 +26,7 @@ export class DatabaseService implements OnApplicationShutdown {
       database: config.get<string>('DB_NAME', 'encev_pulse_dev'),
       user: config.get<string>('DB_USER', 'encev_dev'),
       password,
-      max: 10,
+      max: 15,
       connectionTimeoutMillis: 3000,
       idleTimeoutMillis: 30000,
       application_name: 'encev-pulse-api-local',

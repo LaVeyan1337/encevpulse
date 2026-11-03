@@ -192,7 +192,9 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(chat, /Gruptan ayrıl/);
   assert.match(chat, /Sohbet sahibi/);
   assert.match(chat, /members\/(?:\$\{member\.id\}|'\s*\+\s*member\.id\s*\+\s*')\/role/);
-  assert.match(chat, /setInterval/);
+  assert.match(chat, /new EventSource\('\/api\/chat\/events'\)/);
+  assert.match(chat, /conversation\.updated/);
+  assert.match(chat, /15000/);
   assert.match(chat, /Gönderim başarısız/);
   assert.match(chat, /Dosya ekleri bu sürümde güvenlik/);
   assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);

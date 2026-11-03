@@ -71,7 +71,7 @@
 - Mesajdan görev oluşturma formu; başlık, sorumlu ve proje seçimini destekler. Mesaj açıklama olarak kaynak kaydına bağlanır; yinelenen görev üretimini önleyen tekillik kuralı vardır. Bağlı görev yeniden üretim yerine açılır.
 - Sohbet mesaj bildirimleri görev bildirimleriyle aynı üst menüde toplanır; bildirime tıklama hedef konuşmayı açar, okundu durumu ve genel okunmamış sayacı güncellenir.
 - Sohbet listesinde, doğrudan konuşma başlığında, üye listesinde ve mesajlarda aynı çalışan avatarı kullanılır. Arama sonucu seçildiğinde mesajın kendisi bulunana kadar geçmiş sayfaları yüklenir ve mesaj ekranda ortalanır.
-- Tarayıcı tarafında yaklaşık 3 saniyelik yenileme kullanılır; bu sürüm WebSocket/SSE değildir ve gerçek zamanlı push olarak tanımlanmamalıdır.
+- Sohbet canlı güncellemeleri same-origin SSE (`/api/chat/events`) ve PostgreSQL `LISTEN/NOTIFY` ile iletilir. Bildirim payload'ları mesaj metni veya dosya bilgisi taşımaz; istemci konuşma kimliğini aldıktan sonra mevcut üyelik kontrollü REST uçlarından veriyi yeniler. Aktif üyelik bazlı fan-out, üyeliği kaldırılan kullanıcıya erişim iptali sinyali, 60 saniyede session yenidoğrulaması ve SSE kesintisinde 15 saniyelik yedek yenileme uygulanır.
 - Sohbet eki yükleme kapalıdır. Eklerin izinli MIME türleri, boyut sınırı, zararlı yazılım taraması ve saklama süresi karara bağlanmamıştır. Sesli/görüntülü görüşme düğmesi eklenmemiştir.
 ### D. Gerçek Genel Bakış
 - Veriler doğrudan PostgreSQL üzerinden hesaplanır:
@@ -93,7 +93,7 @@
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
 - Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
 - **3 Kasım 2026 — son doğrulanan kaynak:** `transfer/encev-pulse-source-20261103` dalındaki `46eb26cd044640182e7f1cbfffa0684ab268f6b6` commit'i GitHub Actions koşusu `41669777611` ile doğrulandı. Temiz PostgreSQL 18.6 üzerinde migration'lar uygulandı; web testleri 12/12, API testleri 25/25 geçti; iki workspace için TypeScript kontrolleri ve API/Web üretim derlemeleri başarılı oldu. Kaynak ZIP'i oluşturuldu ve `encev-pulse-validated-source` artifact'i olarak yüklendi.
-- Bu doğrulama izole Linux CI ortamına aittir. Yerel Windows kurulumu, gerçek tarayıcı görsel kabulü, ofis ağı/ortak dosyalar, gerçek kullanıcı verisi ve üretim dağıtımı test edilmedi.
+- Bu doğrulama izole Linux CI ortamına aittir. Yerel Windows kurulumu, reverse proxy üzerinden gerçek SSE bağlantısı, tarayıcı görsel kabulü, ofis ağı/ortak dosyalar, gerçek kullanıcı verisi ve üretim dağıtımı test edilmedi.
 - **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
@@ -103,5 +103,5 @@
   - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
   - Yerel Windows ortamında kontrollü uygulama ve gerçek tarayıcı görsel kabul testlerini tamamlama.
   - Modül bazlı rol/izin matrisi ve ekip hiyerarşisini süreç sahipleriyle doğrulama.
-  - Sohbet için WebSocket/SSE veya outbox tabanlı gerçek zamanlı teslim; mesaj saklama/düzenleme/silme süre politikası onaylanmadan kalıcı saklama davranışı genişletilmez.
+  - Mesaj saklama/düzenleme/silme süre politikası ve SSE bağlantısının gerçek Windows/reverse-proxy kabul testi.
   - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
