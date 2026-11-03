@@ -351,7 +351,16 @@ export class TasksService {
 
   async people() {
     const result = await this.db.query(
-      `SELECT id, display_name AS "displayName", username FROM users WHERE status = 'active' ORDER BY display_name LIMIT 500`,
+      `SELECT u.id,u.display_name AS "displayName",u.username,u.email,
+        u.job_title AS "jobTitle",u.department,u.avatar_key AS "avatarKey",
+        COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),ARRAY[]::text[]) AS roles
+       FROM users u
+       LEFT JOIN user_role_assignments ura ON ura.user_id=u.id
+       LEFT JOIN roles r ON r.id=ura.role_id
+       WHERE u.status='active'
+       GROUP BY u.id
+       ORDER BY u.department,u.display_name
+       LIMIT 500`,
     );
     return { people: result.rows };
   }
