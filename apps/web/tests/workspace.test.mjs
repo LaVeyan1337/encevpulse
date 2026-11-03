@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+
+test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gereksinimlerini karşılar', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+
+  // Scope D: Genel Bakış gerçek metrikleri
+  assert.match(workspace, /Bana atanan görevler/);
+  assert.match(workspace, /Açık görevler/);
+  assert.match(workspace, /Geciken/);
+  assert.match(workspace, /7 gün içinde teslim/);
+  assert.match(workspace, /Tamamlanan/);
+  assert.match(workspace, /Yaklaşan görevler/);
+  assert.match(workspace, /Son hareketler/);
+
+  // Scope C: Görev Geçmişi (Temel Görev Geçmişi)
+  assert.match(workspace, /Temel Görev Geçmişi/);
+  assert.match(workspace, /tasks\/\$\{selected\.id\}\/activity/);
+  assert.match(workspace, /task-timeline/);
+
+  // Scope B: Üst arama alanı ve navigasyon
+  assert.match(workspace, /topbar-search/);
+  assert.match(workspace, /Görevlerde ara…/);
+  assert.match(workspace, /Parolamı değiştir/);
+
+  // Scope C: Kanban ve Liste görünümü
+  assert.match(workspace, /kanban-board/);
+  assert.match(workspace, /draggable/);
+  assert.match(workspace, /task-table/);
+  assert.match(workspace, /Devam ediyor/);
+  assert.match(workspace, /Bekliyor/);
+
+  // Doğal dil kontrolü: yasaklı sloganlar ve teknik sızıntılar bulunmamalı
+  assert.doesNotMatch(
+    workspace,
+    /İşleriniz için tek bir merkez|Daha akıllı çalışın|Verimliliğinizi artırın|Her şey tek yerde|Çalışma alanınız hazırlanıyor|İşlerinizi bir üst seviyeye taşıyın|Yapay zekâ destekli deneyim|PostgreSQL|Yerel geliştirme/,
+  );
+});

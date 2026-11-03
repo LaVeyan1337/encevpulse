@@ -1,0 +1,101 @@
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { AuthService } from './auth.service.js';
+
+const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+@Controller('auth')
+export class AuthController {
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+
+  @Post('csrf')
+  @HttpCode(HttpStatus.OK)
+  async csrf(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    return this.auth.issueLoginChallenge(request);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const session = await this.auth.login(request, data.identifier, data.password);
+    this.setSessionCookie(response, session.sessionToken);
+    return { user: session.user, csrfToken: session.csrfToken };
+  }
+
+  @Get('session')
+  async session(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    const current = await this.auth.currentSession(request);
+    if (!current) {
+      this.clearSessionCookie(response);
+      return { authenticated: false };
+    }
+    return { authenticated: true, ...current };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    response.setHeader('Cache-Control', 'no-store');
+    await this.auth.logout(request);
+    this.clearSessionCookie(response);
+  }
+
+  @Post('password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const session = await this.auth.changePassword(request, data.currentPassword, data.newPassword);
+    this.setSessionCookie(response, session.sessionToken);
+    return { user: session.user, csrfToken: session.csrfToken };
+  }
+
+  @Post('users')
+  @HttpCode(HttpStatus.CREATED)
+  async createUser(@Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    return this.auth.createUser(request, body);
+  }
+
+  @Get('users')
+  async listUsers(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    return this.auth.listUsers(request);
+  }
+
+  @Post('users/:id/disable')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async disableUser(@Req() request: Request, @Param('id') id: string): Promise<void> {
+    await this.auth.disableUser(request, id);
+  }
+
+  @Post('users/:id/reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetUserPassword(@Req() request: Request, @Param('id') id: string, @Res({ passthrough: true }) response: Response) {
+    response.setHeader('Cache-Control', 'no-store');
+    return this.auth.resetUserPassword(request, id);
+  }
+
+  private setSessionCookie(response: Response, token: string): void {
+    response.cookie(this.auth.cookieName, token, {
+      httpOnly: true,
+      secure: this.auth.secureCookies,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: COOKIE_MAX_AGE_MS,
+    });
+  }
+
+  private clearSessionCookie(response: Response): void {
+    response.clearCookie(this.auth.cookieName, {
+      httpOnly: true,
+      secure: this.auth.secureCookies,
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+}
