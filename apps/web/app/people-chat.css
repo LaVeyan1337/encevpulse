@@ -263,3 +263,9 @@
 .user-profile-roles{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
 .user-profile-roles .user-role-tag{display:inline-flex;width:max-content;max-width:100%;padding:3px 7px;border-radius:999px;background:var(--accent-subtle);color:var(--accent);font-size:9px;font-weight:700}
 .people-self-label{display:inline-flex;align-items:center;min-height:27px;padding:0 9px;color:var(--text-muted);background:var(--surface-hover);border:1px solid var(--border);border-radius:8px;font-size:9px;font-weight:700}
+
+.chat-modal-field select{width:100%;min-height:39px;padding:0 10px;color:var(--text);background:var(--page);border:1px solid var(--border-strong);border-radius:8px;font:inherit;font-size:11px}
+.chat-task-source{display:grid;gap:6px;padding:10px 11px;background:rgba(200,143,115,.075);border:1px solid rgba(200,143,115,.16);border-radius:10px}
+.chat-task-source strong{color:var(--accent);font-size:9px}
+.chat-task-source p{margin:0;color:var(--text-secondary);font-size:10px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-task-source span{color:var(--text-muted);font-size:8px}
