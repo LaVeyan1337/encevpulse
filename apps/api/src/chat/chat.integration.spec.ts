@@ -1,0 +1,258 @@
+import assert from 'node:assert/strict';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { AddressInfo } from 'node:net';
+import { resolve } from 'node:path';
+import test from 'node:test';
+import { NestFactory } from '@nestjs/core';
+import { Pool } from 'pg';
+import { ApplicationModule } from '../application.module.js';
+import { PasswordHasher } from '../auth/password-hasher.js';
+
+const ORIGIN = process.env.APP_ORIGIN ?? 'http://127.0.0.1:5173';
+const PASSWORD = 'Yerel-Chat-Test-Parolasi-2026!';
+interface Client { cookie:string; csrf:string }
+
+test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev bağlantısı', async (t) => {
+  process.loadEnvFile(resolve(process.cwd(), '../../.env'));
+  const pool = new Pool({
+    host:process.env.DB_HOST ?? '127.0.0.1',
+    port:Number(process.env.DB_PORT ?? 5432),
+    database:process.env.DB_NAME ?? 'encev_pulse_dev',
+    user:process.env.DB_USER ?? 'encev_dev',
+    password:process.env.POSTGRES_PASSWORD,
+    connectionTimeoutMillis:3000,
+    application_name:'encev-pulse-chat-tests',
+  });
+  const suffix=randomBytes(5).toString('hex');
+  const usernames=[`ca${suffix}`,`cb${suffix}`,`cc${suffix}`];
+  const userIds:string[]=[];
+  const conversationIds:string[]=[];
+  const messageIds:string[]=[];
+  const taskIds:string[]=[];
+  let app:Awaited<ReturnType<typeof NestFactory.create>>|null=null;
+
+  async function api(base:string,client:Client,path:string,method='GET',body?:unknown) {
+    const response=await fetch(`${base}/api/${path}`,{
+      method,
+      headers:{
+        Origin:ORIGIN,Cookie:client.cookie,
+        ...(body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':client.csrf}),
+      },
+      ...(body===undefined?{}:{body:JSON.stringify(body)}),
+    });
+    const data=response.status===204?null:await response.json();
+    return {response,data};
+  }
+
+  async function signIn(base:string,username:string):Promise<Client> {
+    const challenge=await fetch(`${base}/api/auth/csrf`,{
+      method:'POST',headers:{Origin:ORIGIN,'Content-Type':'application/json'},body:'{}',
+    });
+    const challengeBody=await challenge.json() as {csrfToken:string};
+    const response=await fetch(`${base}/api/auth/login`,{
+      method:'POST',
+      headers:{Origin:ORIGIN,'Content-Type':'application/json','X-CSRF-Token':challengeBody.csrfToken},
+      body:JSON.stringify({identifier:username,password:PASSWORD}),
+    });
+    const result=await response.json() as {csrfToken:string};
+    assert.equal(response.status,200);
+    return {cookie:response.headers.get('set-cookie')!.split(';',1)[0],csrf:result.csrfToken};
+  }
+
+  try {
+    const employee=await pool.query<{id:string}>("SELECT id FROM roles WHERE code='employee'");
+    assert.ok(employee.rowCount,'0001 authentication migration must be applied');
+    const hasher=new PasswordHasher();
+    const hash=await hasher.hash(PASSWORD);
+    for(let index=0;index<usernames.length;index++){
+      const user=await pool.query<{id:string}>(
+        `INSERT INTO users(username,email,display_name,job_title,department,avatar_key,password_hash)
+         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [usernames[index],`${usernames[index]}@encev.com.tr`,['Chat Owner','Chat Admin','Chat Member'][index],
+          ['Proje yöneticisi','Biyolog','ÇED uzmanı'][index],['Projeler','Flora-Fauna','ÇED'][index],
+          ['fox','panda','otter'][index],hash],
+      );
+      userIds.push(user.rows[0].id);
+      await pool.query(
+        `INSERT INTO user_role_assignments(user_id,role_id,assigned_by) VALUES($1,$2,$1)`,
+        [userIds[index],employee.rows[0].id],
+      );
+    }
+
+    app=await NestFactory.create(ApplicationModule,{logger:['error']});
+    app.setGlobalPrefix('api');
+    await app.listen(0,'127.0.0.1');
+    const base=`http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
+    const [alice,bob,carol]=await Promise.all(usernames.map(name=>signIn(base,name)));
+
+    await t.test('çalışan rehberi gerçek meslek, birim ve avatar bilgilerini verir',async()=>{
+      const result=await api(base,alice,'auth/people');
+      assert.equal(result.response.status,200);
+      const person=result.data.people.find((item:{id:string})=>item.id===userIds[1]);
+      assert.equal(person.jobTitle,'Biyolog');
+      assert.equal(person.department,'Flora-Fauna');
+      assert.equal(person.avatarKey,'panda');
+      assert.ok(Array.isArray(person.roles));
+    });
+
+    let groupId='';
+    await t.test('grup oluşturma, üye ekleme ve üye rolü denetimli güncellenir',async()=>{
+      const created=await api(base,alice,'chat/conversations','POST',{
+        type:'group',title:'Chat fixture group',memberIds:[userIds[1]],
+      });
+      assert.equal(created.response.status,201,JSON.stringify(created.data));
+      groupId=created.data.conversation.id;
+      conversationIds.push(groupId);
+      assert.equal(created.data.myRole,'owner');
+      assert.equal(created.data.members.length,2);
+
+      const outsider=await api(base,carol,`chat/conversations/${groupId}`);
+      assert.equal(outsider.response.status,404);
+
+      const added=await api(base,alice,`chat/conversations/${groupId}/members`,'POST',{userIds:[userIds[2]]});
+      assert.equal(added.response.status,200);
+      assert.equal(added.data.members.length,3);
+
+      const roleChanged=await api(base,alice,`chat/conversations/${groupId}/members/${userIds[1]}/role`,'PATCH',{role:'admin'});
+      assert.equal(roleChanged.response.status,200);
+      const bobDetails=await api(base,bob,`chat/conversations/${groupId}`);
+      assert.equal(bobDetails.data.myRole,'admin');
+
+      const forbiddenRoleChange=await api(base,bob,`chat/conversations/${groupId}/members/${userIds[2]}/role`,'PATCH',{role:'admin'});
+      assert.equal(forbiddenRoleChange.response.status,403);
+
+      const memberEvents=await pool.query(
+        `SELECT event_type,next_role FROM conversation_member_events WHERE conversation_id=$1 ORDER BY created_at,id`,[groupId],
+      );
+      assert.ok(memberEvents.rows.some(row=>row.event_type==='role_changed'&&row.next_role==='admin'));
+    });
+
+    let firstMessageId='';
+    let replyMessageId='';
+    await t.test('mesaj, yanıt, düzenleme, tepki, sabitleme, okundu ve arama',async()=>{
+      const sent=await api(base,alice,`chat/conversations/${groupId}/messages`,'POST',{
+        body:'Flora saha planı için toplantı yapalım.',clientRequestId:randomUUID(),
+      });
+      assert.equal(sent.response.status,201,JSON.stringify(sent.data));
+      firstMessageId=sent.data.message.id;messageIds.push(firstMessageId);
+
+      const reply=await api(base,bob,`chat/conversations/${groupId}/messages`,'POST',{
+        body:'Perşembe günü uygunum.',replyToId:firstMessageId,clientRequestId:randomUUID(),
+      });
+      assert.equal(reply.response.status,201);
+      replyMessageId=reply.data.message.id;messageIds.push(replyMessageId);
+
+      const noEditPermission=await api(base,bob,`chat/messages/${firstMessageId}`,'PATCH',{
+        body:'Başkasının mesajını düzenleme',version:1,
+      });
+      assert.equal(noEditPermission.response.status,403);
+
+      const edited=await api(base,alice,`chat/messages/${firstMessageId}`,'PATCH',{
+        body:'Flora saha planı için perşembe toplantısı yapalım.',version:1,
+      });
+      assert.equal(edited.response.status,200);
+      assert.equal(edited.data.message.version,2);
+      const stale=await api(base,alice,`chat/messages/${firstMessageId}`,'PATCH',{
+        body:'Eski sürüm',version:1,
+      });
+      assert.equal(stale.response.status,409);
+
+      const reacted=await api(base,bob,`chat/messages/${firstMessageId}/reactions`,'POST',{reaction:'👍'});
+      assert.equal(reacted.response.status,201);
+      const unreacted=await api(base,bob,`chat/messages/${firstMessageId}/reactions`,'DELETE',{reaction:'👍'});
+      assert.equal(unreacted.response.status,200);
+
+      const pinned=await api(base,bob,`chat/messages/${firstMessageId}/pin`,'POST',{});
+      assert.equal(pinned.response.status,201);
+      const details=await api(base,alice,`chat/conversations/${groupId}`);
+      assert.equal(details.data.pinned.length,1);
+      const unpinned=await api(base,bob,`chat/messages/${firstMessageId}/unpin`,'POST',{});
+      assert.equal(unpinned.response.status,201);
+
+      const marked=await api(base,bob,`chat/conversations/${groupId}/read`,'POST',{messageId:replyMessageId});
+      assert.equal(marked.response.status,200);
+      const messages=await api(base,alice,`chat/conversations/${groupId}/messages`);
+      const first=messages.data.messages.find((message:{id:string})=>message.id===firstMessageId);
+      assert.ok(first.readBy.includes('Chat Admin'));
+
+      const search=await api(base,carol,'chat/search?q=perşembe');
+      assert.equal(search.response.status,200);
+      assert.ok(search.data.results.some((item:{id:string})=>item.id===replyMessageId));
+
+      const list=await api(base,bob,'chat/conversations');
+      assert.equal(list.response.status,200);
+      assert.equal(list.data.conversations.find((item:{id:string})=>item.id===groupId).unreadCount,0);
+    });
+
+    await t.test('mesajdan görev üretimi tekil ve mesaj bağlantılıdır; mesaj silme tombstone bırakır',async()=>{
+      const created=await api(base,bob,`chat/messages/${firstMessageId}/create-task`,'POST',{});
+      assert.equal(created.response.status,201,JSON.stringify(created.data));
+      taskIds.push(created.data.task.id);
+      assert.equal(created.data.task.title,'Flora saha planı için perşembe toplantısı yapalım.');
+      const duplicate=await api(base,bob,`chat/messages/${firstMessageId}/create-task`,'POST',{});
+      assert.equal(duplicate.response.status,201);
+      assert.equal(duplicate.data.alreadyLinked,true);
+
+      const linkedMessages=await api(base,alice,`chat/conversations/${groupId}/messages`);
+      assert.equal(linkedMessages.data.messages.find((item:{id:string})=>item.id===firstMessageId).linkedTaskId,created.data.task.id);
+
+      const deleted=await api(base,bob,`chat/messages/${replyMessageId}`,'DELETE',{version:1});
+      assert.equal(deleted.response.status,204);
+      const after=await api(base,alice,`chat/conversations/${groupId}/messages`);
+      const tombstone=after.data.messages.find((item:{id:string})=>item.id===replyMessageId);
+      assert.ok(tombstone.deletedAt);
+      assert.equal(tombstone.body,'');
+    });
+
+    await t.test('doğrudan sohbet açılır ve grup üyeliği kaldırılır',async()=>{
+      const direct=await api(base,alice,'chat/conversations','POST',{type:'direct',userId:userIds[2]});
+      assert.equal(direct.response.status,201);
+      const directId=direct.data.conversation.id;
+      conversationIds.push(directId);
+      assert.equal(direct.data.conversation.type,'direct');
+
+      const leave=await api(base,carol,`chat/conversations/${directId}/members/${userIds[2]}`,'DELETE',{});
+      assert.equal(leave.response.status,204);
+
+      const removed=await api(base,alice,`chat/conversations/${groupId}/members/${userIds[2]}`,'DELETE',{});
+      assert.equal(removed.response.status,204);
+      const noLongerMember=await api(base,carol,`chat/conversations/${groupId}`);
+      assert.equal(noLongerMember.response.status,404);
+    });
+  } finally {
+    if(app) await app.close();
+    const cleanup=await pool.connect();
+    try {
+      await cleanup.query('BEGIN');
+      await cleanup.query('ALTER TABLE message_events DISABLE TRIGGER message_events_append_only');
+      await cleanup.query('ALTER TABLE conversation_member_events DISABLE TRIGGER conversation_member_events_append_only');
+      await cleanup.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
+      await cleanup.query('DELETE FROM chat_notifications WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM conversation_read_cursors WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM message_task_links WHERE message_id=ANY($1::uuid[])',[messageIds]);
+      await cleanup.query('DELETE FROM message_reactions WHERE message_id=ANY($1::uuid[])',[messageIds]);
+      await cleanup.query('DELETE FROM message_events WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM conversation_member_events WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM messages WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM conversation_members WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM conversations WHERE id=ANY($1::uuid[])',[conversationIds]);
+      if(taskIds.length){
+        await cleanup.query('DELETE FROM task_audit_events WHERE task_id=ANY($1::uuid[])',[taskIds]);
+        await cleanup.query('DELETE FROM tasks WHERE id=ANY($1::uuid[])',[taskIds]);
+      }
+      if(userIds.length){
+        await cleanup.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])',[userIds]);
+        await cleanup.query('DELETE FROM user_role_assignments WHERE user_id=ANY($1::uuid[])',[userIds]);
+        await cleanup.query('DELETE FROM auth_audit_events WHERE actor_user_id=ANY($1::uuid[]) OR target_user_id=ANY($1::uuid[])',[userIds]);
+        await cleanup.query('DELETE FROM users WHERE id=ANY($1::uuid[])',[userIds]);
+      }
+      await cleanup.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
+      await cleanup.query('ALTER TABLE conversation_member_events ENABLE TRIGGER conversation_member_events_append_only');
+      await cleanup.query('ALTER TABLE message_events ENABLE TRIGGER message_events_append_only');
+      await cleanup.query('COMMIT');
+    } catch(error) {
+      await cleanup.query('ROLLBACK');
+      throw error;
+    } finally { cleanup.release(); await pool.end(); }
+  }
+});
