@@ -1,6 +1,6 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (Çalışan profilleri, roller ve kalıcı sohbet çekirdeği)
+**Son güncelleme:** 3 Kasım 2026 (SSE sohbeti ve modül bazlı rol/izin matrisi)
 
 ## Gerçekten uygulananlar
 
@@ -17,7 +17,10 @@
 - Kullanıcı profili: meslek/unvan, birim, 12 seçenekli sistem avatarı ve birden fazla rol; mevcut hesaplara migration ile varsayılan profil ve kararlı avatar atanır.
 - Çalışan rehberi: gerçek etkin kullanıcıları arama ve birim filtresiyle kartlarda gösterir; karttan doğrudan sohbet başlatılır.
 - Roller: employee, team_lead, project_manager, process_owner, document_steward, auditor ve system_admin katalogda yer alır. Grup sohbetinin owner/admin/member rolleri ayrı ve etkili izinlerdir; sohbet sahibi yönetici/üye atamasını yapar.
-- Not: iş modüllerindeki kapsam bazlı rol izin matrisi organizasyon ve kayıt görünürlüğü kararları doğrulanmadan tamamlanmış sayılmaz; mevcut sistem yöneticisi kontrolü ve proje/görev kayıt erişimleri korunur.
+- Modül bazlı izin matrisi uygulama koduna eklendi: PostgreSQL'de rol/modül/eylem izinleri (view/create/update/delete/manage) saklanır; görev, proje, sohbet, rehber ve bildirim API uçları her istekte kontrol eder. Birden fazla rolün izinleri birleşir. Bu matris kayıt kapsamı değildir; proje üyeliği, görev ataması/oluşturan ve aktif sohbet üyeliği ayrıca denetlenir. Başlangıç izinleri süreç sahipleriyle doğrulanmalıdır.
+- Erişim denetimi: modül başına view/create/update/delete/manage eylemleri; manage tek başına tüm eylemleri kapsar. İzinler PostgreSQL'de saklanır ve API her istekte doğrular.
+- system_admin için kullanıcı, izin matrisi ve sistem yönetimi emniyet yetkisi kaldırılamaz; bu rol tüm proje/görev/özel sohbet kayıtlarına otomatik erişim sağlamaz.
+- Önceki sürümde otomatik eklenmiş employee ataması, başka rolü bulunan mevcut hesaplardan migration ile temizlenir. Yeni hesapta employee varsayılanı korunur; başka rol seçimi employee rolünü otomatik eklemez.
 - Son etkin sistem yöneticisinin devre dışı bırakılması ve kendi kendini kapatma engellenmiştir.
 - İlk yönetici için gizli terminal girişi kullanan tek seferlik interaktif kurulum komutu hazır (`npm run auth:bootstrap-admin`). Parola terminale ve geçmişe yazılmaz; advisory lock ile korunur.
 - Oturum açmış her kullanıcı için profil menüsünden erişilebilen self-service parola değiştirme çekmecesi (`/api/auth/password`).
@@ -25,10 +28,10 @@
 
 ### B. Profesyonel ana uygulama arayüzü
 - Modern, Bitrix24 kullanım kolaylığına yakın, ENCEV PULSE'a özgü kurumsal tasarım sistemi.
-- Sabit sol navigasyon: Genel Bakış, Görevler, Çalışanlar, Sohbet, Projeler ve sistem yöneticisine özel Kullanıcılar.
+- Sol navigasyon: Genel Bakış, Görevler, Çalışanlar, Sohbet ve Projeler modül izinlerine göre gösterilir; Kullanıcılar ve Rol/Modül İzinleri yalnız yetkili sistem yöneticisine açılır. Yetki snapshot'ı olmayan hesaplarda gezinme fail-closed davranır.
 - Üst bar (topbar):
   - Üst arama alanı (topbar-search): Görev filtreleme ve anlık arama ile tam senkronize.
-  - Bildirim menüsü: Görev atama bildirimleri, okunmamış rozeti ve bildirime tıklandığında görevi sağ çekmecede açma.
+  - Bildirim menüsü: Görev ve sohbet bildirimleri; API görev başlıklarını/sohbet önizlemelerini ilgili modül görüntüleme iznine göre ayrı filtreler.
   - Kullanıcı profil menüsü: Kullanıcı adı, e-posta, rol etiketi (Sistem Yöneticisi / Çalışan), parola değiştirme ve çıkış.
   - Açık ve koyu tema geçişi (`localStorage` kalıcı, semantik CSS token'ları).
   - Mobil uyumlu gezinme: Dar ekranlar ve mobil cihazlar için optimize edilmiş düzen.
@@ -92,9 +95,9 @@
 - Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, idempotent mesaj gönderimi, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi, birleşik bildirim akışı ve mesajdan görev oluşturmayı kapsar.
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
 - Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
-- **3 Kasım 2026 — son doğrulanan kaynak:** `transfer/encev-pulse-source-20261103` dalındaki `46eb26cd044640182e7f1cbfffa0684ab268f6b6` commit'i GitHub Actions koşusu `41669777611` ile doğrulandı. Temiz PostgreSQL 18.6 üzerinde migration'lar uygulandı; web testleri 12/12, API testleri 25/25 geçti; iki workspace için TypeScript kontrolleri ve API/Web üretim derlemeleri başarılı oldu. Kaynak ZIP'i oluşturuldu ve `encev-pulse-validated-source` artifact'i olarak yüklendi.
-- Bu doğrulama izole Linux CI ortamına aittir. Yerel Windows kurulumu, reverse proxy üzerinden gerçek SSE bağlantısı, tarayıcı görsel kabulü, ofis ağı/ortak dosyalar, gerçek kullanıcı verisi ve üretim dağıtımı test edilmedi.
-- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
+- **SSE için son başarılı CI:** 3d3b425e6b6a45492fe50e970a5652f0cba49f28 / 41674472637. Migration, web 12/12, API 25/25, TypeScript ve API/Web üretim derlemeleri başarılı oldu.
+- **Rol/modül RBAC:** 0009_module_permissions.sql ve 0010_module_permission_defaults.sql, API erişim kontrolleri, bildirim kapsamı, yönetici matrisi ve UI eylem kapıları geliştirme dalına hazırlanıyor. Bu yeni değişiklik kümesinin CI doğrulaması henüz tamamlanmadı.
+- RBAC sonrası Windows tarayıcı görsel kabulü, gerçek reverse-proxy SSE testi, gerçek şirket ağı ve üretim dağıtımı henüz test edilmedi.- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
 
@@ -102,6 +105,6 @@
 - **Sıradaki geliştirme alanları:**
   - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
   - Yerel Windows ortamında kontrollü uygulama ve gerçek tarayıcı görsel kabul testlerini tamamlama.
-  - Modül bazlı rol/izin matrisi ve ekip hiyerarşisini süreç sahipleriyle doğrulama.
+  - Başlangıç rol/modül izinlerini, ekip hiyerarşisini ve kayıt kapsamını süreç sahipleriyle onaylama; ardından Windows tarayıcı ve reverse-proxy kabul testlerini tamamlama.
   - Mesaj saklama/düzenleme/silme süre politikası ve SSE bağlantısının gerçek Windows/reverse-proxy kabul testi.
   - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.

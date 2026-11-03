@@ -245,7 +245,7 @@ export class AuthService {
     const values = validateCreateUserInput(input);
     const temporaryPassword = randomBytes(24).toString('base64url');
     const avatarKey = values.avatarKey ?? ['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'][randomInt(0,12)];
-    const roleCodes = [...new Set(['employee', ...values.roleCodes])];
+    const roleCodes = [...new Set(values.roleCodes)];
     const passwordHash = await this.hasher.hash(temporaryPassword);
     const client = await this.db.pool.connect();
     try {
@@ -365,7 +365,7 @@ export class AuthService {
       ||(value.avatarKey!==undefined&&(avatarKey===null||!avatars.includes(avatarKey)))) {
       throw new BadRequestException({code:'INVALID_PROFILE',message:'Ad, meslek, birim veya avatar bilgisini kontrol edin.'});
     }
-    if(value.roleCodes!==undefined&&(!Array.isArray(value.roleCodes)||value.roleCodes.length>10||value.roleCodes.some((role)=>typeof role!=='string'))) {
+    if(value.roleCodes!==undefined&&(!Array.isArray(value.roleCodes)||value.roleCodes.length<1||value.roleCodes.length>10||value.roleCodes.some((role)=>typeof role!=='string'))) {
       throw new BadRequestException({code:'INVALID_ROLE',message:'Kullanıcı rolleri geçersiz.'});
     }
 
@@ -388,7 +388,7 @@ export class AuthService {
         );
         roleCodes=current.rows.map((row)=>row.code as string);
       } else {
-        roleCodes=[...new Set(['employee',...(value.roleCodes as string[])])];
+        roleCodes=[...new Set(value.roleCodes as string[])];
       }
       const available=await client.query(`SELECT id,code FROM roles WHERE code=ANY($1::text[])`,[roleCodes]);
       if(available.rowCount!==roleCodes.length) throw new BadRequestException({code:'INVALID_ROLE',message:'Seçilen rollerden biri sistemde tanımlı değil.'});
@@ -688,14 +688,14 @@ function validateCreateUserInput(input: unknown): {
   const jobTitle=typeof value.jobTitle==='string'?value.jobTitle.trim():'';
   const department=typeof value.department==='string'?value.department.trim():'';
   const avatarKey=typeof value.avatarKey==='string'?value.avatarKey:null;
-  const roleCodes=Array.isArray(value.roleCodes)&&value.roleCodes.every((role)=>typeof role==='string')?value.roleCodes as string[]:[];
+  const roleCodes=value.roleCodes===undefined?['employee']:Array.isArray(value.roleCodes)&&value.roleCodes.every((role)=>typeof role==='string')?value.roleCodes as string[]:[];
   const avatars=['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'];
   if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(username)
     || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@encev\.com\.tr$/.test(email)
     || displayName.length<1 || displayName.length>120
     || jobTitle.length>120 || department.length>100
     || (avatarKey!==null&&!avatars.includes(avatarKey))
-    || roleCodes.length>10 || roleCodes.some((role)=>!/^[a-z][a-z0-9_]{1,40}$/.test(role))) {
+    || roleCodes.length<1 || roleCodes.length>10 || roleCodes.some((role)=>!/^[a-z][a-z0-9_]{1,40}$/.test(role))) {
     throw new BadRequestException({code:'INVALID_REQUEST',message:'Kullanıcı adı, kurumsal e-posta veya profil bilgilerini kontrol edin.'});
   }
   return {username,email,displayName,jobTitle,department,avatarKey,roleCodes};

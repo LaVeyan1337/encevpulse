@@ -16,6 +16,28 @@ Rol adları işlevsel örneklerdir; EnÇev'in resmî unvan veya organizasyon şe
 | Sistem yöneticisi | Şirket çalışanı kullanıcı hesaplarını, ekipleri, rolleri, izinleri ve sistem entegrasyonlarını yönetir; kritik işlemleri denetim izine tabidir. İş içeriğine erişimi ayrıca sınırlandırılmalıdır. |
 | Denetçi / salt okunur (öneri) | Belirlenmiş kayıtları değiştirmeden inceler. Bu rolün gereksinimi ve kapsamı karara bağlanmalıdır. |
 
+## Modül bazlı izin uygulaması
+
+Uygulamada rol izinleri modül ve eylem düzeyinde PostgreSQL'de tutulur. Geçerli başlangıç rolleri işlevsel taslaktır; resmî organizasyon kararı değildir.
+
+- İzin anahtarı: view, create, update, delete veya manage. manage ilgili modülde tüm eylemleri kapsar ve tek başına atanır.
+- Bir kullanıcının birden fazla rolü varsa izinler birleşir (OR). Bir rolden izin kaldırılması, başka bir rolden gelen yetkiyi iptal etmez.
+- Modül kapalıysa rol izni bulunsa da erişim reddedilir. Takvim, Drive, Kurum Rehberi, Kurum Görüşleri, Dilekçeler, e-ÇED, Notlarım ve Sistem Ayarları başlangıçta kapalıdır; süreç sahipleri kabul etmeden açılmaz.
+- system_admin rolünün Kullanıcılar, Rol/Modül İzinleri ve Sistem Ayarları yönetimi emniyet yetkisi kaldırılamaz. Bu rol iş verilerindeki tüm kayıtları otomatik görmez.
+- Modül yetkisi kayıt sahipliğinin yerine geçmez: görevler atama/oluşturan/proje üyeliği; projeler sahip/üye; sohbetler aktif konuşma üyeliğiyle ayrıca sınırlandırılır.
+- Çalışan hesabı oluşturma ekranı varsayılan employee seçer. Başka rol ilk kez seçildiğinde employee otomatik eklenmez; yönetici isterse ayrıca seçebilir. API roleCodes alanını hiç göndermezse eski entegrasyon uyumluluğu için employee varsayılanı uygulanır; açıkça boş rol listesi reddedilir.
+
+| Rol | Uygulanan başlangıç amacı |
+|---|---|
+| employee | Kendi görev iş akışı, proje görüntüleme, rehber ve sohbet |
+| team_lead | Ekip görevleri ve proje takibi |
+| project_manager | Proje ve görev koordinasyonu |
+| process_owner | Yasal süreç modülleri açıldığında ilgili kayıtları yönetme |
+| document_steward | Belge/rehber modülleri açıldığında belge iş akışları |
+| auditor | Etkinleştirilmiş kayıt kapsamlarında salt okunur inceleme |
+| system_admin | Hesap/rol/izin yönetimi; operasyon kayıtlarına yalnızca ayrı kayıt kapsamı içinde erişim |
+
+Bu başlangıç izinleri süreç sahiplerince doğrulanması gereken ürün varsayımlarıdır; resmî görev tanımı veya hukuki erişim kararı değildir.
 ## Temel nesneler ve yaşam döngüleri
 
 - **Görev:** Taslak/aktif → devam ediyor → bekliyor (kurumca tanımlanırsa) → tamamlandı veya iptal/arşiv. Durum sözlüğü henüz kararlaştırılmamıştır. Atama, tarih ve durum geçmişi tutulur.

@@ -99,7 +99,7 @@ export class TasksService {
     return { summary: result.rows[0], upcoming: due.rows };
   }
 
-  async notifications(user: AuthUser) {
+  async notifications(user: AuthUser, includeChat=true, includeTasks=true) {
     const access = `(t.created_by = $1 OR t.assignee_id = $1 OR EXISTS (
       SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
     ))`;
@@ -107,14 +107,14 @@ export class TasksService {
       this.db.query(
         `SELECT (
           (SELECT count(*) FROM notifications n JOIN tasks t ON t.id=n.task_id
-           WHERE n.recipient_user_id=$1 AND n.read_at IS NULL AND t.archived_at IS NULL AND ${access})
+           WHERE n.recipient_user_id=$1 AND n.read_at IS NULL AND t.archived_at IS NULL AND $3::boolean AND ${access})
           +
           (SELECT count(*) FROM chat_notifications cn
            JOIN conversations c ON c.id=cn.conversation_id
-           WHERE cn.recipient_user_id=$1 AND cn.read_at IS NULL AND c.archived_at IS NULL
+           WHERE cn.recipient_user_id=$1 AND cn.read_at IS NULL AND c.archived_at IS NULL AND $2::boolean
              AND EXISTS (SELECT 1 FROM conversation_members cm
                WHERE cm.conversation_id=c.id AND cm.user_id=$1 AND cm.left_at IS NULL))
-        )::int AS "unreadCount"`, [user.id],
+        )::int AS "unreadCount"`, [user.id,includeChat,includeTasks],
       ),
       this.db.query(
         `SELECT * FROM (
@@ -124,7 +124,7 @@ export class TasksService {
                  n.created_at AS "createdAt",n.read_at AS "readAt"
           FROM notifications n JOIN tasks t ON t.id=n.task_id
           LEFT JOIN users a ON a.id=n.actor_user_id
-          WHERE n.recipient_user_id=$1 AND t.archived_at IS NULL AND ${access}
+          WHERE n.recipient_user_id=$1 AND t.archived_at IS NULL AND $3::boolean AND ${access}
           UNION ALL
           SELECT cn.id,'chat.message'::text AS "eventType",NULL::uuid AS "taskId",
                  cn.conversation_id AS "conversationId",
@@ -140,38 +140,43 @@ export class TasksService {
           JOIN conversations c ON c.id=cn.conversation_id
           JOIN messages m ON m.id=cn.message_id
           LEFT JOIN users actor ON actor.id=cn.actor_user_id
-          WHERE cn.recipient_user_id=$1 AND c.archived_at IS NULL
+          WHERE cn.recipient_user_id=$1 AND c.archived_at IS NULL AND $2::boolean
             AND EXISTS (SELECT 1 FROM conversation_members mine
               WHERE mine.conversation_id=c.id AND mine.user_id=$1 AND mine.left_at IS NULL)
         ) combined
         ORDER BY "createdAt" DESC,id DESC
-        LIMIT 20`, [user.id],
+        LIMIT 20`, [user.id,includeChat,includeTasks],
       ),
     ]);
     return { unreadCount: count.rows[0].unreadCount, notifications: latest.rows };
   }
 
-  async markNotificationRead(user: AuthUser, id: string, input: unknown): Promise<void> {
+  async markNotificationRead(user: AuthUser, id: string, input: unknown, includeChat=true, includeTasks=true): Promise<void> {
     assertUuid(id);
     objectInput(input);
-    const taskResult = await this.db.query(
-      `UPDATE notifications n SET read_at=now()
-       FROM tasks t WHERE n.id=$1 AND n.recipient_user_id=$2 AND n.read_at IS NULL
-         AND n.task_id=t.id AND t.archived_at IS NULL
-         AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
-           SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
-         )) RETURNING n.id`, [id,user.id],
-    );
-    if(taskResult.rowCount)return;
-    const chatResult=await this.db.query(
-      `UPDATE chat_notifications cn SET read_at=COALESCE(cn.read_at,now())
-       FROM conversations c WHERE cn.id=$1 AND cn.recipient_user_id=$2
-         AND cn.conversation_id=c.id AND c.archived_at IS NULL
-         AND EXISTS (SELECT 1 FROM conversation_members cm
-           WHERE cm.conversation_id=c.id AND cm.user_id=$2 AND cm.left_at IS NULL)
-       RETURNING cn.id`,[id,user.id],
-    );
-    if(!chatResult.rowCount) throw new NotFoundException({code:'NOTIFICATION_NOT_FOUND',message:'Bildirim bulunamadı.'});
+    if(includeTasks) {
+      const taskResult = await this.db.query(
+        `UPDATE notifications n SET read_at=now()
+         FROM tasks t WHERE n.id=$1 AND n.recipient_user_id=$2 AND n.read_at IS NULL
+           AND n.task_id=t.id AND t.archived_at IS NULL
+           AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
+             SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
+           )) RETURNING n.id`, [id,user.id],
+      );
+      if(taskResult.rowCount)return;
+    }
+    if(includeChat) {
+      const chatResult=await this.db.query(
+        `UPDATE chat_notifications cn SET read_at=COALESCE(cn.read_at,now())
+         FROM conversations c WHERE cn.id=$1 AND cn.recipient_user_id=$2
+           AND cn.conversation_id=c.id AND c.archived_at IS NULL
+           AND EXISTS (SELECT 1 FROM conversation_members cm
+             WHERE cm.conversation_id=c.id AND cm.user_id=$2 AND cm.left_at IS NULL)
+         RETURNING cn.id`,[id,user.id],
+      );
+      if(chatResult.rowCount)return;
+    }
+    throw new NotFoundException({code:'NOTIFICATION_NOT_FOUND',message:'Bildirim bulunamadı.'});
   }
 
   async activity(user: AuthUser) {

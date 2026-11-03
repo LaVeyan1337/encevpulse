@@ -1,6 +1,6 @@
 # ENCEV PULSE — Teknik Mimari Önerisi
 
-**Durum:** Mimari referans; yerel kullanıcı girişi ve auth şeması uygulanmıştır. Diğer iş modülleri tasarım aşamasındadır.
+**Durum:** Uygulanan auth, SSE ve rol/modül izinleri ile henüz etkinleştirilmemiş iş modüllerini ayıran mimari referans.
 **Öncelik:** `AGENTS.md` ve [Veri Koruma Politikası](DATA_PROTECTION_POLICY.md) bu tasarımın üstündedir.
 
 ## 1. Mimari hedef ve öneri
@@ -8,7 +8,7 @@
 ENCEV PULSE için önerim, tek kod tabanında sınırları belirgin bir **modüler monolit** ve küçük sayıda dağıtım bileşenidir:
 
 - **Web arayüzü:** React + React Router Framework Mode, SPA çıktısı ve Vite derleme.
-- **Backend:** TypeScript/NestJS ile modüler API; sohbetin şu anki canlı güncellemesi same-origin SSE ve PostgreSQL `LISTEN/NOTIFY` ile çalışır. WebSocket etkin değildir; ihtiyaç doğrulanırsa sonraki seçenek olarak değerlendirilir.
+- **Backend:** TypeScript/NestJS ile modüler API; sohbet canlı güncellemesi same-origin SSE ve PostgreSQL `LISTEN/NOTIFY` ile çalışır. Rol/modül izin matrisi her API isteğinde uygulanır. WebSocket mevcut uygulamada etkin değildir.
 - **Veri:** PostgreSQL; erişim yalnızca backend üzerinden.
 - **Veri erişimi:** Drizzle ORM ve incelemeye açık SQL migration dosyaları.
 - **Arka plan işleri:** İlk aşamada PostgreSQL transactional outbox ve aynı backend kodunu çalıştıran worker.
@@ -24,13 +24,11 @@ flowchart LR
     U[Çalışan tarayıcısı]
     EDGE[HTTPS giriş noktası / reverse proxy]
     WEB[React Router SPA<br/>statik web varlıkları]
-    API[NestJS modüler API<br/>REST + WebSocket]
+    API[NestJS modüler API<br/>REST + SSE]
     AUTH[Yerel hesap doğrulama<br/>Argon2id + PostgreSQL oturumu]
     IDP[İleride Microsoft Entra ID / OIDC]
     DB[(PostgreSQL<br/>ana kayıt kaynağı)]
-    OUTBOX[Transactional outbox]
-    WORKER[Outbox poller / worker<br/>aynı API sürecinde]
-    PUSH[NestJS WebSocket gateway<br/>yetkili event fan-out]
+    PUSH[NestJS SSE endpoint<br/>yetkili event fan-out]
     FILEPORT[Dosya sağlayıcı arayüzü]
     FAKE[Yalnızca yerel sahte dosya sağlayıcısı]
     FUTURE[İleride: güvenli API adaptörü<br/>ayrı açık izin gerekir]
@@ -40,14 +38,12 @@ flowchart LR
 
     U -->|HTTPS, aynı origin| EDGE
     EDGE --> WEB
-    EDGE -->|/api ve WebSocket| API
+    EDGE -->|/api ve SSE| API
     API --> AUTH
     IDP -. daha sonra .-> API
     API <--> DB
-    API --> OUTBOX
-    OUTBOX --> WORKER
-    WORKER -->|commit sonrası outbox olayları| PUSH
-    PUSH -->|HTTPS / WSS same-origin| U
+    DB -->|commit sonrası LISTEN/NOTIFY| PUSH
+    PUSH -->|HTTPS / SSE same-origin| U
     API --> FILEPORT
     FAKE -. yerel geliştirme/test .-> FILEPORT
     FILEPORT -.->|ileride ve izin sonrası| FUTURE
@@ -72,7 +68,9 @@ flowchart LR
 
 NestJS içinde modül sınırları iş alanlarına göre kurulur; örneğin:
 
-- `Identity & Access`: kullanıcı eşlemesi, roller, ekip ve proje üyeliği.
+- Identity & Access: kullanıcı/oturum, rol ve ekip üyeliği.
+- Access Control: rol/modül izin matrisi (view/create/update/delete/manage) ve backend API guard'ları.
+- Kayıt kapsamı: görev ataması/oluşturan, proje sahipliği/üyeliği ve aktif sohbet üyeliği; modül izninin yerine geçmez.
 - `Tasks & Projects`: görevler, durum geçmişi ve proje ilişkileri.
 - `Chat`: konuşmalar, üyelik, mesajlar, yanıtlar, reaksiyonlar, okundu imleçleri ve ek metadata'sı.
 - `Notifications`: uygulama içi bildirimler ve tercihleri.
@@ -81,7 +79,7 @@ NestJS içinde modül sınırları iş alanlarına göre kurulur; örneğin:
 - `Documents`: dosya metadata'sı ve sağlayıcı arayüzü; ilk aşamada yalnızca yerel sahte sağlayıcı.
 - `Audit`: değiştirilemeyen işlem olayları.
 
-Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servis/API sınırlarından geçer. HTTP ve SSE aynı session ve kaynak üyeliği denetimlerini kullanır. NestJS modülleri ve SSE yanıtlarını Observable üzerinden sunma desteği modül sınırını korur: [NestJS Modules](https://docs.nestjs.com/modules), [NestJS Server-Sent Events](https://docs.nestjs.com/techniques/server-sent-events).
+Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servis/API sınırlarından geçer. HTTP ve SSE aynı session, modül izni ve kaynak üyeliği denetimlerini kullanır. NestJS modülleri ve SSE yanıtlarını Observable üzerinden sunma desteği modül sınırını korur: [NestJS Modules](https://docs.nestjs.com/modules), [NestJS Server-Sent Events](https://docs.nestjs.com/techniques/server-sent-events).
 
 ### API yaklaşımı
 
@@ -105,30 +103,30 @@ Modüller başka modüllerin tablolarını doğrudan değiştirmez; açık servi
 - **Kullanıcı yönetimi:** Kullanıcı oluşturma, listeleme, parola yenileme ve devre dışı bırakma yalnız sistem yöneticisi yetkisiyle yapılır ve audit edilir. Yönetici parola yenilemesi tek kullanımlı, 24 saat geçerli geçici parola üretir; yalnız hash saklanır, kullanıcı ilk girişte parolasını değiştirir ve eski oturumlar iptal edilir. Son etkin sistem yöneticisinin hesabı devre dışı bırakılamaz. E-posta/SMTP olmadığı için parola sıfırlama e-postası veya çalışmayan bağlantı gösterilmez; geçici parola yöneticiye bir kez gösterilir ve kullanıcıya güvenli kanaldan iletilmelidir.
 - **İlk yönetici:** Bir defalık yerel CLI, yalnız etkileşimli TTY'de gizli parola girişi alır; parola argüman/env/log içine konmaz. Tek transaction ve kilit altında yalnız hiç tamamlanmamış bootstrap durumunda yönetici hesabı oluşturup bootstrap'ı tamamlandı işaretler; önceden var olan yönetici varsa yeniden çalışmayı reddeder. Varsayılan hesap/parola yoktur. Komut migration sonrası ve yerel yönetici tarafından çalıştırılmalıdır.
 - **Gelecekte SSO:** Entra ID / Microsoft 365 OIDC için `external_identities` gibi ayrı provider/issuer/tenant/subject eşlemesi kullanılabilir. E-posta eşitliğine dayanarak hesap otomatik birleştirilmez; bağlama doğrulanmış akışla yönetici onayı gerektirir. Şu an OIDC, sağlayıcı yapılandırması veya harici giriş akışı yoktur.
-- **Yetkilendirme ve WebSocket:** Kimlik doğrulama, RBAC ve kayıt kapsamı kontrolünden ayrıdır. WebSocket handshake aynı session cookie'si ve izinli Origin ile doğrulanır; token URL/query string'e konmaz. Her bağlantı ve olayda session, hesap durumu, rol ve kaynak üyeliği kontrol edilir.
+- **Yetkilendirme ve SSE:** Kimlik doğrulama, modül eylem yetkisi ve kayıt kapsamı ayrı denetlenir. /api/chat/events aynı-origin session cookie'siyle açılır; SSE payload'ı mesaj metni taşımaz. Session ve chat.view izni en geç 60 saniyede bir yeniden doğrulanır. İzinli REST uçları mesaj içeriğinin tek kaynağıdır.
 
 ### Geliştirme ve üretimde origin
 
 - **Yerel geliştirme:** React Router/Vite `127.0.0.1:5173`, NestJS API `127.0.0.1:3000` üzerinde dinler. Vite `/api/*` yollarını loopback API'ye proxy eder; gerçek auth uçları `/api/auth/*` altındadır ve tarayıcı same-origin çağrı yapar, CORS açılmaz. HTTP cookie istisnası yalnız yerel geliştirmede `pulse_session` adıyla kullanılabilir. Auth testleri yalnız rastgele sentetik test hesabı/verisiyle yapılır ve sonunda temizlenir; gerçek parola/şirket ağı kullanılmaz.
-- **Üretim:** Reverse proxy aynı HTTPS hostunda statik SPA'yı ve `/api/*`, WebSocket yolunu NestJS'e yönlendirir. Cookie Secure ve host-only kalır; API'nin `TRUSTED_PROXY_IPS` allowlist'i yalnız proxy IP'lerinden gelen forwarded header'lara güvenmesini sağlar. Ayrı origin gerekli olursa CORS/cookie/CSRF tasarımı yeniden incelenir; credential'lı wildcard kullanılmaz.
+- **Üretim:** Reverse proxy aynı HTTPS hostunda statik SPA'yı ve `/api/*` yollarını NestJS'e yönlendirir; SSE için response buffering kapatılmalı ve uzun süreli HTTP akışına izin verilmelidir. WebSocket şu an kullanılmaz. Cookie Secure ve host-only kalır; API'nin `TRUSTED_PROXY_IPS` allowlist'i yalnız proxy IP'lerinden gelen forwarded header'lara güvenmesini sağlar. Ayrı origin gerekli olursa CORS/cookie/CSRF tasarımı yeniden incelenir; credential'lı wildcard kullanılmaz.
 
 ## 4. Sohbet ve gerçek zamanlı akış
 
-**Mevcut uygulama:** SSE (`/api/chat/events`) + PostgreSQL `LISTEN/NOTIFY`. Migration tetikleyicileri mesaj, üyelik, tepki, okundu imleci ve mesaj-görev bağlantısı değişikliklerinde yalnızca konuşma ID'si/olay türü gibi içeriksiz veriler yayımlar. API listener aktif konuşma üyelerini veritabanından tekrar bulur ve kullanıcı başına SSE kanallarına invalidation sinyali gönderir. Tarayıcı içerik taşıyan bir push mesajı almaz; seçili konuşmayı ve listeyi yetkili REST uçlarından yeniler. Oturum akışı 60 saniyede tekrar doğrulanır; SSE veya PostgreSQL listener kesilirse yeniden bağlanma ve 15 saniyelik yedek sorgulama devreye girer. Bu başlangıç çözümü tek API örneği varsayar.
+**Uygulanan yöntem:** same-origin Server-Sent Events (`/api/chat/events`) + PostgreSQL `LISTEN/NOTIFY`.
 
-1. İstemci command API'ye mesajı, `client_request_id` ile gönderir; unique constraint yinelenen komutu güvenli idempotent yanıta dönüştürür.
-2. Tek PostgreSQL transaction'ında üyelik/yetki doğrulaması, mesaj, gerekiyorsa revision, audit kaydı ve `outbox_events` satırı yazılır. Commit başarısızsa WebSocket olayı yoktur.
-3. Aynı başlangıç API sürecindeki outbox poller, commit edilmiş ve `available_at` zamanı gelmiş olayları kısa bir claim/lease transaction'ıyla alır (`FOR UPDATE SKIP LOCKED`); lease yenilenmezse başka poller tekrar deneyebilir. Olay gövdesi hassas mesaj metni yerine event ID ve gerekli opak kayıt kimliklerini taşır.
-4. Dispatcher mesajı kalıcı kayıttan yükler, konuşma üyelerini ve erişimi doğrular, sonra o API örneğine bağlı ve yetkili WebSocket üyelerine gönderir. Başarılı publish sonrası outbox işaretlenir. Gönderim ile işaretleme arasında süreç çökerse tekrar gönderim olabilir; teslimat semantiği **at-least-once**'dır, exactly-once değildir. Event ID istemci dedup sağlar.
-5. WebSocket bildirimi kalıcı kaynak değildir. İstemci son cursor'dan REST geçmişini tamamlar; dolayısıyla bağlantı kesintisi veya yinelenen olay mesaj kaybına dönüşmez. Sunucu ACK'i mesajın DB commit edildiğini gösterir, her alıcının ekranda gördüğünü garanti etmez.
-6. Worker deneme sayısı, lease, `available_at`, exponential backoff ve kalıcı hata için dead-letter/operasyon alarmı kullanır. İşleyiciler idempotenttir; outbox satırları yalnız operasyon politikasıyla arşivlenir.
+- Mesaj, üyelik, tepki, okundu imleci ve mesaj-görev bağlantısı tablolarındaki commit sonrası trigger'lar yalnız konuşma UUID'si, olay türü ve gerektiğinde etkilenen kullanıcı UUID'si gönderir. Mesaj metni, dosya adı veya dosya yolu `NOTIFY` payload'ına girmez.
+- API tek bir PostgreSQL LISTEN bağlantısı tutar; olay geldiğinde konuşmanın güncel, etkin üyelerini DB'den yeniden sorgular ve yalnız o kullanıcıların açık SSE akışlarına invalidation gönderir. Üyelik kaldırma olayı, etkilenen istemciye erişim iptali sinyali verir.
+- İstemci SSE olayından sonra listeyi, konuşma ayrıntısını ve mesaj geçmişini yetkili REST uçlarından yeniler. SSE kaynak kayıt değildir; mesaj içeriği yalnız REST servislerinin izin/kapsam sorgularıyla okunur.
+- Session ve `chat.view` izni SSE bağlantısı açılırken ve en geç 60 saniyede bir yeniden doğrulanır. Oturum veya izin geçersizleşirse stream tamamlanır. PostgreSQL listener bağlantısı koparsa üstel gecikmeli yeniden bağlanır; istemci SSE kopukluğunda 15 saniyelik sınırlı REST yedek yenilemesine döner.
+- Tarayıcı EventSource otomatik yeniden bağlantısını kullanır. Görünür olmayan sekmelerde gereksiz yenileme yapılmaz; sekme yeniden görünür olduğunda snapshot yenilenir.
+- Bu uygulama başlangıçta tek NestJS API örneği varsayar; farklı API örnekleri arasında kullanıcı SSE fan-out'u ortak broker ile henüz dağıtılmaz. Yatay çoğaltma öncesi paylaşımlı dağıtım katmanı kararı gerekir.
 
-İlk aşamada API, WebSocket gateway ve poller aynı tek NestJS çalışma sürecindedir; ayrı mikroservis/Redis gerekmez. DB outbox, istemcinin bağlı olduğu farklı API örneklerine kendi başına fan-out sağlayamaz. Yatay API çoğaltma öncesinde ortak broker ya da başka paylaşımlı dağıtım katmanı kararı zorunludur. O zamana kadar tek API örneği kullanılır; ölçekleme ihtiyacı ölçümle doğrulanır.
+WebSocket şu an etkin değildir. Sohbet komutları REST; tek yönlü invalidation bildirimleri SSE üzerinden yürür. Ölçülen ihtiyaç oluşursa WebSocket daha sonra değerlendirilebilir.
 
 ## 5. İş kuyruğu, bildirim ve hata yaklaşımı
 
 - Görev/mesaj/süreç transaction'ı ile oluşması gereken bildirim, `outbox_events` tablosuna aynı transaction'da yazılır. Tek süreçte poller, kısa lease'lerle olayları claim eder; yan etkiler idempotent işlenir.
-- WebSocket publish DB commit sonrasında yapılır. Publish-ack çökmesi yinelenen teslimat üretebilir; event ID dedup ve DB cursor'dan yeniden eşitleme bunu güvenli kılar. Kaçırılan alıcıya dair kesin socket teslim garantisi verilmez.
+- Sohbet için WebSocket publish kullanılmaz. PostgreSQL NOTIFY commit sonrası içeriksiz invalidation gönderir; istemci REST snapshot'ından yeniden eşitlenir. Görev/e-posta gibi diğer dış yan etkiler için transactional outbox tasarım ilkesi geçerlidir.
 - İlk aşamada PostgreSQL outbox/worker yeterlidir. E-posta, ağır dosya taraması veya yüksek hacimde ayrı kuyruk/broker ancak ölçüm ve gereksinim sonrası değerlendirilir. Redis veya mikroservis başlangıç gereksinimi değildir.
 - Worker geçici hatalarda kademeli yeniden dener; kalıcı hatayı ölçülü dead-letter durumuna alır ve operasyon ekibine görünür kılar.
 - E-posta ve harici bildirimler, uygulama içi bildirimin tek kopyası yerine teslimat kanallarıdır; teslim edilmediyse başarılı gösterilmez.

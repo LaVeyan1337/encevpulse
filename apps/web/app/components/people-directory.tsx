@@ -27,11 +27,13 @@ export function PeopleDirectory({
   loading = false,
   currentUserId,
   onMessage,
+  canMessage = true,
 }: {
   people: DirectoryPerson[];
   loading?: boolean;
   currentUserId: string;
   onMessage: (person: DirectoryPerson) => void;
+  canMessage?: boolean;
 }) {
   const [query,setQuery]=useState('');
   const [department,setDepartment]=useState('all');
@@ -105,11 +107,11 @@ export function PeopleDirectory({
               </div>
               <div className="people-card-footer">
                 <span title={person.email||''}>{person.email||'E-posta yok'}</span>
-                {person.id!==currentUserId
-                  ? <button type="button" onClick={()=>onMessage(person)}>
+                {person.id===currentUserId
+                  ? <span className="people-self-label">Siz</span>
+                  : canMessage ? <button type="button" onClick={()=>onMessage(person)}>
                       <span aria-hidden="true">↗</span> Sohbet
-                    </button>
-                  : <span className="people-self-label">Siz</span>}
+                    </button> : null}
               </div>
             </article>
           ))}

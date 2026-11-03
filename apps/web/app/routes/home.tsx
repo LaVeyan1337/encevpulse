@@ -14,6 +14,7 @@ interface User {
   jobTitle: string;
   department: string;
   avatarKey: string;
+  modulePermissions?:ModulePermissionSnapshot[];
 }
 
 interface ManagedUser extends User {
@@ -25,6 +26,29 @@ interface RoleOption {
   code: string;
   displayName: string;
 }
+
+interface ModulePermissionSnapshot {
+  moduleKey:string;
+  displayName:string;
+  enabled:boolean;
+  actions:string[];
+}
+
+interface PermissionModule {
+  moduleKey:string;
+  displayName:string;
+  enabled:boolean;
+  sortOrder:number;
+  permissionsByRole:Record<string,string[]>;
+}
+
+interface PermissionMatrix {
+  roles:RoleOption[];
+  modules:PermissionModule[];
+  actions:string[];
+}
+
+const permissionActionLabels:Record<string,string>={view:'Görüntüle',create:'Oluştur',update:'Düzenle',delete:'Sil',manage:'Yönet'};
 
 type ViewState =
   | { status: 'checking' }
@@ -60,6 +84,10 @@ export default function Home() {
   const [adminMessage, setAdminMessage] = useState('');
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [availableRoles, setAvailableRoles] = useState<RoleOption[]>([]);
+  const [permissionMatrix,setPermissionMatrix]=useState<PermissionMatrix|null>(null);
+  const [selectedPermissionRole,setSelectedPermissionRole]=useState('employee');
+  const [permissionSavingKey,setPermissionSavingKey]=useState<string|null>(null);
+  const [adminTab,setAdminTab]=useState<'users'|'permissions'>('users');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [temporaryCredential, setTemporaryCredential] = useState<{
     username: string;
@@ -111,8 +139,17 @@ export default function Home() {
         if (!response.ok) throw new Error('roles');
         if (!cancelled) setAvailableRoles(Array.isArray(result.roles) ? result.roles as RoleOption[] : []);
       }),
+      fetch('/api/auth/permissions', { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+        const result = await readBody(response);
+        if (!response.ok) throw new Error('permissions');
+        if (!cancelled) {
+          const matrix=result as unknown as PermissionMatrix;
+          setPermissionMatrix(matrix);
+          setSelectedPermissionRole((current)=>matrix.roles.some((role)=>role.code===current)?current:(matrix.roles[0]?.code??'employee'));
+        }
+      }),
     ]).catch(() => {
-      if (!cancelled) setAdminError('Kullanıcı veya rol listesi alınamadı. Sayfayı yenileyip tekrar deneyin.');
+      if (!cancelled) setAdminError('Kullanıcı, rol veya izin matrisi alınamadı. Sayfayı yenileyip tekrar deneyin.');
     });
     return () => {
       cancelled = true;
@@ -399,6 +436,52 @@ export default function Home() {
     }
   }
 
+  function toggleModulePermission(moduleKey:string,action:string,checked:boolean) {
+    setPermissionMatrix((current)=>{
+      if(!current)return current;
+      return {...current,modules:current.modules.map(module=>{
+        if(module.moduleKey!==moduleKey)return module;
+        const previous=module.permissionsByRole[selectedPermissionRole]??[];
+        let next:string[];
+        if(action==='manage') next=checked?['manage']:[];
+        else next=checked?[...new Set([...previous.filter(item=>item!=='manage'),action])]:previous.filter(item=>item!==action&&item!=='manage');
+        return {...module,permissionsByRole:{...module.permissionsByRole,[selectedPermissionRole]:next}};
+      })};
+    });
+  }
+
+  async function saveModulePermission(moduleKey:string) {
+    if(view.status!=='authenticated'||!permissionMatrix)return;
+    const module=permissionMatrix.modules.find(item=>item.moduleKey===moduleKey);
+    if(!module)return;
+    const actions=module.permissionsByRole[selectedPermissionRole]??[];
+    setPermissionSavingKey(moduleKey);
+    setAdminError('');
+    setAdminMessage('');
+    try {
+      const response=await fetch(`/api/auth/permissions/${selectedPermissionRole}/${moduleKey}`,{
+        method:'PUT',credentials:'same-origin',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':view.csrfToken},
+        body:JSON.stringify({actions}),
+      });
+      const result=await readBody(response);
+      if(!response.ok) {
+        setAdminError(typeof result.message==='string'?result.message:'Modül izinleri kaydedilemedi.');
+        return;
+      }
+      const savedActions=Array.isArray(result.actions)?result.actions as string[]:actions;
+      setPermissionMatrix(current=>current?({...current,modules:current.modules.map(item=>item.moduleKey===moduleKey?{...item,permissionsByRole:{...item.permissionsByRole,[selectedPermissionRole]:savedActions}}:item)}):current);
+      const mine=await fetch('/api/auth/permissions/me',{credentials:'same-origin',cache:'no-store'});
+      if(mine.ok){
+        const mineResult=await readBody(mine);
+        if(Array.isArray(mineResult.modules))setView(current=>current.status==='authenticated'?{...current,user:{...current.user,modulePermissions:mineResult.modules as ModulePermissionSnapshot[]}}:current);
+      }
+      setAdminMessage(`${module.displayName} izinleri ${permissionMatrix.roles.find(role=>role.code===selectedPermissionRole)?.displayName??selectedPermissionRole} rolü için kaydedildi.`);
+    } catch {
+      setAdminError('Modül izinleri kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.');
+    } finally {setPermissionSavingKey(null);}
+  }
+
   const handleSessionExpired = useCallback(() => setView({ status: 'anonymous' }), []);
 
   if (view.status === 'authenticated' && !view.user.mustChangePassword) {
@@ -416,6 +499,12 @@ export default function Home() {
       >
         {view.user.roles.includes('system_admin') && (
           <section className="admin-panel workspace-admin" aria-labelledby="user-management-title">
+            <div className="admin-tab-bar" role="tablist" aria-label="Sistem yönetimi bölümleri">
+              <button type="button" role="tab" aria-selected={adminTab==='users'} className={adminTab==='users'?'selected':''} onClick={()=>setAdminTab('users')}>Kullanıcılar</button>
+              <button type="button" role="tab" aria-selected={adminTab==='permissions'} className={adminTab==='permissions'?'selected':''} onClick={()=>setAdminTab('permissions')}>Rol / Modül İzinleri</button>
+            </div>
+            {adminTab==='users' && (
+            <>
             {/* Admin Header with stats and action button */}
             <div className="admin-header-row">
               <div className="admin-stats-group">
@@ -681,6 +770,7 @@ export default function Home() {
                 </div>
                 <fieldset className="member-picker user-role-picker">
                   <legend>Sistem rolleri</legend>
+                  <p className="muted-line">Birden fazla rol seçilebilir; izinler birleşir. Çalışan rolü yalnızca ayrıca seçildiğinde ek yetkiler sağlar.</p>
                   {availableRoles.map((role) => (
                     <label key={role.code} className="member-checkbox">
                       <input
@@ -689,8 +779,10 @@ export default function Home() {
                         onChange={(event) => setNewUser({
                           ...newUser,
                           roleCodes: event.target.checked
-                            ? [...new Set([...newUser.roleCodes, role.code])]
-                            : newUser.roleCodes.filter((item) => item !== role.code),
+                            ? (!editingUserId && role.code!=='employee' && newUser.roleCodes.length===1 && newUser.roleCodes[0]==='employee'
+                              ? [role.code]
+                              : [...new Set([...newUser.roleCodes, role.code])])
+                            : newUser.roleCodes.length>1?newUser.roleCodes.filter((item) => item !== role.code):newUser.roleCodes,
                         })}
                       />
                       <span>{role.displayName}</span>
@@ -712,6 +804,62 @@ export default function Home() {
                 )}
               </form>
             </Drawer>
+            </>
+            )}
+            {adminTab==='permissions' && (
+              <div className="permission-admin-panel">
+                {adminMessage && <p className="workspace-success" role="status">{adminMessage}</p>}
+                {adminError && <p className="auth-error" role="alert">{adminError}</p>}
+                <div className="permission-toolbar">
+                  <div>
+                    <h2>Rol bazlı modül erişimi</h2>
+                    <p>Bu izinler modüle giriş ve işlem türünü belirler; kayıt/proje/sohbet üyeliği ayrıca kontrol edilir.</p>
+                  </div>
+                  <label>
+                    <span>Rol seç</span>
+                    <select value={selectedPermissionRole} onChange={event=>setSelectedPermissionRole(event.target.value)}>
+                      {permissionMatrix?.roles.map(role=><option key={role.code} value={role.code}>{role.displayName}</option>)}
+                    </select>
+                  </label>
+                </div>
+                {!permissionMatrix ? (
+                  <div className="empty-state">İzin matrisi yüklenemedi.</div>
+                ) : (
+                  <div className="permission-module-list">
+                    {permissionMatrix.modules.map(module=>{
+                      const actions=module.permissionsByRole[selectedPermissionRole]??[];
+                      const locked=selectedPermissionRole==='system_admin'&&['users','permissions','settings'].includes(module.moduleKey);
+                      return (
+                        <div className="permission-module-row" key={module.moduleKey}>
+                          <div className="permission-module-heading">
+                            <div>
+                              <strong>{module.displayName}</strong>
+                              <span>{module.enabled?'Aktif modül':'Henüz aktif değil · izinler modül açıldığında uygulanır'}</span>
+                            </div>
+                            <button type="button" className="secondary-button compact-button" onClick={()=>void saveModulePermission(module.moduleKey)} disabled={permissionSavingKey!==null}>
+                              {permissionSavingKey===module.moduleKey?'Kaydediliyor…':'Kaydet'}
+                            </button>
+                          </div>
+                          <div className="permission-action-grid">
+                            {permissionMatrix.actions.map(action=>(
+                              <label key={action} className="permission-action">
+                                <input
+                                  type="checkbox"
+                                  checked={actions.includes(action)||actions.includes('manage')}
+                                  disabled={Boolean(locked) || (actions.includes('manage')&&action!=='manage')}
+                                  onChange={event=>toggleModulePermission(module.moduleKey,action,event.target.checked)}
+                                />
+                                <span>{permissionActionLabels[action]??action}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
       </Workspace>

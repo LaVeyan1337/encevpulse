@@ -197,8 +197,52 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       assert.equal(created.body.user.jobTitle, 'Biyolog');
       assert.equal(created.body.user.department, 'Flora-Fauna');
       assert.equal(created.body.user.avatarKey, 'panda');
-      assert.deepEqual([...created.body.user.roles].sort(), ['employee','team_lead']);
+      assert.deepEqual([...created.body.user.roles].sort(), ['team_lead']);
       assert.equal(typeof created.body.temporaryPassword, 'string');
+
+      const matrix = await api(baseUrl, 'permissions', { headers: { Cookie: adminSession.cookie } });
+      assert.equal(matrix.response.status,200);
+      assert.ok(matrix.body.roles.some((role:any)=>role.code==='auditor'));
+      assert.ok(matrix.body.modules.some((module:any)=>module.moduleKey==='chat'&&module.enabled));
+
+      const employeeSession=await login(baseUrl,email,PASSWORD);
+      const myPermissions=await api(baseUrl,'permissions/me',{headers:{Cookie:employeeSession.cookie}});
+      assert.equal(myPermissions.response.status,200);
+      assert.ok(myPermissions.body.modules.find((module:any)=>module.moduleKey==='tasks').actions.includes('view'));
+      const forbiddenMatrix=await api(baseUrl,'permissions',{headers:{Cookie:employeeSession.cookie}});
+      assert.equal(forbiddenMatrix.response.status,403);
+
+      const lockedAdmin=await api(baseUrl,'permissions/system_admin/permissions',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({actions:['view']}),
+      });
+      assert.equal(lockedAdmin.response.status,409);
+      assert.equal(lockedAdmin.body.code,'SYSTEM_ADMIN_POLICY_LOCKED');
+
+      const revokedChat=await api(baseUrl,'permissions/employee/chat',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({actions:[]}),
+      });
+      assert.equal(revokedChat.response.status,200);
+      try {
+        const blockedChat=await fetch(`${baseUrl}/api/chat/conversations`,{headers:{Origin:ORIGIN,Cookie:employeeSession.cookie}});
+        assert.equal(blockedChat.status,403);
+        assert.equal((await blockedChat.json()).code,'MODULE_PERMISSION_DENIED');
+      } finally {
+        const restoredChat=await api(baseUrl,'permissions/employee/chat',{
+          method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+          body:JSON.stringify({actions:['view','create','update','delete']}),
+        });
+        assert.equal(restoredChat.response.status,200);
+      }
+
+      const legacyCreated=await api(baseUrl,'users',{
+        method:'POST',
+        headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({username:`lg${suffix}`,email:`legacy${suffix}@encev.com.tr`,displayName:'Legacy default role'}),
+      });
+      assert.equal(legacyCreated.response.status,201);
+      assert.deepEqual(legacyCreated.body.user.roles,['employee']);
 
       const roles = await api(baseUrl, 'roles', { headers: { Cookie: adminSession.cookie } });
       assert.equal(roles.response.status, 200);
@@ -215,14 +259,14 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
         method: 'PATCH',
         headers: { Cookie: adminSession.cookie, 'X-CSRF-Token': adminSession.csrfToken },
         body: JSON.stringify({
-          jobTitle: 'ÇED Uzmanı', department: 'ÇED', avatarKey: 'fox', roleCodes: ['project_manager'],
+          jobTitle: 'ÇED Uzmanı', department: 'ÇED', avatarKey: 'fox', roleCodes: ['auditor'],
         }),
       });
       assert.equal(profile.response.status, 200);
       assert.equal(profile.body.user.jobTitle, 'ÇED Uzmanı');
       assert.equal(profile.body.user.department, 'ÇED');
       assert.equal(profile.body.user.avatarKey, 'fox');
-      assert.deepEqual([...profile.body.user.roles].sort(), ['employee','project_manager']);
+      assert.deepEqual([...profile.body.user.roles].sort(), ['auditor']);
       await assert.rejects(
         pool.query(`UPDATE auth_audit_events SET action = 'tampered'
           WHERE target_user_id = $1 AND action = 'user.created'`, [created.body.user.id]),
@@ -232,14 +276,14 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       const duplicateUsername = await api(baseUrl, 'users', {
         method: 'POST',
         headers: { Cookie: adminSession.cookie, 'X-CSRF-Token': adminSession.csrfToken },
-        body: JSON.stringify({ username: `us${suffix}`, email: `other${suffix}@encev.com.tr`, displayName: 'Duplicate username' }),
+        body: JSON.stringify({ username: `us${suffix}`, email: `other${suffix}@encev.com.tr`, displayName: 'Duplicate username', roleCodes:['employee'] }),
       });
       assert.equal(duplicateUsername.response.status, 409);
 
       const duplicateEmail = await api(baseUrl, 'users', {
         method: 'POST',
         headers: { Cookie: adminSession.cookie, 'X-CSRF-Token': adminSession.csrfToken },
-        body: JSON.stringify({ username: `ot${suffix}`, email: `NEW${suffix}@ENCEV.COM.TR`, displayName: 'Duplicate email' }),
+        body: JSON.stringify({ username: `ot${suffix}`, email: `NEW${suffix}@ENCEV.COM.TR`, displayName: 'Duplicate email', roleCodes:['employee'] }),
       });
       assert.equal(duplicateEmail.response.status, 409);
 
@@ -257,6 +301,10 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       assert.equal(changed.response.status, 200);
       assert.equal(changed.body.user.mustChangePassword, false);
       const newCookie = changed.response.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+      const auditorTasks=await fetch(`${baseUrl}/api/tasks`,{headers:{Origin:ORIGIN,Cookie:newCookie}});
+      assert.equal(auditorTasks.status,200,'auditor role keeps read access to permitted task records');
+      const auditorChat=await fetch(`${baseUrl}/api/chat/conversations`,{headers:{Origin:ORIGIN,Cookie:newCookie}});
+      assert.equal(auditorChat.status,403,'auditor role must not inherit employee chat permissions');
 
       const reset = await api(baseUrl, `users/${created.body.user.id}/reset-password`, {
         method: 'POST',
@@ -316,7 +364,7 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
         );
         const candidateIds = generatedFixtures.rows.map((row) => row.id);
         const adminCreated = adminId
-          ? await client.query<{ id: string }>("SELECT id FROM users WHERE username = $1", [`us${suffix}`])
+          ? await client.query<{ id: string }>("SELECT id FROM users WHERE username = ANY($1::text[])", [[`us${suffix}`,`lg${suffix}`]])
           : { rows: [] as { id: string }[] };
         const cleanupIds = [...adminCreated.rows.map((row) => row.id), ...candidateIds, ...(userId ? [userId] : []), ...(adminId ? [adminId] : [])];
         if (cleanupIds.length) {

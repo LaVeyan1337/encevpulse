@@ -33,6 +33,11 @@ export function ChatWorkspace({
   people,
   currentUserId,
   projects,
+  canCreate,
+  canUpdate,
+  canDelete,
+  canCreateTask,
+  canViewTasks,
   startUserId,
   initialConversationId,
   onStartConsumed,
@@ -42,6 +47,11 @@ export function ChatWorkspace({
   people:DirectoryPerson[];
   currentUserId:string;
   projects:Array<{id:string;name:string;status:string}>;
+  canCreate:boolean;
+  canUpdate:boolean;
+  canDelete:boolean;
+  canCreateTask:boolean;
+  canViewTasks:boolean;
   startUserId?:string|null;
   initialConversationId?:string|null;
   onStartConsumed:()=>void;
@@ -111,13 +121,13 @@ export function ChatWorkspace({
       ? current && Boolean(result.page?.hasMore)
       : Boolean(result.page?.hasMore));
     messageHistoryLoaded.current=true;
-    if(markRead&&list.length) {
+    if(markRead&&canUpdate&&list.length) {
       const latest=list[list.length-1];
       await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
       setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
     }
     return list;
-  },[request]);
+  },[request,canUpdate]);
 
   const openConversation=useCallback(async(id:string)=>{
     setSelectedId(id);
@@ -317,7 +327,7 @@ export function ChatWorkspace({
   async function sendMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value=draft.trim();
-    if(!selectedId||!value||sending)return;
+    if(!canCreate||!selectedId||!value||sending)return;
     setSending(true);setSendState('idle');setError('');
     const clientRequestId=crypto.randomUUID();
     const currentReply=replyTo?.id??null;
@@ -376,7 +386,7 @@ export function ChatWorkspace({
       if(found) {
         setSearchTargetMessageId(targetId);
         const latest=collected[collected.length-1];
-        if(latest) {
+        if(latest&&canUpdate) {
           await request('chat/conversations/'+conversationId+'/read','POST',{messageId:latest.id});
           setConversations(items=>items.map(item=>item.id===conversationId?{...item,unreadCount:0}:item));
         }
@@ -390,6 +400,7 @@ export function ChatWorkspace({
   }
 
   async function startDirect(person:DirectoryPerson) {
+    if(!canCreate)return;
     setActionBusy(true);setError('');
     try {
       const result=await request('chat/conversations','POST',{type:'direct',userId:person.id});
@@ -402,7 +413,7 @@ export function ChatWorkspace({
 
   async function createGroup(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if(!groupName.trim()||groupMembers.length===0)return;
+    if(!canCreate||!groupName.trim()||groupMembers.length===0)return;
     setActionBusy(true);setError('');
     try {
       const result=await request('chat/conversations','POST',{type:'group',title:groupName.trim(),memberIds:groupMembers});
@@ -414,7 +425,7 @@ export function ChatWorkspace({
   }
 
   async function toggleReaction(message:Message,code:string) {
-    if(actionBusy)return;
+    if(!canUpdate||actionBusy)return;
     setActionBusy(true);
     try {
       const current=message.reactions.find(item=>item.code===code)?.reactedByMe;
@@ -425,7 +436,7 @@ export function ChatWorkspace({
   }
 
   async function editMessage(message:Message) {
-    if(!editingBody.trim())return;
+    if(!canUpdate||!editingBody.trim())return;
     setActionBusy(true);
     try {
       await request('chat/messages/'+message.id,'PATCH',{body:editingBody,version:message.version});
@@ -436,6 +447,7 @@ export function ChatWorkspace({
   }
 
   async function deleteMessage(message:Message) {
+    if(!canDelete)return;
     if(!window.confirm('Bu mesajı silmek istiyor musunuz? Mesaj metni temizlenecek.'))return;
     setActionBusy(true);
     try {
@@ -446,6 +458,7 @@ export function ChatWorkspace({
   }
 
   async function togglePin(message:Message) {
+    if(!canUpdate)return;
     setActionBusy(true);
     try {
       await request('chat/messages/'+message.id+(message.pinnedAt?'/unpin':'/pin'),'POST',{});
@@ -455,6 +468,7 @@ export function ChatWorkspace({
   }
 
   function openTaskDraft(message:Message) {
+    if(!canCreateTask)return;
     setTaskDraftMessage(message);
     setTaskDraftTitle(message.body.trim().slice(0,240));
     setTaskDraftAssigneeId(currentUserId);
@@ -463,7 +477,7 @@ export function ChatWorkspace({
 
   async function createTaskFromMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if(!taskDraftMessage||!taskDraftTitle.trim()||!taskDraftAssigneeId)return;
+    if(!canCreateTask||!taskDraftMessage||!taskDraftTitle.trim()||!taskDraftAssigneeId)return;
     setActionBusy(true);
     try {
       const result=await request('chat/messages/'+taskDraftMessage.id+'/create-task','POST',{
@@ -489,7 +503,7 @@ export function ChatWorkspace({
   }
 
   async function addMembers() {
-    if(!selectedId||addMemberIds.length===0)return;
+    if(!canUpdate||!selectedId||addMemberIds.length===0)return;
     setActionBusy(true);
     try {
       const result=await request('chat/conversations/'+selectedId+'/members','POST',{userIds:addMemberIds});
@@ -500,7 +514,7 @@ export function ChatWorkspace({
   }
 
   async function updateMemberRole(member:ChatMember,role:'admin'|'member'|'owner') {
-    if(!selectedId)return;
+    if(!canUpdate||!selectedId)return;
     if(role==='owner'&&!window.confirm(member.displayName+' sohbet sahibi olacak; sizin rolünüz yöneticiye dönüşecek. Devam edilsin mi?'))return;
     setActionBusy(true);
     try {
@@ -511,7 +525,7 @@ export function ChatWorkspace({
   }
 
   async function removeMember(member:ChatMember) {
-    if(!selectedId||!window.confirm(member.displayName+' kişisini bu sohbetten çıkarmak istiyor musunuz?'))return;
+    if(!canDelete||!selectedId||!window.confirm(member.displayName+' kişisini bu sohbetten çıkarmak istiyor musunuz?'))return;
     setActionBusy(true);
     try {
       await request('chat/conversations/'+selectedId+'/members/'+member.id,'DELETE',{});
@@ -523,14 +537,14 @@ export function ChatWorkspace({
   }
 
   const activePeople=people.filter(person=>person.id!==currentUserId);
-  const canManage=detail?.myRole==='owner'||detail?.myRole==='admin';
+  const canManage=Boolean(canUpdate&&(detail?.myRole==='owner'||detail?.myRole==='admin'));
 
   return (
     <section className="chat-workspace" aria-label="Şirket içi sohbet">
       <aside className="chat-rail">
         <div className="chat-rail-heading">
           <div><span className="eyebrow">EKİP İLETİŞİMİ</span><h2>Sohbetler</h2></div>
-          <button type="button" className="chat-icon-button" onClick={()=>setShowNewGroup(true)} title="Grup oluştur" aria-label="Grup oluştur">＋</button>
+          {canCreate&&<button type="button" className="chat-icon-button" onClick={()=>setShowNewGroup(true)} title="Grup oluştur" aria-label="Grup oluştur">＋</button>}
         </div>
         <form className="chat-search-form" onSubmit={searchMessages}>
           <span aria-hidden="true">⌕</span>
@@ -621,17 +635,16 @@ export function ChatWorkspace({
                             {!message.deletedAt&&(
                               <>
                                 <div className="chat-message-tools">
-                                  <button type="button" onClick={()=>setReplyTo(message)} title="Yanıtla">↶ Yanıtla</button>
-                                  {message.linkedTaskId
-                                    ? <button type="button" onClick={()=>onTaskOpen(message.linkedTaskId!)} title="Bağlı görevi aç">✓ Görevi aç</button>
-                                    : <button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>}
-                                  {(!message.isMine||detail.myRole==='owner'||detail.myRole==='admin')&&<button type="button" onClick={()=>void togglePin(message)}>{message.pinnedAt?'Sabitlemeyi kaldır':'Sabitle'}</button>}
-                                  {message.isMine&&<button type="button" onClick={()=>{setEditingId(message.id);setEditingBody(message.body);}}>Düzenle</button>}
-                                  {message.isMine&&<button type="button" onClick={()=>void deleteMessage(message)}>Sil</button>}
+                                  {canCreate&&<button type="button" onClick={()=>setReplyTo(message)} title="Yanıtla">↶ Yanıtla</button>}
+                                  {message.linkedTaskId&&canViewTasks&&<button type="button" onClick={()=>onTaskOpen(message.linkedTaskId!)} title="Bağlı görevi aç">✓ Görevi aç</button>}
+                                  {!message.linkedTaskId&&canCreateTask&&<button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>}
+                                  {canUpdate&&(!message.isMine||detail.myRole==='owner'||detail.myRole==='admin')&&<button type="button" onClick={()=>void togglePin(message)}>{message.pinnedAt?'Sabitlemeyi kaldır':'Sabitle'}</button>}
+                                  {canUpdate&&message.isMine&&<button type="button" onClick={()=>{setEditingId(message.id);setEditingBody(message.body);}}>Düzenle</button>}
+                                  {canDelete&&message.isMine&&<button type="button" onClick={()=>void deleteMessage(message)}>Sil</button>}
                                 </div>
                                 <div className="chat-reactions">
-                                  {message.reactions.map(item=><button type="button" key={item.code} className={item.reactedByMe?'reacted':''} onClick={()=>void toggleReaction(message,item.code)}>{item.code} {item.count}</button>)}
-                                  <div className="chat-reaction-picker">{reactions.map(code=><button type="button" key={code} onClick={()=>void toggleReaction(message,code)} aria-label={code}>{code}</button>)}</div>
+                                  {message.reactions.map(item=>canUpdate?<button type="button" key={item.code} className={item.reactedByMe?'reacted':''} onClick={()=>void toggleReaction(message,item.code)}>{item.code} {item.count}</button>:<span key={item.code} className="chat-reaction-count">{item.code} {item.count}</span>)}
+                                  {canUpdate&&<div className="chat-reaction-picker">{reactions.map(code=><button type="button" key={code} onClick={()=>void toggleReaction(message,code)} aria-label={code}>{code}</button>)}</div>}
                                 </div>
                               </>
                             )}
@@ -647,11 +660,11 @@ export function ChatWorkspace({
                 </div>
               )}
             </div>
-            <form className="chat-composer" onSubmit={sendMessage}>
+            {canCreate ? <form className="chat-composer" onSubmit={sendMessage}>
               {replyTo&&<div className="chat-replying"><span><strong>{replyTo.senderName}</strong> mesajına yanıt veriliyor</span><p>{replyTo.body.slice(0,120)}</p><button type="button" onClick={()=>setReplyTo(null)} aria-label="Yanıtı iptal et">×</button></div>}
               <textarea value={draft} onChange={event=>setDraft(event.target.value)} maxLength={4000} rows={2} placeholder={replyTo?'Yanıtınızı yazın…':'Mesajınızı yazın…'} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
               <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · Metin korundu':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||!draft.trim()}>{sending?'Gönderiliyor…':'Gönder'} <b>↗</b></button></div>
-            </form>
+            </form> : <div className="chat-readonly-note">Bu konuşmaları görüntüleme yetkiniz var; mesaj gönderme izniniz bulunmuyor.</div>}
           </>
         ):(
           <div className="chat-no-selection"><span>✧</span><strong>Bir sohbet seçin</strong><p>Sol taraftan konuşma seçin veya çalışan rehberinden yeni bir sohbet başlatın.</p></div>
@@ -668,12 +681,12 @@ export function ChatWorkspace({
                 <div className="chat-member-row" key={member.id}>
                   <EmployeeAvatar avatarKey={member.avatarKey} name={member.displayName} size="md"/>
                   <div><strong>{member.displayName}</strong><span>{member.jobTitle||member.department||member.username}</span><small>{roleLabel(member.role)}</small></div>
-                  {selected.type==='group'&&detail.myRole==='owner'&&member.id!==currentUserId&&member.role!=='owner'&&(
+                  {canUpdate&&selected.type==='group'&&detail.myRole==='owner'&&member.id!==currentUserId&&member.role!=='owner'&&(
                     <select className="chat-member-role-select" value={member.role} onChange={event=>void updateMemberRole(member,event.target.value as 'admin'|'member'|'owner')} disabled={actionBusy} aria-label={member.displayName+' rolü'}>
                       <option value="member">Üye</option><option value="admin">Yönetici</option><option value="owner">Sohbet sahibi</option>
                     </select>
                   )}
-                  {selected.type==='group'&&member.id!==currentUserId&&canManage&&member.role!=='owner'&&<button type="button" title="Üyeyi çıkar" onClick={()=>void removeMember(member)}>×</button>}
+                  {canDelete&&selected.type==='group'&&member.id!==currentUserId&&canManage&&member.role!=='owner'&&<button type="button" title="Üyeyi çıkar" onClick={()=>void removeMember(member)}>×</button>}
                 </div>
               ))}
             </div>
@@ -705,7 +718,7 @@ export function ChatWorkspace({
 
       {error&&<div className="chat-error" role="alert">{error}<button type="button" onClick={()=>setError('')}>×</button></div>}
 
-      {taskDraftMessage&&(
+      {canCreateTask&&taskDraftMessage&&(
         <div className="chat-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setTaskDraftMessage(null);}}>
           <form className="chat-group-modal chat-task-modal" onSubmit={createTaskFromMessage}>
             <div>
@@ -743,7 +756,7 @@ export function ChatWorkspace({
         </div>
       )}
 
-      {showNewGroup&&(
+      {canCreate&&showNewGroup&&(
         <div className="chat-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowNewGroup(false);}}>
           <form className="chat-group-modal" onSubmit={createGroup}>
             <div><span className="eyebrow">YENİ KONUŞMA</span><h2>Grup sohbeti oluştur</h2><p>Bir ad verin ve ilk üyeleri seçin.</p></div>

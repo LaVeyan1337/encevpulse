@@ -1,12 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Put, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { AccessControlService } from '../access-control/access-control.service.js';
+import type { AuthUser } from './auth.service.js';
 import { AuthService } from './auth.service.js';
 
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(AccessControlService) private readonly access: AccessControlService,
+  ) {}
 
   @Post('csrf')
   @HttpCode(HttpStatus.OK)
@@ -22,7 +27,7 @@ export class AuthController {
     const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     const session = await this.auth.login(request, data.identifier, data.password);
     this.setSessionCookie(response, session.sessionToken);
-    return { user: session.user, csrfToken: session.csrfToken };
+    return { user: await this.withPermissions(session.user), csrfToken: session.csrfToken };
   }
 
   @Get('session')
@@ -33,7 +38,7 @@ export class AuthController {
       this.clearSessionCookie(response);
       return { authenticated: false };
     }
-    return { authenticated: true, ...current };
+    return { authenticated: true, user: await this.withPermissions(current.user), csrfToken: current.csrfToken };
   }
 
   @Post('logout')
@@ -51,7 +56,7 @@ export class AuthController {
     const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     const session = await this.auth.changePassword(request, data.currentPassword, data.newPassword);
     this.setSessionCookie(response, session.sessionToken);
-    return { user: session.user, csrfToken: session.csrfToken };
+    return { user: await this.withPermissions(session.user), csrfToken: session.csrfToken };
   }
 
   @Post('users')
@@ -69,8 +74,32 @@ export class AuthController {
 
   @Get('people')
   async people(@Req() request: Request) {
-    await this.auth.authorizeRequest(request);
+    const user=await this.auth.authorizeRequest(request);
+    await this.access.assertPermission(user,'people','view');
     return this.auth.listPeople();
+  }
+
+  @Get('permissions/me')
+  async myPermissions(@Req() request:Request,@Res({passthrough:true}) response:Response) {
+    response.setHeader('Cache-Control','no-store');
+    const user=await this.auth.authorizeRequest(request);
+    return this.access.permissionsForUser(user.roles);
+  }
+
+  @Get('permissions')
+  async permissionMatrix(@Req() request:Request,@Res({passthrough:true}) response:Response) {
+    response.setHeader('Cache-Control','no-store');
+    const user=await this.auth.authorizeRequest(request);
+    this.assertSystemAdmin(user);
+    return this.access.listMatrix();
+  }
+
+  @Put('permissions/:roleCode/:moduleKey')
+  async setRoleModulePermissions(@Req() request:Request,@Param('roleCode') roleCode:string,@Param('moduleKey') moduleKey:string,@Body() body:unknown,@Res({passthrough:true}) response:Response) {
+    response.setHeader('Cache-Control','no-store');
+    const user=await this.auth.authorizeRequest(request,true);
+    this.assertSystemAdmin(user);
+    return this.access.replaceRoleModulePermissions(user,roleCode,moduleKey,body);
   }
 
   @Get('roles')
@@ -94,6 +123,15 @@ export class AuthController {
   async resetUserPassword(@Req() request: Request, @Param('id') id: string, @Res({ passthrough: true }) response: Response) {
     response.setHeader('Cache-Control', 'no-store');
     return this.auth.resetUserPassword(request, id);
+  }
+
+  private assertSystemAdmin(user:AuthUser):void {
+    if(!user.roles.includes('system_admin')) throw new ForbiddenException({code:'ADMIN_REQUIRED',message:'Bu işlem için sistem yöneticisi yetkisi gerekiyor.'});
+  }
+
+  private async withPermissions(user:AuthUser) {
+    const result=await this.access.permissionsForUser(user.roles);
+    return {...user,modulePermissions:result.modules};
   }
 
   private setSessionCookie(response: Response, token: string): void {

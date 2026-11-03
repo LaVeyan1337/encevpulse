@@ -125,6 +125,8 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
 
   assert.match(workspace, /<PeopleDirectory/);
   assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /hasModulePermission\('chat'\)/);
+  assert.match(workspace, /if\(!snapshot\)return false/);
   assert.match(workspace, /setChatStartUserId\(person.id\)/);
   assert.match(people, /Çalışan rehberi/);
   assert.match(people, /Meslek|Birim/);
@@ -161,6 +163,8 @@ test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet ba
 
   assert.match(workspace, /<PeopleDirectory/);
   assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /hasModulePermission\('chat'\)/);
+  assert.match(workspace, /if\(!snapshot\)return false/);
   assert.match(workspace, /setChatStartUserId\(person\.id\)/);
   assert.match(directory, /Çalışan rehberi/);
   assert.match(directory, /Birim filtresi/);
@@ -173,6 +177,8 @@ test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet ba
   assert.match(admin, /new-department/);
   assert.match(admin, /Sistem rolleri/);
   assert.match(admin, /users\/\$\{editingUserId\}\/profile/);
+  assert.match(admin, /Rol \/ Modül İzinleri/);
+  assert.match(admin, /api\/auth\/permissions\//);
 });
 
 test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı kullanır', async () => {
@@ -211,6 +217,10 @@ test('Üst bildirim menüsü sohbet bildirimini okuyup doğru konuşmayı açar'
   const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
   const service = await readFile(new URL('../../api/src/tasks/tasks.service.ts', import.meta.url), 'utf8');
   assert.match(workspace, /eventType === 'chat\.message'/);
+  assert.match(workspace, /hasModulePermission\('notifications'\)/);
+  assert.match(service, /includeChat/);
+  assert.match(service, /includeTasks/);
+  assert.match(workspace, /hasModulePermission\('notifications','update'\)/);
   assert.match(workspace, /setChatStartConversationId\(notification\.conversationId\)/);
   assert.match(workspace, /initialConversationId=\{chatStartConversationId\}/);
   assert.match(workspace, /notification\.preview/);
