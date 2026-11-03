@@ -100,10 +100,8 @@ export function ChatWorkspace({
     setHasMoreMessages(Boolean(result.page?.hasMore));
     if(markRead&&list.length) {
       const latest=list[list.length-1];
-      {
-        await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
-        setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
-      }
+      await request('chat/conversations/'+id+'/read','POST',{messageId:latest.id});
+      setConversations(items=>items.map(item=>item.id===id?{...item,unreadCount:0}:item));
     }
     return list;
   },[request,currentUserId]);
