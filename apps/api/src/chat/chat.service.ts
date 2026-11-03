@@ -188,9 +188,19 @@ export class ChatService {
         RETURNING id,created_at AS "createdAt",version`,[id,user.id,clientRequestId,body,replyTo]);
       let message=inserted.rows[0];
       if(!message) {
-        const existing=await client.query(`SELECT id,created_at AS "createdAt",version FROM messages
+        const existing=await client.query(`SELECT id,conversation_id,body,reply_to_id,
+            created_at AS "createdAt",version FROM messages
           WHERE sender_id=$1 AND client_request_id=$2`,[user.id,clientRequestId]);
         message=existing.rows[0];
+        if(!message
+          || message.conversation_id!==id
+          || message.body!==body
+          || (message.reply_to_id??null)!==replyTo) {
+          throw new ConflictException({
+            code:'MESSAGE_IDEMPOTENCY_CONFLICT',
+            message:'Bu mesaj isteği daha önce farklı içerikle kullanılmış. Yeni bir gönderim oluşturun.',
+          });
+        }
       } else {
         await client.query(`INSERT INTO message_events(message_id,conversation_id,actor_user_id,event_type)
           VALUES($1,$2,$3,'created')`,[message.id,id,user.id]);
@@ -251,9 +261,7 @@ export class ChatService {
       const found=await client.query(`SELECT m.conversation_id,m.sender_id,m.version,m.deleted_at
         FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id
         JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
-        WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL AND EXISTS (
-          SELECT 1 FROM conversations active WHERE active.id=m.conversation_id AND active.archived_at IS NULL
-        ) FOR UPDATE`,[id,user.id]);
+        WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!found.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
       const old=found.rows[0];
       if(old.sender_id!==user.id) throw new ForbiddenException({code:'MESSAGE_DELETE_DENIED',message:'Yalnızca kendi mesajınızı silebilirsiniz.'});
@@ -379,7 +387,7 @@ export class ChatService {
       await client.query('BEGIN');
       const found=await client.query(`SELECT m.conversation_id,m.deleted_at,cm.member_role,c.conversation_type
         FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id
-        JOIN conversations c ON c.id=m.conversation_id
+        JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
         WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!found.rowCount||found.rows[0].deleted_at) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
       const {conversation_id:conversationId,member_role:role,conversation_type:type}=found.rows[0];
