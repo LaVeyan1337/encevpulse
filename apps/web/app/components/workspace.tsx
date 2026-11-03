@@ -44,8 +44,8 @@ export interface Project {
   description: string;
   status: ProjectStatus;
   taskCount: number;
-  completedTaskCount?: number;
-  memberCount?: number;
+  completedTaskCount: number;
+  memberCount: number;
   ownerId?: string;
   ownerName?: string;
   startsOn?: string | null;
