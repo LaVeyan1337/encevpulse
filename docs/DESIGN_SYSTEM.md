@@ -50,20 +50,23 @@ Normal kullanıcı arayüzünde yerel geliştirme, API bağlantısı, PostgreSQL
 
 ## 5. Renk ve tema
 
-Mevcut uygulama CSS değişkenleri başlangıç paletidir. Yeni bileşenler renk değerlerini doğrudan çoğaltmak yerine semantik değişkenleri kullanır.
+Uygulamanın güncel görsel dili koyu antrasit/mavi-gri yüzeyler ve ölçülü bronz vurgu üzerine kuruludur. Açık temada aynı semantik roller korunur; renkler doğrudan bileşenlere yazılmaz, token üzerinden kullanılır.
 
-| Semantik token | Koyu tema başlangıcı | Açık tema başlangıcı | Kullanım |
+| Semantik token | Koyu tema | Açık tema | Kullanım |
 |---|---|---|---|
-| `--page` | `#101722` | `#f4f7f9` | Ana sayfa zemini |
-| `--surface` | `#172231` | `#ffffff` | Panel ve yüzey |
-| `--surface-raised` | `#1d2a3a` | `#f4f8f8` | Yüzey üstü öğeler |
-| `--text` | `#f1f5f9` | `#182532` | Birincil metin |
-| `--muted` | `#9ba9b9` | `#647383` | İkincil metin |
-| `--line` | `rgba(192, 211, 231, .13)` | `rgba(33, 57, 76, .12)` | Kenarlık ve ayraç |
-| `--accent` | `#70d3c1` | `#178a7b` | Vurgu ve odak |
+| `--page` | `#101722` | `#f0f2f5` | Ana sayfa zemini |
+| `--surface` | `#182230` | `#ffffff` | Panel ve ana yüzey |
+| `--surface-raised` | `#202c3b` | `#f6f7f9` | Kart ve yükseltilmiş yüzey |
+| `--surface-hover` | `#29384a` | `#eceff3` | Hover yüzeyi |
+| `--text` | `#edf1f6` | `#202a36` | Birincil metin |
+| `--text-secondary` | `#a7b3c2` | `#586777` | İkincil metin |
+| `--text-muted` | `#77869a` | `#83909d` | Yardımcı metin |
+| `--border` | `rgba(185, 199, 218, .12)` | `rgba(34, 48, 67, .1)` | Kenarlık ve ayraç |
+| `--accent` | `#d1a06a` | `#98652f` | Vurgu, aktif gezinme ve odak |
 
 - Tema seçimi kullanıcı tercihidir; local storage kullanılamazsa arayüz çalışmaya devam eder.
-- Durum renkleri tek başına anlam taşımaz; metin veya erişilebilir ikonla desteklenir.
+- Durum renkleri (hata, uyarı, başarı) vurgu renginden ayrı tutulur; tek başına renk anlam taşımaz, metinle desteklenir.
+- Arka plan derinliği sınırlı degrade ve yüzey farkıyla sağlanır; her alan ayrı karta dönüştürülmez.
 - Metin ve kontrol karşıtlığı açık ve koyu temada ayrıca kontrol edilir. Renk yalnız dekorasyon için kullanılmaz.
 
 ## 6. Tipografi, boşluk ve şekil
