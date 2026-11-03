@@ -433,7 +433,8 @@ export class ChatService {
   async updateMemberRole(user: AuthUser,id: string,targetId: string,input: unknown) {
     assertUuid(id); assertUuid(targetId);
     const value=objectInput(input);
-    if(value.role!=='admin'&&value.role!=='member') throw invalid('Grup üyesi rolü geçersiz.');
+    if(value.role!=='admin'&&value.role!=='member'&&value.role!=='owner') throw invalid('Grup üyesi rolü geçersiz.');
+    if(targetId===user.id&&value.role==='owner') throw invalid('Sohbet sahipliği başka bir üyeye devredilmelidir.');
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -449,6 +450,12 @@ export class ChatService {
       const previous=target.rows[0].member_role as string;
       if(previous==='owner') throw new ConflictException({code:'CHAT_OWNER_IMMUTABLE',message:'Sohbet sahibi rolü bu ekrandan değiştirilemez.'});
       if(previous===value.role) { await client.query('COMMIT'); return this.conversationDetails(user,id); }
+      if(value.role==='owner') {
+        await client.query(`UPDATE conversation_members SET member_role='admin'
+          WHERE conversation_id=$1 AND user_id=$2 AND member_role='owner'`,[id,user.id]);
+        await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,previous_role,next_role)
+          VALUES($1,$2,$3,'role_changed','owner','admin')`,[id,user.id,user.id]);
+      }
       await client.query(`UPDATE conversation_members SET member_role=$1 WHERE conversation_id=$2 AND user_id=$3`,[value.role,id,targetId]);
       await client.query(`INSERT INTO conversation_member_events(conversation_id,target_user_id,actor_user_id,event_type,previous_role,next_role)
         VALUES($1,$2,$3,'role_changed',$4,$5)`,[id,targetId,user.id,previous,value.role]);
@@ -457,6 +464,7 @@ export class ChatService {
     } catch(error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
   }
+
 
   async removeMember(user: AuthUser,id: string,targetId: string) {
     assertUuid(id); assertUuid(targetId);
