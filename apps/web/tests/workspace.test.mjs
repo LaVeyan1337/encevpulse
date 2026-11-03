@@ -79,3 +79,33 @@ test('Sayfa geçişleri ve gerçek veri yükleme durumları ghost skeleton göst
   assert.match(motion, /@keyframes drawerSettle/);
   assert.match(motion, /prefers-reduced-motion:reduce/);
 });
+
+
+test('Projeler çalışma alanı gerçek liste, detay, üyelik ve yaşam döngüsü uçlarını kullanır', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const skeletons = await readFile(new URL('../app/components/skeletons.tsx', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../app/projects.css', import.meta.url), 'utf8');
+  const root = await readFile(new URL('../app/root.tsx', import.meta.url), 'utf8');
+  const api = await readFile(new URL('../../api/src/tasks/tasks.controller.ts', import.meta.url), 'utf8');
+
+  assert.match(workspace, /<span>Projeler<\/span>/);
+  assert.match(workspace, /projects\?view=\$\{nextView\}/);
+  assert.match(workspace, /projects\/\$\{projectId\}/);
+  assert.match(workspace, /projects\/\$\{projectDetail\.project\.id\}/);
+  assert.match(workspace, /project-detail-title/);
+  assert.match(workspace, /aria-selected=\{projectTab === 'tasks'\}/);
+  assert.match(workspace, /aria-selected=\{projectTab === 'members'\}/);
+  assert.match(workspace, /memberIds: form\.getAll\('members'\)/);
+  assert.match(workspace, /Projeyi arşivle/);
+  assert.match(workspace, /Proje sahibi/);
+  assert.match(skeletons, /ProjectGridSkeleton/);
+  assert.match(skeletons, /ProjectDetailSkeleton/);
+  assert.match(root, /import '\.\/projects\.css'/);
+  assert.match(styles, /\.project-card/);
+  assert.match(styles, /\.project-detail-hero/);
+  assert.match(styles, /\.project-tabs/);
+  assert.match(api, /@Get\('projects'\)/);
+  assert.match(api, /@Patch\('projects:\/id'\)|@Patch\('projects\/:id'\)/);
+  assert.match(api, /@Post\('projects\/:id\/archive'\)/);
+  assert.match(api, /@Post\('projects\/:id\/restore'\)/);
+});
