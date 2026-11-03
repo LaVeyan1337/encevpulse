@@ -1624,6 +1624,7 @@ export function Workspace({
               request={request}
               people={people}
               currentUserId={user.id}
+              projects={projects.filter((project) => project.status !== 'archived' && !project.archivedAt).map(({id,name,status}) => ({id,name,status}))}
               startUserId={chatStartUserId}
               initialConversationId={chatStartConversationId}
               onStartConsumed={clearChatStart}
