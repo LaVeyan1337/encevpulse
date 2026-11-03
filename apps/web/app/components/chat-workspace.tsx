@@ -283,6 +283,7 @@ export function ChatWorkspace({
       }
       setDetail(detailResult as ChatDetail);
       setMessages(collected);
+      messageHistoryLoaded.current=true;
       setHasMoreMessages(Boolean(page?.hasMore));
       const found=collected.some(message=>message.id===targetId);
       if(found) {
