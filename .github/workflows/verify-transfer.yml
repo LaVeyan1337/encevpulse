@@ -65,9 +65,14 @@ jobs:
         run: npm run typecheck
       - name: Production builds
         run: npm run build
-      - name: Package validated source (tracked files only)
+      - name: Package validated source (exclude temporary CI workflow)
         if: success()
-        run: git archive --format=zip --output=/tmp/encev-pulse-validated-source.zip HEAD
+        run: |
+          mkdir -p /tmp/encev-pulse-export
+          git archive HEAD | tar -x -C /tmp/encev-pulse-export
+          rm -rf /tmp/encev-pulse-export/.github
+          cd /tmp/encev-pulse-export
+          zip -qr /tmp/encev-pulse-validated-source.zip .
       - name: Upload validated source archive
         if: success()
         uses: actions/upload-artifact@v4
