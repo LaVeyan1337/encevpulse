@@ -105,15 +105,47 @@ export class TasksService {
     ))`;
     const [count, latest] = await Promise.all([
       this.db.query(
-        `SELECT count(*)::int AS "unreadCount" FROM notifications n JOIN tasks t ON t.id = n.task_id
-         WHERE n.recipient_user_id = $1 AND n.read_at IS NULL AND t.archived_at IS NULL AND ${access}`, [user.id],
+        `SELECT (
+          (SELECT count(*) FROM notifications n JOIN tasks t ON t.id=n.task_id
+           WHERE n.recipient_user_id=$1 AND n.read_at IS NULL AND t.archived_at IS NULL AND ${access})
+          +
+          (SELECT count(*) FROM chat_notifications cn
+           JOIN conversations c ON c.id=cn.conversation_id
+           WHERE cn.recipient_user_id=$1 AND cn.read_at IS NULL AND c.archived_at IS NULL
+             AND EXISTS (SELECT 1 FROM conversation_members cm
+               WHERE cm.conversation_id=c.id AND cm.user_id=$1 AND cm.left_at IS NULL))
+        )::int AS "unreadCount"`, [user.id],
       ),
       this.db.query(
-        `SELECT n.id, n.event_type AS "eventType", n.task_id AS "taskId", t.title AS "taskTitle",
-                a.display_name AS "actorName", n.created_at AS "createdAt", n.read_at AS "readAt"
-         FROM notifications n JOIN tasks t ON t.id = n.task_id LEFT JOIN users a ON a.id = n.actor_user_id
-         WHERE n.recipient_user_id = $1 AND t.archived_at IS NULL AND ${access}
-         ORDER BY n.created_at DESC, n.id DESC LIMIT 20`, [user.id],
+        `SELECT * FROM (
+          SELECT n.id,n.event_type AS "eventType",n.task_id AS "taskId",
+                 NULL::uuid AS "conversationId",t.title AS "taskTitle",
+                 a.display_name AS "actorName",NULL::text AS preview,
+                 n.created_at AS "createdAt",n.read_at AS "readAt"
+          FROM notifications n JOIN tasks t ON t.id=n.task_id
+          LEFT JOIN users a ON a.id=n.actor_user_id
+          WHERE n.recipient_user_id=$1 AND t.archived_at IS NULL AND ${access}
+          UNION ALL
+          SELECT cn.id,'chat.message'::text AS "eventType",NULL::uuid AS "taskId",
+                 cn.conversation_id AS "conversationId",
+                 CASE WHEN c.conversation_type='direct' THEN (
+                   SELECT peer.display_name FROM conversation_members cm
+                   JOIN users peer ON peer.id=cm.user_id
+                   WHERE cm.conversation_id=c.id AND cm.user_id<>$1 AND cm.left_at IS NULL LIMIT 1
+                 ) ELSE c.title END AS "taskTitle",
+                 actor.display_name AS "actorName",
+                 CASE WHEN m.deleted_at IS NULL THEN left(m.body,180) ELSE 'Mesaj silindi' END AS preview,
+                 cn.created_at AS "createdAt",cn.read_at AS "readAt"
+          FROM chat_notifications cn
+          JOIN conversations c ON c.id=cn.conversation_id
+          JOIN messages m ON m.id=cn.message_id
+          LEFT JOIN users actor ON actor.id=cn.actor_user_id
+          WHERE cn.recipient_user_id=$1 AND c.archived_at IS NULL
+            AND EXISTS (SELECT 1 FROM conversation_members mine
+              WHERE mine.conversation_id=c.id AND mine.user_id=$1 AND mine.left_at IS NULL)
+        ) combined
+        ORDER BY "createdAt" DESC,id DESC
+        LIMIT 20`, [user.id],
       ),
     ]);
     return { unreadCount: count.rows[0].unreadCount, notifications: latest.rows };
@@ -122,14 +154,24 @@ export class TasksService {
   async markNotificationRead(user: AuthUser, id: string, input: unknown): Promise<void> {
     assertUuid(id);
     objectInput(input);
-    const result = await this.db.query(
-      `UPDATE notifications n SET read_at = now()
-       FROM tasks t WHERE n.id = $1 AND n.recipient_user_id = $2 AND n.read_at IS NULL AND n.task_id = t.id
-         AND t.archived_at IS NULL AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
-           SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-         )) RETURNING n.id`, [id, user.id],
+    const taskResult = await this.db.query(
+      `UPDATE notifications n SET read_at=now()
+       FROM tasks t WHERE n.id=$1 AND n.recipient_user_id=$2 AND n.read_at IS NULL
+         AND n.task_id=t.id AND t.archived_at IS NULL
+         AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
+           SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
+         )) RETURNING n.id`, [id,user.id],
     );
-    if (!result.rowCount) throw new NotFoundException({ code: 'NOTIFICATION_NOT_FOUND', message: 'Bildirim bulunamadı.' });
+    if(taskResult.rowCount)return;
+    const chatResult=await this.db.query(
+      `UPDATE chat_notifications cn SET read_at=COALESCE(cn.read_at,now())
+       FROM conversations c WHERE cn.id=$1 AND cn.recipient_user_id=$2
+         AND cn.conversation_id=c.id AND c.archived_at IS NULL
+         AND EXISTS (SELECT 1 FROM conversation_members cm
+           WHERE cm.conversation_id=c.id AND cm.user_id=$2 AND cm.left_at IS NULL)
+       RETURNING cn.id`,[id,user.id],
+    );
+    if(!chatResult.rowCount) throw new NotFoundException({code:'NOTIFICATION_NOT_FOUND',message:'Bildirim bulunamadı.'});
   }
 
   async activity(user: AuthUser) {
