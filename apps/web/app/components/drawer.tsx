@@ -12,6 +12,15 @@ export interface DrawerProps {
   ariaLabelledBy?: string;
 }
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 export function Drawer({
   isOpen,
   onClose,
@@ -23,13 +32,18 @@ export function Drawer({
   children,
   ariaLabelledBy = 'drawer-title',
 }: DrawerProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
 
-  // Lock body scroll and handle Escape key when drawer is open
+  // Keep the latest callback without restarting the scroll/focus lifecycle on every parent render.
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!isOpen) return;
 
+    const panel = panelRef.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const originalOverflow = document.body.style.overflow;
     const originalPaddingRight = document.body.style.paddingRight;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
@@ -39,34 +53,71 @@ export function Drawer({
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
+    function getFocusableElements(): HTMLElement[] {
+      if (!panel) return [];
+      return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (element) =>
+          element.getAttribute('aria-hidden') !== 'true' &&
+          element.getClientRects().length > 0,
+      );
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !panel) return;
+
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
 
-    // Focus the drawer panel or close button on open
-    const focusTimer = setTimeout(() => {
-      if (panelRef.current) {
-        const autofocusElement = panelRef.current.querySelector<HTMLElement>('[autofocus]');
-        if (autofocusElement) {
-          autofocusElement.focus();
-        } else if (closeBtnRef.current) {
-          closeBtnRef.current.focus();
-        }
+    const focusTimer = window.setTimeout(() => {
+      if (!panel) return;
+      const autofocusElement = panel.querySelector<HTMLElement>('[autofocus]');
+      if (autofocusElement && autofocusElement.getClientRects().length > 0) {
+        autofocusElement.focus();
+      } else {
+        closeBtnRef.current?.focus();
       }
-    }, 50);
+    }, 40);
 
     return () => {
-      clearTimeout(focusTimer);
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
-      window.removeEventListener('keydown', handleKeyDown);
+
+      // Do not steal focus from a second drawer opened during a detail-to-edit transition.
+      if (opener?.isConnected && !document.querySelector('.drawer-backdrop')) {
+        window.requestAnimationFrame(() => {
+          if (opener.isConnected && !document.querySelector('.drawer-backdrop')) opener.focus();
+        });
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -74,10 +125,8 @@ export function Drawer({
     <div
       className="drawer-backdrop"
       role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCloseRef.current();
       }}
     >
       <aside
@@ -86,8 +135,8 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby={ariaLabelledBy}
+        tabIndex={-1}
       >
-        {/* Fixed / Sticky Header */}
         <div className="drawer-header">
           <div className="drawer-header-content">
             <div className="drawer-header-title-row">
@@ -103,8 +152,8 @@ export function Drawer({
             ref={closeBtnRef}
             type="button"
             className="drawer-close-btn"
-            onClick={onClose}
-            aria-label="Paneli kapat (Escape)"
+            onClick={() => onCloseRef.current()}
+            aria-label="Paneli kapat"
             title="Kapat (Esc)"
           >
             <svg
@@ -124,10 +173,8 @@ export function Drawer({
           </button>
         </div>
 
-        {/* Scrollable Content Body */}
         <div className="drawer-body">{children}</div>
 
-        {/* Fixed / Sticky Footer */}
         {footer && <div className="drawer-footer">{footer}</div>}
       </aside>
     </div>
