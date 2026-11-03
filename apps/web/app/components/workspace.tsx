@@ -2036,6 +2036,208 @@ export function Workspace({
         </form>
       </Drawer>
 
+      {/* Project Detail and Edit Workspace */}
+      <Drawer
+        isOpen={projectDetailOpen}
+        onClose={() => {
+          setProjectDetailOpen(false);
+          setProjectEditing(false);
+        }}
+        size="xl"
+        title={projectDetail?.project.name ?? 'Proje ayrıntıları'}
+        subtitle={projectDetail ? ('Proje sahibi: ' + projectDetail.project.ownerName + ' · Kayıt No: #' + projectDetail.project.id.slice(0, 8)) : 'Proje bilgileri'}
+        ariaLabelledBy="project-detail-title"
+        footer={
+          projectDetail && !projectLoading ? (
+            projectEditing ? (
+              <>
+                <button type="button" className="secondary-button" onClick={() => setProjectEditing(false)}>Vazgeç</button>
+                <button type="submit" form="project-edit-form" className="primary-button" disabled={busy}>
+                  {busy ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="secondary-button" onClick={() => setProjectDetailOpen(false)}>Kapat</button>
+                {(projectDetail.project.createdBy === user.id || projectDetail.project.ownerId === user.id || user.roles.includes('system_admin')) && (
+                  <>
+                    <button type="button" className="secondary-button" onClick={() => void toggleProjectArchive()} disabled={busy}>
+                      {projectDetail.project.archivedAt ? 'Arşivden çıkar' : 'Projeyi arşivle'}
+                    </button>
+                    {!projectDetail.project.archivedAt && (
+                      <button type="button" className="primary-button" onClick={() => {
+                        setProjectError('');
+                        setProjectEditing(true);
+                      }}>Projeyi düzenle</button>
+                    )}
+                  </>
+                )}
+              </>
+            )
+          ) : undefined
+        }
+      >
+        {projectError && <p className="auth-error" role="alert">{projectError}</p>}
+        {projectLoading ? (
+          <ProjectDetailSkeleton />
+        ) : projectDetail ? (
+          projectEditing ? (
+            <form id="project-edit-form" className="drawer-form project-edit-form" onSubmit={saveProjectDetails}>
+              <div className="form-group">
+                <label htmlFor="project-edit-name">Proje adı</label>
+                <input id="project-edit-name" name="name" defaultValue={projectDetail.project.name} maxLength={160} required />
+              </div>
+              <div className="form-group">
+                <label htmlFor="project-edit-description">Proje amacı ve kapsamı</label>
+                <textarea id="project-edit-description" name="description" defaultValue={projectDetail.project.description} maxLength={4000} rows={4} />
+              </div>
+              <div className="form-pair">
+                <div className="form-group">
+                  <label htmlFor="project-edit-status">Proje durumu</label>
+                  <select id="project-edit-status" name="status" defaultValue={projectDetail.project.status}>
+                    <option value="planning">Hazırlık</option>
+                    <option value="active">Aktif</option>
+                    <option value="on_hold">Beklemede</option>
+                    <option value="completed">Tamamlandı</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="project-edit-owner">Proje sahibi</label>
+                  <select id="project-edit-owner" name="ownerId" defaultValue={projectDetail.project.ownerId}>
+                    {people.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-pair">
+                <div className="form-group">
+                  <label htmlFor="project-edit-starts">Başlangıç tarihi</label>
+                  <input id="project-edit-starts" name="startsOn" type="date" defaultValue={projectDetail.project.startsOn ?? ''} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="project-edit-target">Hedef tarih</label>
+                  <input id="project-edit-target" name="targetOn" type="date" defaultValue={projectDetail.project.targetOn ?? ''} />
+                </div>
+              </div>
+              <fieldset className="member-picker project-edit-members">
+                <legend>Proje üyeleri</legend>
+                {people.map((person) => (
+                  <label key={person.id} className="member-checkbox">
+                    <input
+                      type="checkbox"
+                      name="members"
+                      value={person.id}
+                      defaultChecked={projectDetail.members.some((member) => member.id === person.id)}
+                    />
+                    <span>{person.displayName}{person.id === projectDetail.project.ownerId ? ' · Proje sahibi' : ''}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <p className="field-hint">Proje sahibi, üye listesinden çıkarılamaz. Kaydedilen üyelik değişiklikleri proje geçmişine yazılır.</p>
+            </form>
+          ) : (
+            <div className="project-detail-body">
+              <div className="project-detail-hero">
+                <div className="project-detail-hero-main">
+                  <span className={'project-status-badge project-status-' + projectDetail.project.status}>
+                    {projectStatusLabel(projectDetail.project.status)}
+                  </span>
+                  {projectDetail.project.archivedAt && <span className="project-archived-tag">Arşivlenmiş</span>}
+                  <h3>{projectDetail.project.name}</h3>
+                  <p>{projectDetail.project.description || 'Bu proje için açıklama eklenmemiş.'}</p>
+                </div>
+                <div className="project-detail-progress">
+                  <strong>{projectDetail.project.taskCount > 0
+                    ? Math.round((projectDetail.project.completedTaskCount / projectDetail.project.taskCount) * 100) + '%'
+                    : '—'}</strong>
+                  <span>Görev tamamlanma</span>
+                  <div className="project-progress-track">
+                    <span style={{ width: projectDetail.project.taskCount > 0
+                      ? Math.round((projectDetail.project.completedTaskCount / projectDetail.project.taskCount) * 100) + '%'
+                      : '0%' }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="project-detail-stats">
+                <div><span>Toplam görev</span><strong>{projectDetail.project.taskCount}</strong></div>
+                <div><span>Tamamlanan</span><strong>{projectDetail.project.completedTaskCount}</strong></div>
+                <div><span>Proje üyeleri</span><strong>{projectDetail.members.length}</strong></div>
+                <div><span>Hedef tarih</span><strong>{dateLabel(projectDetail.project.targetOn ?? null)}</strong></div>
+              </div>
+
+              <div className="project-tabs" role="tablist" aria-label="Proje bölümleri">
+                <button type="button" role="tab" aria-selected={projectTab === 'overview'} onClick={() => setProjectTab('overview')}>Genel bakış</button>
+                <button type="button" role="tab" aria-selected={projectTab === 'tasks'} onClick={() => setProjectTab('tasks')}>Görevler <span>{projectDetail.tasks.length}</span></button>
+                <button type="button" role="tab" aria-selected={projectTab === 'members'} onClick={() => setProjectTab('members')}>Üyeler <span>{projectDetail.members.length}</span></button>
+              </div>
+
+              {projectTab === 'overview' && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <div className="project-overview-grid">
+                    <section className="project-info-panel">
+                      <h4>Proje bilgileri</h4>
+                      <dl>
+                        <div><dt>Proje sahibi</dt><dd>{projectDetail.project.ownerName}</dd></div>
+                        <div><dt>Oluşturan</dt><dd>{projectDetail.project.creatorName}</dd></div>
+                        <div><dt>Başlangıç</dt><dd>{dateLabel(projectDetail.project.startsOn ?? null)}</dd></div>
+                        <div><dt>Hedef tarih</dt><dd>{dateLabel(projectDetail.project.targetOn ?? null)}</dd></div>
+                      </dl>
+                    </section>
+                    <section className="project-info-panel">
+                      <h4>Son değişiklikler</h4>
+                      {projectDetail.activity.length ? (
+                        <div className="project-activity-list">
+                          {projectDetail.activity.slice(0, 8).map((event) => (
+                            <div className="project-activity-row" key={event.id}>
+                              <span className="project-activity-dot" />
+                              <div><strong>{event.actorName ?? 'Bir kullanıcı'}</strong><span>{projectEventLabel(event.eventType)}</span></div>
+                              <time>{dateTimeLabel(event.createdAt)}</time>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="muted-line">Proje hareketi bulunmuyor.</p>}
+                    </section>
+                  </div>
+                </div>
+              )}
+
+              {projectTab === 'tasks' && (
+                <div className="project-tab-panel" role="tabpanel">
+                  {projectDetail.tasks.length ? (
+                    <div className="project-task-list">
+                      {projectDetail.tasks.map((task) => (
+                        <button type="button" className="project-task-row" key={task.id} onClick={() => void openProjectTask(task.id)}>
+                          <span className="project-task-title">{task.title}</span>
+                          <span className={'project-task-status project-task-status-' + task.status}>{columns.find((column) => column.value === task.status)?.label ?? task.status}</span>
+                          <span className="project-task-assignee">{task.assigneeName}</span>
+                          <time>{dateLabel(task.dueOn)}</time>
+                        </button>
+                      ))}
+                    </div>
+                  ) : <div className="empty-state"><strong>Bu projeye bağlı görev yok</strong><span>Görev oluştururken bu projeyi seçtiğinizde burada listelenir.</span></div>}
+                </div>
+              )}
+
+              {projectTab === 'members' && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <div className="project-member-list">
+                    {projectDetail.members.map((member) => (
+                      <div className="project-member-row" key={member.id}>
+                        <span className="user-avatar">{member.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                        <div><strong>{member.displayName}</strong><span>{member.username}</span></div>
+                        {member.isOwner && <span className="project-owner-label">Proje sahibi</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="empty-state"><strong>Proje açılamadı</strong><span>Projeyi yeniden açmayı deneyin.</span></div>
+        )}
+      </Drawer>
+
       {/* Slide-over Password Change Drawer */}
       <Drawer
         isOpen={passwordFormOpen}
