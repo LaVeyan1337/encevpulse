@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import './app.css';
+import './bitrix-glass.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -8,7 +9,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#101a2b" />
+        <meta name="theme-color" content="#0b1d35" />
         <Meta />
         <Links />
       </head>
