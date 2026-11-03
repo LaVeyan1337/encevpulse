@@ -67,6 +67,22 @@ export class AuthController {
     return this.auth.listUsers(request);
   }
 
+  @Get('people')
+  async people(@Req() request: Request) {
+    await this.auth.authorizeRequest(request);
+    return this.auth.listPeople();
+  }
+
+  @Get('roles')
+  async roles(@Req() request: Request) {
+    return this.auth.listRoles(request);
+  }
+
+  @Patch('users/:id/profile')
+  async updateUserProfile(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
+    return this.auth.updateUserProfile(request, id, body);
+  }
+
   @Post('users/:id/disable')
   @HttpCode(HttpStatus.NO_CONTENT)
   async disableUser(@Req() request: Request, @Param('id') id: string): Promise<void> {
