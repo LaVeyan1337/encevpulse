@@ -3,7 +3,7 @@ import { EmployeeAvatar } from './avatars';
 
 type Request = (path:string,method?:string,data?:unknown)=>Promise<Record<string,any>>;
 type Conversation = {
-  id:string;type:'direct'|'group';title:string|null;displayName:string;lastMessage:string|null;
+  id:string;type:'direct'|'group';title:string|null;displayName:string;avatarKey:string|null;lastMessage:string|null;
   lastMessageAt:string|null;lastSenderId:string|null;lastSenderName:string|null;unreadCount:number;
   memberCount:number;myRole:'owner'|'admin'|'member';
 };
@@ -377,7 +377,9 @@ export function ChatWorkspace({
             <div className="chat-list-empty"><strong>Henüz sohbet yok</strong><span>Çalışan rehberinden bir kişi seçerek konuşma başlatın veya grup oluşturun.</span></div>
           ):conversations.map(conversation=>(
             <button type="button" key={conversation.id} className={'chat-conversation-item'+(selectedId===conversation.id?' selected':'')} onClick={()=>void openConversation(conversation.id)}>
-              <span className="chat-conversation-avatar">{conversation.type==='group'?'✦':(conversation.displayName||'?').trim().slice(0,1).toLocaleUpperCase('tr-TR')}</span>
+              {conversation.type==='group'
+                ? <span className="chat-conversation-avatar">✦</span>
+                : <EmployeeAvatar avatarKey={conversation.avatarKey} name={conversation.displayName} size="md"/>}
               <span className="chat-conversation-copy"><strong>{conversation.displayName||'Sohbet'}</strong><span>{conversation.lastSenderName?conversation.lastSenderName+': ':''}{conversation.lastMessage??'Henüz mesaj yok'}</span></span>
               <span className="chat-conversation-meta">{conversation.lastMessageAt&&<time>{timeLabel(conversation.lastMessageAt)}</time>}{conversation.unreadCount>0&&<b>{conversation.unreadCount>99?'99+':conversation.unreadCount}</b>}</span>
             </button>
@@ -391,7 +393,13 @@ export function ChatWorkspace({
           <>
             <header className="chat-thread-header">
               <div className="chat-thread-title">
-                <span className="chat-thread-avatar">{selected.type==='group'?'✦':selected.displayName.trim().slice(0,1).toLocaleUpperCase('tr-TR')}</span>
+                {selected.type==='group'
+                  ? <span className="chat-thread-avatar">✦</span>
+                  : <EmployeeAvatar
+                      avatarKey={detail.members.find(member=>member.id!==currentUserId)?.avatarKey}
+                      name={selected.displayName}
+                      size="md"
+                    />}
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
               <div className="chat-thread-actions"><span className="chat-live-indicator"><i/> Otomatik yenileme</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
