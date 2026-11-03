@@ -96,8 +96,9 @@
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
 - Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
 - **SSE için son başarılı CI:** 3d3b425e6b6a45492fe50e970a5652f0cba49f28 / 41674472637. Migration, web 12/12, API 25/25, TypeScript ve API/Web üretim derlemeleri başarılı oldu.
-- **Rol/modül RBAC:** 0009_module_permissions.sql ve 0010_module_permission_defaults.sql, API erişim kontrolleri, bildirim kapsamı, yönetici matrisi ve UI eylem kapıları geliştirme dalına hazırlanıyor. Bu yeni değişiklik kümesinin CI doğrulaması henüz tamamlanmadı.
-- RBAC sonrası Windows tarayıcı görsel kabulü, gerçek reverse-proxy SSE testi, gerçek şirket ağı ve üretim dağıtımı henüz test edilmedi.- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
+- **RBAC güvenlik düzeltmesi:** 39ed1829c956366e154f7cea6c7abc8810fd5424 commit'inde ilk CI, ortak SQL parametre katmanındaki dizi parametresi hatasını buldu. Düzeltme sonrası API 25/25 ve Web 12/12 test geçti; TypeScript ve üretim derlemelerinde daha sonra iki UI tip/JSX sorunu bulundu ve giderildi.
+- **Son doğrulanan RBAC kaynak:** 3f4d5250e75dfabbe86e739a0767a88c93e779c2 commit'i, GitHub Actions koşusu 41696281561 ile doğrulandı. Temiz PostgreSQL 18.6 üzerinde migration'lar uygulandı; API 25/25, Web 12/12, iki workspace TypeScript kontrolleri ve API/Web üretim derlemeleri başarılı oldu. Kaynak ZIP'i oluşturuldu ve encev-pulse-validated-source artifact'i olarak yüklendi.
+- Bu doğrulama izole Linux CI ortamına aittir. Windows yerel kurulum, gerçek tarayıcı görsel kabulü, ofis ağı/NAS, gerçek reverse proxy/SSE ve üretim dağıtımı test edilmedi.- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
 
