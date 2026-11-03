@@ -151,3 +151,49 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
   assert.match(migration, /CREATE TABLE message_reactions/);
   assert.match(migration, /CREATE TABLE conversation_read_cursors/);
 });
+
+
+test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet başlatır', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const directory = await readFile(new URL('../app/components/people-directory.tsx', import.meta.url), 'utf8');
+  const avatars = await readFile(new URL('../app/components/avatars.tsx', import.meta.url), 'utf8');
+  const admin = await readFile(new URL('../app/routes/home.tsx', import.meta.url), 'utf8');
+
+  assert.match(workspace, /<PeopleDirectory/);
+  assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /setChatStartUserId\(person\.id\)/);
+  assert.match(directory, /Çalışan rehberi/);
+  assert.match(directory, /Birim filtresi/);
+  assert.match(directory, /onMessage\(person\)/);
+  assert.match(directory, /jobTitle/);
+  assert.match(directory, /department/);
+  assert.match(avatars, /panda/);
+  assert.match(avatars, /penguin/);
+  assert.match(admin, /new-job-title/);
+  assert.match(admin, /new-department/);
+  assert.match(admin, /Sistem rolleri/);
+  assert.match(admin, /users\/\$\{editingUserId\}\/profile/);
+});
+
+test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı kullanır', async () => {
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../app/people-chat.css', import.meta.url), 'utf8');
+  const api = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
+
+  assert.match(chat, /chat\/conversations/);
+  assert.match(chat, /chat\/search\?q=/);
+  assert.match(chat, /replyToId/);
+  assert.match(chat, /reactions/);
+  assert.match(chat, /create-task/);
+  assert.match(chat, /\/members\/\$\{member\.id\}\/role/);
+  assert.match(chat, /setInterval/);
+  assert.match(chat, /Gönderim başarısız/);
+  assert.match(chat, /Dosya ekleri bu sürümde güvenlik/);
+  assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);
+  assert.match(styles, /\.people-card/);
+  assert.match(styles, /prefers-reduced-motion/);
+  assert.match(api, /@Post\('conversations\/\:id\/messages'\)/);
+  assert.match(api, /@Patch\('messages\/\:id'\)/);
+  assert.match(api, /@Post\('messages\/\:id\/create-task'\)/);
+  assert.match(api, /@Patch\('conversations\/\:id\/members\/\:userId\/role'\)/);
+});
