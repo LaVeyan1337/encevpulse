@@ -121,7 +121,7 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
   const authService = await readFile(new URL('../../api/src/auth/auth.service.ts', import.meta.url), 'utf8');
   const authController = await readFile(new URL('../../api/src/auth/auth.controller.ts', import.meta.url), 'utf8');
   const chatController = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
-  const migration = await readFile(new URL('../../drizzle/0006_people_and_chat.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../../drizzle/0006_people_and_chat.sql', import.meta.url), 'utf8');
 
   assert.match(workspace, /<PeopleDirectory/);
   assert.match(workspace, /<ChatWorkspace/);
