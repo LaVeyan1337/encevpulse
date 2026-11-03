@@ -51,7 +51,7 @@ export class DatabaseService implements OnApplicationShutdown {
       if (!Number.isInteger(parameterIndex) || parameterIndex < 0 || parameterIndex >= parameters.length) {
         throw new Error('Database query has an invalid parameter placeholder.');
       }
-      fragments.push(sql.raw(statement.slice(cursor, match.index)), sql.param(parameters[parameterIndex]));
+      fragments.push(sql.raw(statement.slice(cursor, match.index)), sql`${sql.param(parameters[parameterIndex])}`);
       cursor = match.index + match[0].length;
     }
     fragments.push(sql.raw(statement.slice(cursor)));
