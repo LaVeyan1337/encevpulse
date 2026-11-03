@@ -261,11 +261,20 @@ test('takvim API: kişisel, ortak ve proje etkinlikleri; kapsam, tarih izdüşü
     try {
       await cleanup.query('BEGIN');
       await cleanup.query('ALTER TABLE calendar_event_audit_events DISABLE TRIGGER calendar_event_audit_events_append_only');
-      if (eventIds.length) {
-        await cleanup.query('DELETE FROM calendar_event_attendees WHERE event_id = ANY($1::uuid[])', [eventIds]);
-        await cleanup.query('DELETE FROM calendar_event_audit_events WHERE event_id = ANY($1::uuid[])', [eventIds]);
-        await cleanup.query('DELETE FROM calendar_events WHERE id = ANY($1::uuid[])', [eventIds]);
+      const linkedEvents = projectIds.length
+        ? await cleanup.query<{ id: string }>('SELECT id FROM calendar_events WHERE project_id = ANY($1::uuid[])', [projectIds])
+        : { rows: [] as { id: string }[] };
+      const cleanupEventIds = [...new Set([...eventIds, ...linkedEvents.rows.map((row) => row.id)])];
+      if (cleanupEventIds.length) {
+        await cleanup.query('DELETE FROM calendar_event_attendees WHERE event_id = ANY($1::uuid[])', [cleanupEventIds]);
+        await cleanup.query('DELETE FROM calendar_event_audit_events WHERE event_id = ANY($1::uuid[])', [cleanupEventIds]);
+        await cleanup.query('DELETE FROM calendar_events WHERE id = ANY($1::uuid[])', [cleanupEventIds]);
       }
+      const remainingEvents = await cleanup.query(
+        'SELECT id FROM calendar_events WHERE id = ANY($1::uuid[]) OR project_id = ANY($2::uuid[])',
+        [cleanupEventIds, projectIds],
+      );
+      assert.equal(remainingEvents.rowCount, 0, 'calendar fixtures must be removed before project cleanup');
       if (taskIds.length) {
         await cleanup.query('DELETE FROM notifications WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
