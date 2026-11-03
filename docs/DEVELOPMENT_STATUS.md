@@ -67,8 +67,8 @@
 - Bire bir ve grup konuşmaları PostgreSQL'de saklanır; aynı iki kullanıcı için yinelenen aktif bire bir konuşma oluşturulmaz.
 - Mesajlar 4.000 karaktere kadar; idempotent istek kimliği, yanıt, emoji tepkileri, yazarın düzenleme/silmesi, sürüm çakışma kontrolü ve silinen mesaj için metin içermeyen tombstone kullanılır.
 - Konuşma arama, son 50 mesaj ve daha eski mesajları imleçle sayfalama, okundu imleçleri, okunmamış sayacı ve sabitlenmiş mesajlar yer alır.
-- Grup sahibi yönetici/üye atayabilir; owner/admin/member izinleri API'de doğrulanır. Üye ekleme, çıkarma ve rol değişiklikleri değiştirilemez olay tablosunda kaydedilir.
-- Mesajdan görev oluşturma, kaynak mesaja geri bağlantı ve yinelenen görev üretimini önleyen tekillik kuralı içerir.
+- Grup sahibi yönetici/üye atayabilir ve sahipliği devredebilir; devirde eski sahip yönetici olur, yeni sahip owner rolünü alır. Owner/admin/member izinleri API'de doğrulanır. Üye ekleme, çıkarma, ayrılma ve rol değişiklikleri değiştirilemez olay tablosunda kaydedilir. Aktif konuşmada tek owner veritabanı indeksiyle korunur.
+- Mesajdan görev oluşturma formu; başlık, sorumlu ve proje seçimini destekler. Mesaj açıklama olarak kaynak kaydına bağlanır; yinelenen görev üretimini önleyen tekillik kuralı vardır. Bağlı görev yeniden üretim yerine açılır.
 - Sohbet mesaj bildirimleri görev bildirimleriyle aynı üst menüde toplanır; bildirime tıklama hedef konuşmayı açar, okundu durumu ve genel okunmamış sayacı güncellenir.
 - Sohbet listesinde, doğrudan konuşma başlığında, üye listesinde ve mesajlarda aynı çalışan avatarı kullanılır. Arama sonucu seçildiğinde mesajın kendisi bulunana kadar geçmiş sayfaları yüklenir ve mesaj ekranda ortalanır.
 - Tarayıcı tarafında yaklaşık 3 saniyelik yenileme kullanılır; bu sürüm WebSocket/SSE değildir ve gerçek zamanlı push olarak tanımlanmamalıdır.
