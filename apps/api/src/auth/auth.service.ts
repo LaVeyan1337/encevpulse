@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
@@ -20,6 +20,9 @@ export interface AuthUser {
   displayName: string;
   mustChangePassword: boolean;
   roles: string[];
+  jobTitle: string;
+  department: string;
+  avatarKey: string;
 }
 
 export interface SessionResult {
@@ -38,6 +41,9 @@ interface AccountRow {
   username: string;
   email: string;
   display_name: string;
+  job_title: string;
+  department: string;
+  avatar_key: string;
   password_hash: string;
   status: 'active' | 'disabled';
   must_change_password: boolean;
@@ -127,7 +133,7 @@ export class AuthService {
     }
 
     const result = await this.db.query<AccountRow>(
-      `SELECT id, username, email, display_name, password_hash, status, must_change_password, password_expires_at
+      `SELECT id, username, email, display_name, job_title, department, avatar_key, password_hash, status, must_change_password, password_expires_at
        FROM users WHERE username = $1 OR email = $1 LIMIT 1`,
       [identifier],
     );
@@ -196,7 +202,7 @@ export class AuthService {
       throw new BadRequestException({ code: 'PASSWORD_UNCHANGED', message: 'Yeni parola mevcut paroladan farklı olmalıdır.' });
     }
     const accountResult = await this.db.query<AccountRow>(
-      `SELECT id, username, email, display_name, password_hash, status, must_change_password, password_expires_at
+      `SELECT id, username, email, display_name, job_title, department, avatar_key, password_hash, status, must_change_password, password_expires_at
        FROM users WHERE id = $1`,
       [authSession.user.id],
     );
@@ -238,22 +244,31 @@ export class AuthService {
     this.assertAdmin(admin.user);
     const values = validateCreateUserInput(input);
     const temporaryPassword = randomBytes(24).toString('base64url');
+    const avatarKey = values.avatarKey ?? ['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'][randomInt(0,12)];
+    const roleCodes = [...new Set(['employee', ...values.roleCodes])];
     const passwordHash = await this.hasher.hash(temporaryPassword);
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
       const created = await client.query<AccountRow & { created_at: Date }>(
-        `INSERT INTO users (username, email, display_name, password_hash, must_change_password, password_expires_at, created_by)
-         VALUES ($1, $2, $3, $4, true, now() + ($5 * interval '1 millisecond'), $6)
-         RETURNING id, username, email, display_name, password_hash, status, must_change_password, password_expires_at, created_at`,
-        [values.username, values.email, values.displayName, passwordHash, TEMP_PASSWORD_MS, admin.user.id],
+        `INSERT INTO users (username, email, display_name, job_title, department, avatar_key, password_hash, must_change_password, password_expires_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, now() + ($8 * interval '1 millisecond'), $9)
+         RETURNING id, username, email, display_name, job_title, department, avatar_key, password_hash, status, must_change_password, password_expires_at, created_at`,
+        [values.username, values.email, values.displayName, values.jobTitle, values.department, avatarKey, passwordHash, TEMP_PASSWORD_MS, admin.user.id],
       );
       const account = created.rows[0];
-      await client.query(
-        `INSERT INTO user_role_assignments (user_id, role_id, assigned_by)
-         SELECT $1, id, $2 FROM roles WHERE code = 'employee'`,
-        [account.id, admin.user.id],
+      const availableRoles = await client.query<{id:string;code:string}>(
+        `SELECT id,code FROM roles WHERE code = ANY($1::text[])`, [roleCodes],
       );
+      if (availableRoles.rowCount !== roleCodes.length) {
+        throw new BadRequestException({code:'INVALID_ROLE',message:'Seçilen kullanıcı rollerinden biri tanımlı değil.'});
+      }
+      for (const role of availableRoles.rows) {
+        await client.query(
+          `INSERT INTO user_role_assignments (user_id, role_id, assigned_by) VALUES ($1,$2,$3)`,
+          [account.id, role.id, admin.user.id],
+        );
+      }
       await client.query(
         `INSERT INTO auth_audit_events (actor_user_id, target_user_id, action)
          VALUES ($1, $2, 'user.created')`,
@@ -261,7 +276,7 @@ export class AuthService {
       );
       await client.query('COMMIT');
       return {
-        user: { ...toAuthUser(account, ['employee']), status: 'active', createdAt: account.created_at.toISOString() },
+        user: { ...toAuthUser(account, roleCodes), status: 'active', createdAt: account.created_at.toISOString() },
         temporaryPassword,
       };
     } catch (error) {
@@ -277,8 +292,8 @@ export class AuthService {
     const admin = await this.requireSession(request);
     this.assertAdmin(admin.user);
     const result = await this.db.query<AccountRow & { roles: string[]; created_at: Date }>(
-      `SELECT u.id, u.username, u.email, u.display_name, u.password_hash, u.status,
-              u.must_change_password, u.password_expires_at, u.created_at,
+      `SELECT u.id, u.username, u.email, u.display_name, u.job_title, u.department, u.avatar_key,
+              u.password_hash, u.status, u.must_change_password, u.password_expires_at, u.created_at,
               COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::text[]) AS roles
        FROM users u
        LEFT JOIN user_role_assignments ura ON ura.user_id = u.id
@@ -402,7 +417,7 @@ export class AuthService {
     const tokenHash = sha256(token);
     const result = await this.db.query<AccountRow & { session_id: string; csrf_token_hash: string }>(
       `SELECT s.id AS session_id, s.csrf_token_hash, u.id, u.username, u.email, u.display_name,
-              u.password_hash, u.status, u.must_change_password, u.password_expires_at
+              u.job_title, u.department, u.avatar_key, u.password_hash, u.status, u.must_change_password, u.password_expires_at
        FROM auth_sessions s JOIN users u ON u.id = s.user_id
        WHERE s.session_token_hash = $1 AND s.revoked_at IS NULL
          AND s.idle_expires_at > now() AND s.expires_at > now() AND u.status = 'active'`,
@@ -515,7 +530,7 @@ function safeEqualHex(actual: string, expected: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function toAuthUser(account: Pick<AccountRow, 'id' | 'username' | 'email' | 'display_name' | 'must_change_password'>, roles: string[]): AuthUser {
+function toAuthUser(account: Pick<AccountRow, 'id' | 'username' | 'email' | 'display_name' | 'must_change_password' | 'job_title' | 'department' | 'avatar_key'>, roles: string[]): AuthUser {
   return {
     id: account.id,
     username: account.username,
@@ -523,27 +538,39 @@ function toAuthUser(account: Pick<AccountRow, 'id' | 'username' | 'email' | 'dis
     displayName: account.display_name,
     mustChangePassword: account.must_change_password,
     roles,
+    jobTitle: account.job_title ?? '',
+    department: account.department ?? '',
+    avatarKey: account.avatar_key ?? 'cat',
   };
 }
 
-function validateCreateUserInput(input: unknown): { username: string; email: string; displayName: string } {
-  if (!input || typeof input !== 'object') throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Kullanıcı bilgilerini kontrol edin.' });
+function validateCreateUserInput(input: unknown): {
+  username:string; email:string; displayName:string; jobTitle:string; department:string;
+  avatarKey:string|null; roleCodes:string[];
+} {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Kullanıcı bilgilerini kontrol edin.' });
   const value = input as Record<string, unknown>;
   if (typeof value.username !== 'string' || typeof value.email !== 'string' || typeof value.displayName !== 'string') {
     throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Kullanıcı bilgilerini kontrol edin.' });
   }
-  const username = value.username.trim().toLowerCase();
-  const email = value.email.trim().toLowerCase();
-  const displayName = value.displayName.trim();
+  const username=value.username.trim().toLowerCase();
+  const email=value.email.trim().toLowerCase();
+  const displayName=value.displayName.trim();
+  const jobTitle=typeof value.jobTitle==='string'?value.jobTitle.trim():'';
+  const department=typeof value.department==='string'?value.department.trim():'';
+  const avatarKey=typeof value.avatarKey==='string'?value.avatarKey:null;
+  const roleCodes=Array.isArray(value.roleCodes)&&value.roleCodes.every((role)=>typeof role==='string')?value.roleCodes as string[]:[];
+  const avatars=['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'];
   if (!/^[a-z0-9][a-z0-9._-]{1,31}$/.test(username)
     || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@encev\.com\.tr$/.test(email)
-    || displayName.length < 1
-    || displayName.length > 120) {
-    throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Kullanıcı adı, kurumsal e-posta veya ad bilgisi biçimi geçersiz.' });
+    || displayName.length<1 || displayName.length>120
+    || jobTitle.length>120 || department.length>100
+    || (avatarKey!==null&&!avatars.includes(avatarKey))
+    || roleCodes.length>10 || roleCodes.some((role)=>!/^[a-z][a-z0-9_]{1,40}$/.test(role))) {
+    throw new BadRequestException({code:'INVALID_REQUEST',message:'Kullanıcı adı, kurumsal e-posta veya profil bilgilerini kontrol edin.'});
   }
-  return { username, email, displayName };
+  return {username,email,displayName,jobTitle,department,avatarKey,roleCodes};
 }
-
 function isUniqueViolation(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === '23505');
 }
