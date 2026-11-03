@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { TasksService } from './tasks.service.js';
@@ -31,6 +31,38 @@ export class TasksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async markNotificationRead(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
     await this.tasks.markNotificationRead(await this.auth.authorizeRequest(request, true), id, body);
+  }
+
+  @Get('tasks/:id/comments')
+  async taskComments(@Req() request: Request, @Param('id') id: string) {
+    return this.tasks.taskComments(await this.auth.authorizeRequest(request), id);
+  }
+
+  @Post('tasks/:id/comments')
+  @HttpCode(HttpStatus.CREATED)
+  async createTaskComment(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
+    return this.tasks.createTaskComment(await this.auth.authorizeRequest(request, true), id, body);
+  }
+
+  @Patch('tasks/:taskId/comments/:commentId')
+  async updateTaskComment(
+    @Req() request: Request,
+    @Param('taskId') taskId: string,
+    @Param('commentId') commentId: string,
+    @Body() body: unknown,
+  ) {
+    return this.tasks.updateTaskComment(await this.auth.authorizeRequest(request, true), taskId, commentId, body);
+  }
+
+  @Delete('tasks/:taskId/comments/:commentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteTaskComment(
+    @Req() request: Request,
+    @Param('taskId') taskId: string,
+    @Param('commentId') commentId: string,
+    @Body() body: unknown,
+  ) {
+    await this.tasks.deleteTaskComment(await this.auth.authorizeRequest(request, true), taskId, commentId, body);
   }
 
   @Get('tasks/people')
