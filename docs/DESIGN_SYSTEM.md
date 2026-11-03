@@ -1,12 +1,12 @@
 # ENCEV PULSE Tasarım Sistemi
 
-**Durum:** Ürün arayüzü için bağlayıcı tasarım ve içerik rehberi
+**Durum:** Ürün arayüzü için bağlayıcı tasarım ve içerik rehberi (Glass workspace revizyonu)
 **Dil:** Türkçe
 **Öncelik:** Proje kökündeki `AGENTS.md` ve veri koruma politikasıyla birlikte uygulanır.
 
 ## 1. Tasarım amacı
 
-ENCEV PULSE, EnÇev çalışanlarının günlük işlerini ve ekip süreçlerini yürüteceği kurumsal bir uygulamadır. Arayüz, Bitrix24'ün kolay gezinme ve iş akışı yaklaşımından yararlanır; gereksiz tanıtım alanları, boş kartlar ve tamamlanmamış modül bağlantıları içermez.
+ENCEV PULSE, EnÇev çalışanlarının günlük işlerini ve ekip süreçlerini yürüteceği kurumsal bir uygulamadır. Arayüz, Bitrix24 Space yaklaşımındaki mavi navigasyon, ferah çalışma yüzeyleri ve hızlı iş akışı hissinden yararlanır. Görsel dil; yarı saydam cam yüzeyler, yumuşak arka plan ışımaları, ince parlak kenarlıklar ve net durum renkleriyle uygulanır. Gereksiz tanıtım alanları, boş kartlar ve tamamlanmamış modül bağlantıları içermez.
 
 Öncelik sırası:
 
@@ -50,23 +50,23 @@ Normal kullanıcı arayüzünde yerel geliştirme, API bağlantısı, PostgreSQL
 
 ## 5. Renk ve tema
 
-Uygulamanın güncel görsel dili koyu antrasit/mavi-gri yüzeyler ve ölçülü bronz vurgu üzerine kuruludur. Açık temada aynı semantik roller korunur; renkler doğrudan bileşenlere yazılmaz, token üzerinden kullanılır.
+Uygulamanın güncel görsel dili koyu lacivert/cam yüzeyler, doygun mavi navigasyon ve mavi-camgöbeği vurgu üzerine kuruludur. Açık tema aynı görsel dilin daha aydınlık karşılığıdır. Yüzeylerde `backdrop-filter` desteklendiğinde blur ve transparanlık kullanılır; desteklenmediğinde opak renkli geri dönüşler devreye girer. Bileşen renkleri token üzerinden kullanılır.
 
 | Semantik token | Koyu tema | Açık tema | Kullanım |
 |---|---|---|---|
-| `--page` | `#101722` | `#f0f2f5` | Ana sayfa zemini |
-| `--surface` | `#182230` | `#ffffff` | Panel ve ana yüzey |
-| `--surface-raised` | `#202c3b` | `#f6f7f9` | Kart ve yükseltilmiş yüzey |
-| `--surface-hover` | `#29384a` | `#eceff3` | Hover yüzeyi |
-| `--text` | `#edf1f6` | `#202a36` | Birincil metin |
-| `--text-secondary` | `#a7b3c2` | `#586777` | İkincil metin |
-| `--text-muted` | `#77869a` | `#83909d` | Yardımcı metin |
-| `--border` | `rgba(185, 199, 218, .12)` | `rgba(34, 48, 67, .1)` | Kenarlık ve ayraç |
-| `--accent` | `#d1a06a` | `#98652f` | Vurgu, aktif gezinme ve odak |
+| `--page` | `#08182d` | `#eaf2fb` | Ana sayfa zemini |
+| `--surface` | `rgba(16, 39, 67, .76)` | `rgba(255, 255, 255, .72)` | Cam panel yüzeyi |
+| `--surface-raised` | `rgba(27, 54, 86, .78)` | `rgba(255, 255, 255, .88)` | Kart ve yükseltilmiş yüzey |
+| `--surface-hover` | `rgba(43, 77, 115, .86)` | `rgba(240, 247, 255, .96)` | Hover yüzeyi |
+| `--text` | `#f4f8ff` | `#172b45` | Birincil metin |
+| `--text-secondary` | `#b6c9df` | `#526b87` | İkincil metin |
+| `--text-muted` | `#829bb8` | `#7c91aa` | Yardımcı metin |
+| `--border` | `rgba(176, 211, 249, .16)` | `rgba(46, 88, 139, .13)` | Cam kenarlığı ve ayraç |
+| `--accent` | `#65baff` | `#237bd5` | Vurgu, aktif gezinme ve odak |
 
 - Tema seçimi kullanıcı tercihidir; local storage kullanılamazsa arayüz çalışmaya devam eder.
 - Durum renkleri (hata, uyarı, başarı) vurgu renginden ayrı tutulur; tek başına renk anlam taşımaz, metinle desteklenir.
-- Arka plan derinliği sınırlı degrade ve yüzey farkıyla sağlanır; her alan ayrı karta dönüştürülmez.
+- Arka plan derinliği mavi/camgöbeği degrade ve sınırlı ışımalarla sağlanır. Navigasyon mavi bir ray olarak ayrışır; ana içerik yarı saydam panellerle zeminden katmanlanır. Her alan ayrı karta dönüştürülmez.
 - Metin ve kontrol karşıtlığı açık ve koyu temada ayrıca kontrol edilir. Renk yalnız dekorasyon için kullanılmaz.
 
 ## 6. Tipografi, boşluk ve şekil
