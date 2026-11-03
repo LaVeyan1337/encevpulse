@@ -265,7 +265,7 @@ export default function Home() {
           method: editing ? 'PATCH' : 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': view.csrfToken },
-          body: JSON.stringify(newUser),
+          body: JSON.stringify({ ...newUser, avatarKey: newUser.avatarKey || undefined }),
         },
       );
       const result = await readBody(response);
