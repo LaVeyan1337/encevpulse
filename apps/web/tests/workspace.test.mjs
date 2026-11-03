@@ -44,3 +44,16 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
     /İşleriniz için tek bir merkez|Daha akıllı çalışın|Verimliliğinizi artırın|Her şey tek yerde|Çalışma alanınız hazırlanıyor|İşlerinizi bir üst seviyeye taşıyın|Yapay zekâ destekli deneyim|PostgreSQL|Yerel geliştirme/,
   );
 });
+
+
+test('Glass workspace görsel katmanı uygulama kabuğuna bağlı ve temel yüzeylere uygulanır', async () => {
+  const root = await readFile(new URL('../app/root.tsx', import.meta.url), 'utf8');
+  const glass = await readFile(new URL('../app/bitrix-glass.css', import.meta.url), 'utf8');
+  assert.match(root, /import '\.\/bitrix-glass\.css'/);
+  assert.match(glass, /backdrop-filter:blur\(24px\)/);
+  assert.match(glass, /\.workspace-sidebar/);
+  assert.match(glass, /\.summary-card/);
+  assert.match(glass, /\.kanban-column/);
+  assert.match(glass, /data-theme='light'/);
+  assert.match(glass, /@supports not/);
+});
