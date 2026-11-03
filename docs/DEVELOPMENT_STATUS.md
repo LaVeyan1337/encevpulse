@@ -1,6 +1,6 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (Görev içi yorum akışı)
+**Son güncelleme:** 3 Kasım 2026 (Ghost loading ve sayfa geçiş sistemi)
 
 ## Gerçekten uygulananlar
 
@@ -29,6 +29,8 @@
   - Açık ve koyu tema geçişi (`localStorage` kalıcı, semantik CSS token'ları).
   - Mobil uyumlu gezinme: Dar ekranlar ve mobil cihazlar için optimize edilmiş düzen.
 - Yalnızca gerçekten çalışan modüller navigasyonda yer alır.
+- Ortak hareket sistemi: sayfa geçişinde hafif büyüklükten doğal boyuta oturan giriş animasyonu; drawer ve açılır menü geçişleri; kart/sütun giriş gecikmeleri; `prefers-reduced-motion` desteği.
+- Gerçek veri istekleri sürerken Genel Bakış, Kanban/liste, görev geçmişi ve yorum alanlarında yerleşimi koruyan ghost skeleton kullanılır; örnek kayıt veya sahte metrik gösterilmez.
 
 ### C. Görev yönetimi
 - Gerçek PostgreSQL verisiyle çalışan görev modülü (`tasks`, `projects`, `task_audit_events`).
@@ -69,11 +71,13 @@
   - Health/readiness kontrolleri (PostgreSQL canlı kontrolü).
   - Görev CRUD, sürüm kontrolü (version conflict 409), arşivleme, geri yükleme, proje üyeliği, bildirimler, genel özet ve göreve özel audit geçmişi (`GET /tasks/:id/activity`).
   - Görev yorumları: erişim sınırı, yalnız yazarın düzenleme/silme yetkisi, sürüm çakışması, silinen metnin boşaltılması ve yorum bildirimi.
-- **Web Testleri:** 5 geçti:
+- **Web Testleri:** 7 geçti:
   - Same-origin API istemcisi doğrulaması.
   - Tema kalıcılığı ve yerel depolama bağımsızlığı.
   - Doğal kurumsal ürün dili ve pazarlama sloganı/tanılama sızıntısı yokluğu.
   - Workspace Genel Bakış metrikleri, Görev Geçmişi, Kanban sürükle-bırak, arama ve görev yorum arayüzü kontrolleri.
+  - Cam görsel katmanının kök uygulamaya bağlanması.
+  - Ghost skeleton, sayfa/drawer animasyonları ve hareket azaltma tercihinin kontrolü.
 - **Güvenlik Sınırı:** Testler ve geliştirme yalnızca izole yerel PostgreSQL (`127.0.0.1:5432`) ve fixture verileriyle yürütüldü; şirket dosya sunucusuna (`\\192.168.1.55\Genel Evrak`) hiçbir ağ isteği gönderilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
