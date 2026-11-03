@@ -330,7 +330,7 @@ export class AuthService {
   async listRoles(request: Request): Promise<{roles:Array<{code:string;displayName:string}>}> {
     const admin=await this.requireSession(request);
     this.assertAdmin(admin.user);
-    const result=await this.db.query(
+    const result=await this.db.query<{code:string;displayName:string}>(
       `SELECT code,display_name AS "displayName" FROM roles
        WHERE code<>'system_admin' OR $1=true
        ORDER BY CASE code WHEN 'employee' THEN 0 WHEN 'team_lead' THEN 1
