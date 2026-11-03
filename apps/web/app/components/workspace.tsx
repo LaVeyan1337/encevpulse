@@ -1685,8 +1685,8 @@ export function Workspace({
                   <Icon name="folder" />
                   <strong>{projectView === 'active' ? 'Henüz proje bulunmuyor' : 'Arşivlenmiş proje yok'}</strong>
                   <span>{projectView === 'active' ? 'Oluşturduğunuz veya üyesi olduğunuz projeler burada görünür.' : 'Arşivlenen projeler bu alanda listelenir.'}</span>
-                  {projectView === 'active' && (
-                    {hasModulePermission('projects','create')&&<button type="button" className="primary-button compact-button" onClick={() => setProjectFormOpen(true)}>İlk projeyi oluştur</button>}
+                  {projectView === 'active' && hasModulePermission('projects','create') && (
+                    <button type="button" className="primary-button compact-button" onClick={() => setProjectFormOpen(true)}>İlk projeyi oluştur</button>
                   )}
                 </div>
               ) : (
@@ -1927,16 +1927,16 @@ export function Workspace({
             <div className="drawer-quick-actions">
               <span className="quick-actions-label">Durum:</span>
               <div className="quick-status-buttons">
-                {columns.map((col) => (
-                  {hasModulePermission('tasks','update')&&<button
+                {columns.map((col) => hasModulePermission('tasks','update') ? (
+                  <button
                     key={col.value}
                     type="button"
                     className={`status-pill-btn${selected.status === col.value ? ' active' : ''}`}
                     onClick={() => void moveTask(selected, col.value)}
                   >
                     {col.label}
-                  </button>}
-                ))}
+                  </button>
+                ) : null)}
               </div>
             </div>
 
