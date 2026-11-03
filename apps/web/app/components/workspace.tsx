@@ -2002,6 +2002,26 @@ export function Workspace({
             />
           </div>
 
+          <div className="form-pair">
+            <div className="form-group">
+              <label htmlFor="project-status">Başlangıç durumu</label>
+              <select id="project-status" name="status" defaultValue="planning">
+                <option value="planning">Hazırlık</option>
+                <option value="active">Aktif</option>
+                <option value="on_hold">Beklemede</option>
+                <option value="completed">Tamamlandı</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="project-starts-on">Başlangıç tarihi</label>
+              <input id="project-starts-on" name="startsOn" type="date" />
+            </div>
+          </div>
+          <div className="form-group">
+            <label htmlFor="project-target-on">Hedef tarih</label>
+            <input id="project-target-on" name="targetOn" type="date" />
+          </div>
+
           <fieldset className="member-picker">
             <legend>Proje Üyeleri</legend>
             {people
