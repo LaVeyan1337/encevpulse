@@ -127,3 +127,13 @@
 @media(max-width:900px){.project-overview-grid{grid-template-columns:1fr}.project-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.projects-toolbar{align-items:flex-start;flex-direction:column}.project-grid{grid-template-columns:1fr}.project-card{min-height:220px}.project-detail-hero{grid-template-columns:1fr}.project-task-row{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}.project-task-assignee{grid-column:1}.project-task-row time{grid-column:2;grid-row:2}.project-detail-skeleton-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.project-detail-stats{gap:7px}.project-detail-stats>div{padding:10px}.project-detail-stats strong{font-size:15px}.project-card{padding:16px}.project-card-footer{gap:8px}.project-card-owner>span:last-child{max-width:95px}.project-activity-row{grid-template-columns:7px minmax(0,1fr)}.project-activity-row time{grid-column:2}.project-tabs button{padding-inline:10px}}
+
+.project-legacy-restore{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,240px);align-items:center;gap:16px;padding:14px 16px;background:rgba(255,187,94,.075);border:1px solid rgba(255,193,111,.2);border-radius:12px}
+.project-legacy-restore strong{color:var(--text);font-size:11px;font-weight:720}
+.project-legacy-restore p{margin:4px 0 0;color:var(--text-secondary);font-size:10px;line-height:1.5}
+.project-legacy-restore label{display:grid;gap:5px}
+.project-legacy-restore label>span{color:var(--text-muted);font-size:9.5px;font-weight:650}
+.project-legacy-restore select{width:100%;min-height:37px;padding:0 10px;color:var(--text);background:rgba(5,22,42,.42);border:1px solid var(--border-strong);border-radius:9px;font:inherit;font-size:11px}
+:root[data-theme='light'] .project-legacy-restore{background:rgba(255,188,93,.1);border-color:rgba(185,128,41,.2)}
+:root[data-theme='light'] .project-legacy-restore select{color:#294968;background:rgba(255,255,255,.85)}
+@media(max-width:620px){.project-legacy-restore{grid-template-columns:1fr}}
