@@ -72,6 +72,8 @@ export function ChatWorkspace({
   const [actionBusy,setActionBusy]=useState(false);
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
+  const initialLoadDone=useRef(false);
+  const lastExternalTarget=useRef<string|null>(null);
   const selected=useMemo(()=>conversations.find(item=>item.id===selectedId)??null,[conversations,selectedId]);
 
   const loadConversations=useCallback(async()=>{
@@ -123,6 +125,19 @@ export function ChatWorkspace({
 
   useEffect(()=>{
     let cancelled=false;
+    const externalTarget=startUserId?('user:'+startUserId):initialConversationId?('conversation:'+initialConversationId):null;
+    if(externalTarget===null) {
+      if(lastExternalTarget.current!==null) {
+        lastExternalTarget.current=null;
+        return;
+      }
+      if(initialLoadDone.current)return;
+      initialLoadDone.current=true;
+    } else {
+      if(lastExternalTarget.current===externalTarget)return;
+      lastExternalTarget.current=externalTarget;
+      initialLoadDone.current=true;
+    }
     void (async()=>{
       setLoading(true);
       try {
