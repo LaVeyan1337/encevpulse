@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Drawer } from './drawer';
-import { OverviewSkeleton, TaskBoardSkeleton } from './skeletons';
+import { CommentListSkeleton, OverviewSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
 export interface User {
   id: string;
@@ -1572,7 +1572,7 @@ export function Workspace({
             <div className="detail-history-section">
               <h3>Temel Görev Geçmişi</h3>
               {loadingTaskActivity ? (
-                <p className="muted-line">Geçmiş yükleniyor…</p>
+                <TimelineSkeleton />
               ) : taskActivities.length === 0 ? (
                 <p className="muted-line">Kayıtlı hareket bulunamadı.</p>
               ) : (
@@ -1604,7 +1604,7 @@ export function Workspace({
               {commentError && <p className="auth-error" role="alert">{commentError}</p>}
 
               {loadingTaskComments ? (
-                <p className="muted-line">Yorumlar yükleniyor…</p>
+                <CommentListSkeleton />
               ) : taskComments.length === 0 ? (
                 <p className="muted-line">Bu görevde henüz yorum yok.</p>
               ) : (
