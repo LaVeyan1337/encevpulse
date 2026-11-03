@@ -363,7 +363,7 @@ export function ChatWorkspace({
             </button>
           ))}
         </div>
-        <div className="chat-rail-bottom"><span>{conversations.length} konuşma</span><span>Mesajlar otomatik yenilenir</span></div>
+        <div className="chat-rail-bottom"><span>{conversations.length} konuşma</span><span>Mesajlar yaklaşık 3 saniyede yenilenir</span></div>
       </aside>
 
       <main className="chat-thread">
@@ -374,7 +374,7 @@ export function ChatWorkspace({
                 <span className="chat-thread-avatar">{selected.type==='group'?'✦':selected.displayName.trim().slice(0,1).toLocaleUpperCase('tr-TR')}</span>
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
-              <div className="chat-thread-actions"><span className="chat-live-indicator"><i/> Canlı senkron</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
+              <div className="chat-thread-actions"><span className="chat-live-indicator"><i/> Otomatik yenileme</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
             </header>
             {detail.pinned.length>0&&(
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>
