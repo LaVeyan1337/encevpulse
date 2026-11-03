@@ -78,7 +78,7 @@ export class ChatService {
     if(!Array.isArray(value.memberIds)||value.memberIds.some((id)=>typeof id!=='string')) throw invalid('Grup üyeleri geçersiz.');
     const memberIds=[...new Set((value.memberIds as string[]).filter((id)=>id!==user.id))];
     if(memberIds.length<1||memberIds.length>99||memberIds.some((id)=>!UUID.test(id))) throw invalid('Grup en az bir, en çok 99 ek üyeye sahip olabilir.');
-    const active=await this.db.query(`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'`,[memberIds]);
+    const active=await this.db.pool.query<{id:string}>(`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'`,[memberIds]);
     if(active.rowCount!==memberIds.length) throw invalid('Etkin olmayan kullanıcı gruba eklenemez.');
     const client=await this.db.pool.connect();
     try {
