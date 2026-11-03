@@ -207,9 +207,11 @@ export class ChatService {
           VALUES($1,$2,$3,'created')`,[message.id,id,user.id]);
         await client.query(`UPDATE conversations SET updated_at=now() WHERE id=$1`,[id]);
         await client.query(`INSERT INTO chat_notifications(recipient_user_id,actor_user_id,conversation_id,message_id,idempotency_key)
-          SELECT cm.user_id,$2,$1,$3,'chat.message:'||$3::text||':'||cm.user_id::text
+          SELECT cm.user_id,$2::uuid,$1::uuid,$3::uuid,
+            'chat.message:'||($3::uuid)::text||':'||cm.user_id::text
           FROM conversation_members cm JOIN users u ON u.id=cm.user_id
-          WHERE cm.conversation_id=$1 AND cm.user_id<>$2 AND cm.left_at IS NULL AND u.status='active'
+          WHERE cm.conversation_id=$1::uuid AND cm.user_id<>$2::uuid
+            AND cm.left_at IS NULL AND u.status='active'
           ON CONFLICT(idempotency_key) DO NOTHING`,[id,user.id,message.id]);
       }
       await client.query('COMMIT');
