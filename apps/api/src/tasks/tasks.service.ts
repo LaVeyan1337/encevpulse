@@ -385,7 +385,8 @@ export class TasksService {
     const projectResult=await this.db.query(
       `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",creator.display_name AS "creatorName",
               p.owner_user_id AS "ownerId",owner.display_name AS "ownerName",p.starts_on::text AS "startsOn",
-              p.target_on::text AS "targetOn",p.version,p.archived_at AS "archivedAt",p.created_at AS "createdAt",
+              p.target_on::text AS "targetOn",p.version,p.archived_at AS "archivedAt",
+              p.status_before_archive AS "statusBeforeArchive",p.created_at AS "createdAt",
               p.updated_at AS "updatedAt",COUNT(DISTINCT t.id)::int AS "taskCount",
               (COUNT(DISTINCT t.id) FILTER (WHERE t.status='done'))::int AS "completedTaskCount",
               COUNT(DISTINCT pm.user_id)::int AS "memberCount"
@@ -541,7 +542,8 @@ export class TasksService {
   async archiveProject(user: AuthUser, id: string, input: unknown, restore: boolean): Promise<void> {
     assertUuid(id);
     const value=objectInput(input);
-    if(Object.keys(value).some((key)=>key!=='version')||!Number.isInteger(value.version)||Number(value.version)<1) throw invalid('Proje sürümü geçersiz; yenileyip tekrar deneyin.');
+    const allowedKeys = restore ? new Set(['version', 'restoreStatus']) : new Set(['version']);
+    if(Object.keys(value).some((key)=>!allowedKeys.has(key))||!Number.isInteger(value.version)||Number(value.version)<1) throw invalid('Proje sürümü geçersiz; yenileyip tekrar deneyin.');
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -557,7 +559,16 @@ export class TasksService {
       if(old.created_by!==user.id&&old.owner_user_id!==user.id&&!user.roles.includes('system_admin')) throw new ForbiddenException({code:'PROJECT_MANAGE_DENIED',message:'Bu proje için arşiv yetkiniz yok.'});
       if(restore){
         if(!old.archived_at&&old.status!=='archived') throw new ConflictException({code:'PROJECT_NOT_ARCHIVED',message:'Proje zaten arşivde değil.'});
-        await client.query(`UPDATE projects SET status=COALESCE(status_before_archive,'planning'),status_before_archive=NULL,archived_at=NULL,updated_at=now(),version=version+1 WHERE id=$1 AND version=$2`,[id,Number(value.version)]);
+        await client.query(`UPDATE projects SET status=$1,status_before_archive=NULL,archived_at=NULL,updated_at=now(),version=version+1 WHERE id=$2 AND version=$3`,let restoreStatus = old.status_before_archive as string | null;
+        if (restoreStatus === null) {
+          restoreStatus = typeof value.restoreStatus === 'string' ? value.restoreStatus : null;
+          if (!['planning', 'active', 'on_hold', 'completed'].includes(String(restoreStatus))) {
+            throw invalid('Bu eski arşiv kaydı için geri yüklenecek durumu seçin.');
+          }
+        } else if (value.restoreStatus !== undefined) {
+          throw invalid('Bu proje için arşiv öncesi durum zaten kayıtlı.');
+        }
+        [restoreStatus,id,Number(value.version)]);
       }else{
         if(old.archived_at||old.status==='archived') throw new ConflictException({code:'PROJECT_ALREADY_ARCHIVED',message:'Proje zaten arşivlenmiş.'});
         await client.query(`UPDATE projects SET status_before_archive=status,status='archived',archived_at=now(),updated_at=now(),version=version+1 WHERE id=$1 AND version=$2`,[id,Number(value.version)]);
