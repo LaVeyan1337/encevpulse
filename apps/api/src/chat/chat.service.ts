@@ -216,14 +216,16 @@ export class ChatService {
     try {
       await client.query('BEGIN');
       const updated=await client.query(`UPDATE messages m SET body=$1,edited_at=now(),version=version+1
-        FROM conversation_members cm
+        FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id
         WHERE m.id=$2 AND m.sender_id=$3 AND m.version=$4 AND m.deleted_at IS NULL
           AND cm.conversation_id=m.conversation_id AND cm.user_id=$3 AND cm.left_at IS NULL
+          AND c.archived_at IS NULL
         RETURNING m.id,m.conversation_id AS "conversationId",m.version,m.edited_at AS "editedAt"`,
         [body,id,user.id,version]);
       if(!updated.rowCount) {
         const exists=await client.query(`SELECT m.version,m.sender_id,m.deleted_at FROM messages m
           JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=$2 AND cm.left_at IS NULL
+          JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
           WHERE m.id=$1 FOR UPDATE`,[id,user.id]);
         if(!exists.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
         if(exists.rows[0].sender_id!==user.id) throw new ForbiddenException({code:'MESSAGE_EDIT_DENIED',message:'Yalnızca kendi mesajınızı düzenleyebilirsiniz.'});
@@ -248,7 +250,10 @@ export class ChatService {
       await client.query('BEGIN');
       const found=await client.query(`SELECT m.conversation_id,m.sender_id,m.version,m.deleted_at
         FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id
-        WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
+        JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
+        WHERE m.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL AND EXISTS (
+          SELECT 1 FROM conversations active WHERE active.id=m.conversation_id AND active.archived_at IS NULL
+        ) FOR UPDATE`,[id,user.id]);
       if(!found.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
       const old=found.rows[0];
       if(old.sender_id!==user.id) throw new ForbiddenException({code:'MESSAGE_DELETE_DENIED',message:'Yalnızca kendi mesajınızı silebilirsiniz.'});
@@ -269,6 +274,7 @@ export class ChatService {
     if(!(REACTIONS as readonly string[]).includes(reaction)) throw invalid('Desteklenmeyen tepki.');
     const allowed=await this.db.query(`SELECT m.conversation_id FROM messages m
       JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=$2 AND cm.left_at IS NULL
+      JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
       WHERE m.id=$1 AND m.deleted_at IS NULL`,[id,user.id]);
     if(!allowed.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Mesaj bulunamadı.'});
     if(remove) await this.db.query(`DELETE FROM message_reactions WHERE message_id=$1 AND user_id=$2 AND reaction_code=$3`,[id,user.id,reaction]);
@@ -282,6 +288,7 @@ export class ChatService {
     const messageId=uuidInput(objectInput(input).messageId,'Okunma imleci');
     const result=await this.db.query(`SELECT m.id,m.created_at FROM messages m
       JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=$2 AND cm.left_at IS NULL
+      JOIN conversations c ON c.id=m.conversation_id AND c.archived_at IS NULL
       WHERE m.id=$1 AND m.conversation_id=$3`,[messageId,user.id,id]);
     if(!result.rowCount) throw new NotFoundException({code:'MESSAGE_NOT_FOUND',message:'Okunma imleci mesajı bulunamadı.'});
     await this.db.query(`INSERT INTO conversation_read_cursors(conversation_id,user_id,last_read_message_id)
@@ -396,7 +403,7 @@ export class ChatService {
       await client.query('BEGIN');
       const role=await client.query(`SELECT c.conversation_type,cm.member_role FROM conversations c
         JOIN conversation_members cm ON cm.conversation_id=c.id
-        WHERE c.id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
+        WHERE c.id=$1 AND c.archived_at IS NULL AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!role.rowCount) throw new NotFoundException({code:'CONVERSATION_NOT_FOUND',message:'Sohbet bulunamadı.'});
       if(role.rows[0].conversation_type!=='group') throw invalid('Bire bir sohbete üye eklenemez.');
       if(role.rows[0].member_role!=='owner'&&role.rows[0].member_role!=='admin') throw new ForbiddenException({code:'CHAT_MEMBER_MANAGE_DENIED',message:'Üye yönetimi grup yöneticilerine açıktır.'});
@@ -423,7 +430,7 @@ export class ChatService {
       await client.query('BEGIN');
       const actor=await client.query(`SELECT c.conversation_type,actor.member_role
         FROM conversations c JOIN conversation_members actor ON actor.conversation_id=c.id
-        WHERE c.id=$1 AND actor.user_id=$2 AND actor.left_at IS NULL FOR UPDATE`,[id,user.id]);
+        WHERE c.id=$1 AND c.archived_at IS NULL AND actor.user_id=$2 AND actor.left_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!actor.rowCount) throw new NotFoundException({code:'CONVERSATION_NOT_FOUND',message:'Sohbet bulunamadı.'});
       if(actor.rows[0].conversation_type!=='group') throw invalid('Bire bir sohbette üye rolü bulunmaz.');
       if(actor.rows[0].member_role!=='owner') throw new ForbiddenException({code:'CHAT_ROLE_MANAGE_DENIED',message:'Üye rolleri yalnızca grup sahibi tarafından değiştirilebilir.'});
@@ -449,7 +456,7 @@ export class ChatService {
       await client.query('BEGIN');
       const members=await client.query(`SELECT cm.member_role,c.conversation_type FROM conversation_members cm
         JOIN conversations c ON c.id=cm.conversation_id
-        WHERE cm.conversation_id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL FOR UPDATE`,[id,user.id]);
+        WHERE cm.conversation_id=$1 AND cm.user_id=$2 AND cm.left_at IS NULL AND c.archived_at IS NULL FOR UPDATE`,[id,user.id]);
       if(!members.rowCount) throw new NotFoundException({code:'CONVERSATION_NOT_FOUND',message:'Sohbet bulunamadı.'});
       const target=await client.query(`SELECT member_role FROM conversation_members
         WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL FOR UPDATE`,[id,targetId]);
