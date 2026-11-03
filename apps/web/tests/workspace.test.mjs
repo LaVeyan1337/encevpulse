@@ -57,3 +57,25 @@ test('Glass workspace görsel katmanı uygulama kabuğuna bağlı ve temel yüze
   assert.match(glass, /data-theme='light'/);
   assert.match(glass, /@supports not/);
 });
+
+
+test('Sayfa geçişleri ve gerçek veri yükleme durumları ghost skeleton gösterir', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const skeletons = await readFile(new URL('../app/components/skeletons.tsx', import.meta.url), 'utf8');
+  const motion = await readFile(new URL('../app/motion.css', import.meta.url), 'utf8');
+  const root = await readFile(new URL('../app/root.tsx', import.meta.url), 'utf8');
+
+  assert.match(root, /import '\.\/motion\.css'/);
+  assert.match(workspace, /workspace-page-enter/);
+  assert.match(workspace, /<OverviewSkeleton \/>/);
+  assert.match(workspace, /<TaskBoardSkeleton layout=\{layout\} \/>/);
+  assert.match(workspace, /<TimelineSkeleton \/>/);
+  assert.match(workspace, /<CommentListSkeleton \/>/);
+  assert.match(skeletons, /aria-busy="true"/);
+  assert.match(skeletons, /Görev panosu yükleniyor/);
+  assert.match(skeletons, /Genel bakış yükleniyor/);
+  assert.match(motion, /@keyframes pageSettle/);
+  assert.match(motion, /@keyframes ghostSweep/);
+  assert.match(motion, /@keyframes drawerSettle/);
+  assert.match(motion, /prefers-reduced-motion:reduce/);
+});
