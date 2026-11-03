@@ -311,6 +311,135 @@ export class AuthService {
     };
   }
 
+  async listPeople(): Promise<{people:Array<Record<string,unknown>>}> {
+    const result=await this.db.query(
+      `SELECT u.id,u.display_name AS "displayName",u.username,u.email,
+        u.job_title AS "jobTitle",u.department,u.avatar_key AS "avatarKey",
+        COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),ARRAY[]::text[]) AS roles
+       FROM users u
+       LEFT JOIN user_role_assignments ura ON ura.user_id=u.id
+       LEFT JOIN roles r ON r.id=ura.role_id
+       WHERE u.status='active'
+       GROUP BY u.id
+       ORDER BY u.department,u.display_name
+       LIMIT 500`,
+    );
+    return {people:result.rows};
+  }
+
+  async listRoles(request: Request): Promise<{roles:Array<{code:string;displayName:string}>}> {
+    const admin=await this.requireSession(request);
+    this.assertAdmin(admin.user);
+    const result=await this.db.query(
+      `SELECT code,display_name AS "displayName" FROM roles
+       WHERE code<>'system_admin' OR $1=true
+       ORDER BY CASE code WHEN 'employee' THEN 0 WHEN 'team_lead' THEN 1
+         WHEN 'project_manager' THEN 2 WHEN 'process_owner' THEN 3
+         WHEN 'document_steward' THEN 4 WHEN 'auditor' THEN 5 ELSE 9 END,display_name`,
+      [admin.user.roles.includes('system_admin')],
+    );
+    return {roles:result.rows};
+  }
+
+  async updateUserProfile(request: Request,targetUserId: string,input: unknown): Promise<{user:ManagedUser}> {
+    this.assertOrigin(request);
+    this.assertJsonContentType(request);
+    const admin=await this.requireSession(request);
+    await this.assertSessionCsrf(request,admin.csrfTokenHash);
+    this.assertAdmin(admin.user);
+    if(!isUuid(targetUserId)) throw new BadRequestException({code:'INVALID_USER_ID',message:'Kullanıcı kimliği geçersiz.'});
+    if(!input||typeof input!=='object'||Array.isArray(input)) throw new BadRequestException({code:'INVALID_REQUEST',message:'Profil bilgilerini kontrol edin.'});
+    const value=input as Record<string,unknown>;
+    const allowed=new Set(['displayName','jobTitle','department','avatarKey','roleCodes']);
+    if(Object.keys(value).some((key)=>!allowed.has(key))||Object.keys(value).length===0) {
+      throw new BadRequestException({code:'INVALID_REQUEST',message:'Profil alanlarını kontrol edin.'});
+    }
+    const displayName=value.displayName===undefined?null:typeof value.displayName==='string'?value.displayName.trim():null;
+    const jobTitle=value.jobTitle===undefined?null:typeof value.jobTitle==='string'?value.jobTitle.trim():null;
+    const department=value.department===undefined?null:typeof value.department==='string'?value.department.trim():null;
+    const avatarKey=value.avatarKey===undefined?null:typeof value.avatarKey==='string'?value.avatarKey:null;
+    const avatars=['cat','fox','panda','rabbit','owl','bear','koala','penguin','otter','deer','raccoon','tiger'];
+    if((value.displayName!==undefined&&(!displayName||displayName.length>120))
+      ||(value.jobTitle!==undefined&&(jobTitle===null||jobTitle.length>120))
+      ||(value.department!==undefined&&(department===null||department.length>100))
+      ||(value.avatarKey!==undefined&&(avatarKey===null||!avatars.includes(avatarKey)))) {
+      throw new BadRequestException({code:'INVALID_PROFILE',message:'Ad, meslek, birim veya avatar bilgisini kontrol edin.'});
+    }
+    if(value.roleCodes!==undefined&&(!Array.isArray(value.roleCodes)||value.roleCodes.length>10||value.roleCodes.some((role)=>typeof role!=='string'))) {
+      throw new BadRequestException({code:'INVALID_ROLE',message:'Kullanıcı rolleri geçersiz.'});
+    }
+
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('encev-pulse-admin-account-change'))`);
+      const existing=await client.query(
+        `SELECT u.id,u.status,u.display_name,u.job_title,u.department,u.avatar_key,
+          EXISTS(SELECT 1 FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
+            WHERE ura.user_id=u.id AND r.code='system_admin') AS is_admin
+         FROM users u WHERE u.id=$1 FOR UPDATE`,[targetUserId],
+      );
+      if(!existing.rowCount) throw new BadRequestException({code:'USER_NOT_FOUND',message:'Kullanıcı bulunamadı.'});
+      const old=existing.rows[0];
+      let roleCodes:string[];
+      if(value.roleCodes===undefined) {
+        const current=await client.query(
+          `SELECT r.code FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id WHERE ura.user_id=$1`,[targetUserId],
+        );
+        roleCodes=current.rows.map((row)=>row.code as string);
+      } else {
+        roleCodes=[...new Set(['employee',...(value.roleCodes as string[])])];
+      }
+      const available=await client.query(`SELECT id,code FROM roles WHERE code=ANY($1::text[])`,[roleCodes]);
+      if(available.rowCount!==roleCodes.length) throw new BadRequestException({code:'INVALID_ROLE',message:'Seçilen rollerden biri sistemde tanımlı değil.'});
+      const willBeAdmin=roleCodes.includes('system_admin');
+      if(old.status==='active'&&old.is_admin&&!willBeAdmin) {
+        const admins=await client.query(
+          `SELECT count(*) FROM users u JOIN user_role_assignments ura ON ura.user_id=u.id
+           JOIN roles r ON r.id=ura.role_id WHERE u.status='active' AND r.code='system_admin'`,
+        );
+        if(Number(admins.rows[0].count)<=1) throw new ConflictException({code:'LAST_ADMIN_REQUIRED',message:'En az bir etkin sistem yöneticisi kalmalıdır.'});
+      }
+      const nextName=displayName??old.display_name;
+      const nextTitle=jobTitle??old.job_title;
+      const nextDepartment=department??old.department;
+      const nextAvatar=avatarKey??old.avatar_key;
+      await client.query(
+        `UPDATE users SET display_name=$1,job_title=$2,department=$3,avatar_key=$4,updated_at=now() WHERE id=$5`,
+        [nextName,nextTitle,nextDepartment,nextAvatar,targetUserId],
+      );
+      if(value.roleCodes!==undefined) {
+        await client.query(`DELETE FROM user_role_assignments WHERE user_id=$1`,[targetUserId]);
+        for(const role of available.rows) {
+          await client.query(
+            `INSERT INTO user_role_assignments(user_id,role_id,assigned_by) VALUES($1,$2,$3)`,
+            [targetUserId,role.id,admin.user.id],
+          );
+        }
+      }
+      const changedFields=Object.keys(value);
+      await client.query(
+        `INSERT INTO auth_audit_events(actor_user_id,target_user_id,action,details)
+         VALUES($1,$2,'user.profile.updated',$3)`,[admin.user.id,targetUserId,{fields:changedFields}],
+      );
+      const account=await client.query(
+        `SELECT u.id,u.username,u.email,u.display_name,u.job_title,u.department,u.avatar_key,
+          u.must_change_password,u.status,u.created_at,
+          COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),ARRAY[]::text[]) AS roles
+         FROM users u LEFT JOIN user_role_assignments ura ON ura.user_id=u.id
+         LEFT JOIN roles r ON r.id=ura.role_id WHERE u.id=$1
+         GROUP BY u.id`,[targetUserId],
+      );
+      await client.query('COMMIT');
+      const row=account.rows[0];
+      return {user:{
+        ...toAuthUser(row,row.roles),status:row.status,
+        createdAt:new Date(row.created_at).toISOString(),
+      }};
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+
   async disableUser(request: Request, targetUserId: string): Promise<void> {
     this.assertOrigin(request);
     this.assertJsonContentType(request);
