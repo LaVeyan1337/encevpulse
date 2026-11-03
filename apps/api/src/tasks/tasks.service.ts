@@ -165,6 +165,190 @@ export class TasksService {
     return { activity: result.rows };
   }
 
+  async taskComments(user: AuthUser, taskId: string) {
+    assertUuid(taskId);
+    const access = await this.db.query(
+      `SELECT 1 FROM tasks t WHERE t.id = $1 AND (
+        t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
+          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
+        )
+      )`, [taskId, user.id],
+    );
+    if (!access.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
+
+    const result = await this.db.query(
+      `SELECT recent.id, recent.task_id AS "taskId",
+              CASE WHEN recent.deleted_at IS NULL THEN recent.body ELSE '' END AS body,
+              recent.version, recent.created_at AS "createdAt", recent.updated_at AS "updatedAt",
+              recent.deleted_at AS "deletedAt",
+              author.display_name AS "authorName",
+              (recent.author_user_id = $2) AS "isMine"
+       FROM (
+         SELECT c.id, c.task_id, c.body, c.version, c.created_at, c.updated_at,
+                c.deleted_at, c.author_user_id
+         FROM task_comments c
+         WHERE c.task_id = $1
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT 100
+       ) recent
+       JOIN users author ON author.id = recent.author_user_id
+       ORDER BY recent.created_at, recent.id`,
+      [taskId, user.id],
+    );
+    return { comments: result.rows, limit: 100 };
+  }
+
+  async createTaskComment(user: AuthUser, taskId: string, input: unknown) {
+    assertUuid(taskId);
+    const value = objectInput(input);
+    if (Object.keys(value).some((key) => key !== 'body')) throw invalid('Yorum alanlarını kontrol edin.');
+    const commentBody = boundedText(value.body, 1, 4000, 'Yorum');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const task = await client.query(
+        `SELECT t.id FROM tasks t
+         WHERE t.id = $1 AND t.archived_at IS NULL
+           AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
+             SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
+           ))
+         FOR UPDATE`, [taskId, user.id],
+      );
+      if (!task.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı veya yorum eklemeye kapalı.' });
+
+      const inserted = await client.query(
+        `INSERT INTO task_comments (task_id, author_user_id, body)
+         VALUES ($1, $2, $3)
+         RETURNING id, task_id AS "taskId", body, version,
+                   created_at AS "createdAt", updated_at AS "updatedAt", NULL::timestamptz AS "deletedAt"`,
+        [taskId, user.id, commentBody],
+      );
+      const comment = { ...inserted.rows[0], authorName: user.displayName, isMine: true };
+      await client.query(
+        `INSERT INTO task_comment_events (task_id, comment_id, actor_user_id, event_type, details)
+         VALUES ($1, $2, $3, 'created', $4)`,
+        [taskId, comment.id, user.id, { bodyLength: commentBody.length }],
+      );
+      await client.query(
+        `INSERT INTO notifications (recipient_user_id, actor_user_id, task_id, event_type, idempotency_key)
+         SELECT DISTINCT recipients.user_id, $2, $1, 'task.comment',
+                'task.comment:' || $3::text || ':' || recipients.user_id::text
+         FROM (
+           SELECT t.created_by AS user_id FROM tasks t WHERE t.id = $1
+           UNION
+           SELECT t.assignee_id FROM tasks t WHERE t.id = $1
+           UNION
+           SELECT pm.user_id FROM project_members pm
+           JOIN tasks t ON t.project_id = pm.project_id WHERE t.id = $1
+         ) recipients
+         JOIN users recipient ON recipient.id = recipients.user_id AND recipient.status = 'active'
+         WHERE recipients.user_id <> $2
+         ON CONFLICT (idempotency_key) DO NOTHING`,
+        [taskId, user.id, comment.id],
+      );
+      await client.query('COMMIT');
+      return { comment };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateTaskComment(user: AuthUser, taskId: string, commentId: string, input: unknown) {
+    assertUuid(taskId);
+    assertUuid(commentId);
+    const value = objectInput(input);
+    if (Object.keys(value).some((key) => !['body', 'version'].includes(key))) throw invalid('Yorum alanlarını kontrol edin.');
+    const commentBody = boundedText(value.body, 1, 4000, 'Yorum');
+    const version = value.version;
+    if (!Number.isInteger(version) || Number(version) < 1) throw invalid('Yorum sürümü geçersiz; yenileyip tekrar deneyin.');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        `SELECT c.version, c.author_user_id
+         FROM task_comments c JOIN tasks t ON t.id = c.task_id
+         WHERE c.id = $1 AND c.task_id = $2 AND c.deleted_at IS NULL
+           AND t.archived_at IS NULL
+           AND (t.created_by = $3 OR t.assignee_id = $3 OR EXISTS (
+             SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $3
+           ))
+         FOR UPDATE OF c, t`,
+        [commentId, taskId, user.id],
+      );
+      if (!existing.rowCount) throw new NotFoundException({ code: 'COMMENT_NOT_FOUND', message: 'Yorum bulunamadı veya düzenlemeye kapalı.' });
+      if (existing.rows[0].author_user_id !== user.id) throw new ForbiddenException({ code: 'COMMENT_EDIT_DENIED', message: 'Yalnızca kendi yorumunuzu düzenleyebilirsiniz.' });
+      if (existing.rows[0].version !== Number(version)) throw new ConflictException({ code: 'COMMENT_CHANGED', message: 'Yorum başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
+
+      const updated = await client.query(
+        `UPDATE task_comments SET body = $3, updated_at = now(), version = version + 1
+         WHERE id = $1 AND task_id = $2 AND version = $4 AND deleted_at IS NULL
+         RETURNING id, task_id AS "taskId", body, version, created_at AS "createdAt",
+                   updated_at AS "updatedAt", deleted_at AS "deletedAt"`,
+        [commentId, taskId, commentBody, Number(version)],
+      );
+      if (!updated.rowCount) throw new ConflictException({ code: 'COMMENT_CHANGED', message: 'Yorum başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
+      await client.query(
+        `INSERT INTO task_comment_events (task_id, comment_id, actor_user_id, event_type, details)
+         VALUES ($1, $2, $3, 'edited', $4)`,
+        [taskId, commentId, user.id, { bodyLength: commentBody.length }],
+      );
+      await client.query('COMMIT');
+      return { comment: { ...updated.rows[0], authorName: user.displayName, isMine: true } };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteTaskComment(user: AuthUser, taskId: string, commentId: string, input: unknown): Promise<void> {
+    assertUuid(taskId);
+    assertUuid(commentId);
+    const value = objectInput(input);
+    if (Object.keys(value).some((key) => key !== 'version')) throw invalid('Yorum alanlarını kontrol edin.');
+    const version = value.version;
+    if (!Number.isInteger(version) || Number(version) < 1) throw invalid('Yorum sürümü geçersiz; yenileyip tekrar deneyin.');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query(
+        `SELECT c.version, c.author_user_id
+         FROM task_comments c JOIN tasks t ON t.id = c.task_id
+         WHERE c.id = $1 AND c.task_id = $2 AND c.deleted_at IS NULL
+           AND t.archived_at IS NULL
+           AND (t.created_by = $3 OR t.assignee_id = $3 OR EXISTS (
+             SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $3
+           ))
+         FOR UPDATE OF c, t`,
+        [commentId, taskId, user.id],
+      );
+      if (!existing.rowCount) throw new NotFoundException({ code: 'COMMENT_NOT_FOUND', message: 'Yorum bulunamadı veya silinmeye kapalı.' });
+      if (existing.rows[0].author_user_id !== user.id) throw new ForbiddenException({ code: 'COMMENT_DELETE_DENIED', message: 'Yalnızca kendi yorumunuzu silebilirsiniz.' });
+      if (existing.rows[0].version !== Number(version)) throw new ConflictException({ code: 'COMMENT_CHANGED', message: 'Yorum başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
+
+      await client.query(
+        `UPDATE task_comments SET body = '', deleted_at = now(), updated_at = now(), version = version + 1
+         WHERE id = $1 AND task_id = $2 AND version = $3 AND deleted_at IS NULL`,
+        [commentId, taskId, Number(version)],
+      );
+      await client.query(
+        `INSERT INTO task_comment_events (task_id, comment_id, actor_user_id, event_type, details)
+         VALUES ($1, $2, $3, 'deleted', '{}'::jsonb)`,
+        [taskId, commentId, user.id],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async people() {
     const result = await this.db.query(
       `SELECT id, display_name AS "displayName", username FROM users WHERE status = 'active' ORDER BY display_name LIMIT 500`,
