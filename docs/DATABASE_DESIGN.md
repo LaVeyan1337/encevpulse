@@ -42,14 +42,17 @@
 | `project_members` | project_id, user_id, added_by, added_at | Üyelik bileşik primary key ile tektir; proje görevi görünürlüğü üyelikten gelir. |
 | `tasks` | id, project_id nullable, title, description, status, priority, created_by, assignee_id, starts_on, due_on, archived_at, position, version | Proje dışı kişisel görev desteklenir. `version` eşzamanlı düzenleme çakışmasını yakalar. |
 | `task_audit_events` | id, task_id, actor_user_id, action, changes, occurred_at | Temel görev oluşturma/değişiklik/arşiv olayları eklemelidir; içerik değerleri değil değişen alan adları saklanır. UPDATE/DELETE trigger ile reddedilir. |
-| `notifications` | id, recipient_user_id, actor_user_id, task_id, event_type, idempotency_key, created_at, read_at | İlk sürümde görev atama bildirimi; bildirim kayıt ve görev transaction'ında oluşur. Alıcı, görev kapsamı kontrolünü geçmeden bildirim veya görev başlığını göremez. |
+| `notifications` | id, recipient_user_id, actor_user_id, task_id, event_type, idempotency_key, created_at, read_at | Görev atama ve görev yorumu bildirimi; olay, görev/yorum transaction'ında oluşur. Alıcı, görev kapsamı kontrolünü geçmeden bildirim veya görev başlığını göremez. |
 | `task_watchers` | task_id, user_id | Takipçi bildirimleri. |
-| `task_comments` | id, task_id, author_id, body, created_at | Mesajlardan ayrı, görev bağlamındaki yorum. |
+| `task_comments` | id, task_id, author_user_id, body, version, created_at, updated_at, deleted_at | Mesajlardan ayrı, görev bağlamındaki yorum. Yalnız yazar kendi yorumunu düzenleyebilir/silebilir; silmede metin boşaltılır ve kayıt tombstone olarak kalır. |
+| `task_comment_events` | id, task_id, comment_id, actor_user_id, event_type, details, occurred_at | Yorum oluşturma/düzenleme/silme metin içeriğini kaydetmeden eklemeli geçmiş olarak saklanır; UPDATE/DELETE reddedilir. |
 | `task_status_events` | task_id, from_status, to_status, actor_id, occurred_at | Durum geçmişi ve raporlama. |
 
 Görevlerde `(assignee_id, status, due_on)`, `(created_by, status, due_on)`, `(project_id, status, position)` ve `(user_id, project_id)` üyelik indeksleri kullanılır. Görev API'si sayfa başına en çok 200 satır ve 10.000'e kadar offset kabul eder; büyüyen veri kümelerinde kararlı keyset cursor'a geçilmelidir. Arşivlenmiş kayıtları liste dışına alan sorgular tüm ekranlarda tutarlı olmalıdır.
 
 İlk görev erişim kuralı: kaydı oluşturan, atanan kullanıcı veya bağlı projenin üyesi görevi okuyabilir ve güncelleyebilir. Proje görevi oluşturulurken hem işlemi yapanın hem de atanan kullanıcının proje üyesi olması şarttır. Yetkisiz görev kimliği 404 döner. Her görev güncellemesi beklenen `version` değerini gönderir; sürüm uyuşmazlığı 409 döner. Oluşturma, alan değişikliği, arşivleme ve geri yükleme ile görev audit satırı tek transaction içinde yazılır.
+
+Görev yorumları için 0004 migration'ı uygulanmıştır. Yorum okuma görevin mevcut erişim kuralını izler; yorum eklemek/düzenlemek/silmek için görev arşivlenmemiş olmalıdır. Düzenleme ve silme yalnız yorumu yazan kullanıcıya açıktır; sürüm alanı çakışmayı 409 ile bildirir. Yorum metni 4.000 karakterle sınırlandırılmıştır. Silme işlemi gövdeyi boşaltır, ancak yorum kaydı ve metin içermeyen olay geçmişi korunur. Yorum bildirimi aynı transaction içinde yalnız etkin ve göreve erişebilen diğer kullanıcılara yazılır.
 
 ### Sohbet
 
