@@ -184,13 +184,45 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       const created = await api(baseUrl, 'users', {
         method: 'POST',
         headers: { Cookie: adminSession.cookie, 'X-CSRF-Token': adminSession.csrfToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: `US${suffix}`, email: `NEW${suffix}@ENCEV.COM.TR`, displayName: 'Yeni test hesabı' }),
+        body: JSON.stringify({
+          username: `US${suffix}`, email: `NEW${suffix}@ENCEV.COM.TR`,
+          displayName: 'Yeni test hesabı', jobTitle: 'Biyolog', department: 'Flora-Fauna',
+          avatarKey: 'panda', roleCodes: ['team_lead'],
+        }),
       });
       assert.equal(created.response.status, 201);
       assert.equal(created.body.user.username, `us${suffix}`);
       assert.equal(created.body.user.email, `new${suffix}@encev.com.tr`);
       assert.equal(created.body.user.mustChangePassword, true);
+      assert.equal(created.body.user.jobTitle, 'Biyolog');
+      assert.equal(created.body.user.department, 'Flora-Fauna');
+      assert.equal(created.body.user.avatarKey, 'panda');
+      assert.deepEqual([...created.body.user.roles].sort(), ['employee','team_lead']);
       assert.equal(typeof created.body.temporaryPassword, 'string');
+
+      const roles = await api(baseUrl, 'roles', { headers: { Cookie: adminSession.cookie } });
+      assert.equal(roles.response.status, 200);
+      assert.ok(roles.body.roles.some((role: any) => role.code === 'team_lead'));
+
+      const directory = await api(baseUrl, 'people', { headers: { Cookie: adminSession.cookie } });
+      assert.equal(directory.response.status, 200);
+      const directoryUser = directory.body.people.find((person: any) => person.id === created.body.user.id);
+      assert.equal(directoryUser.jobTitle, 'Biyolog');
+      assert.equal(directoryUser.department, 'Flora-Fauna');
+      assert.equal(directoryUser.avatarKey, 'panda');
+
+      const profile = await api(baseUrl, `users/${created.body.user.id}/profile`, {
+        method: 'PATCH',
+        headers: { Cookie: adminSession.cookie, 'X-CSRF-Token': adminSession.csrfToken },
+        body: JSON.stringify({
+          jobTitle: 'ÇED Uzmanı', department: 'ÇED', avatarKey: 'fox', roleCodes: ['project_manager'],
+        }),
+      });
+      assert.equal(profile.response.status, 200);
+      assert.equal(profile.body.user.jobTitle, 'ÇED Uzmanı');
+      assert.equal(profile.body.user.department, 'ÇED');
+      assert.equal(profile.body.user.avatarKey, 'fox');
+      assert.deepEqual([...profile.body.user.roles].sort(), ['employee','project_manager']);
       await assert.rejects(
         pool.query(`UPDATE auth_audit_events SET action = 'tampered'
           WHERE target_user_id = $1 AND action = 'user.created'`, [created.body.user.id]),
