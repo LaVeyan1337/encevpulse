@@ -92,8 +92,8 @@
 - Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, idempotent mesaj gönderimi, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi, birleşik bildirim akışı ve mesajdan görev oluşturmayı kapsar.
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
 - Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
-- **Güncel özellik dalının tam test/build doğrulaması henüz tamamlanmadı.** Son kod güncellemeleri GitHub içeriği üzerinden ayrı commitler olarak işlendi; kullanılan CI tetikleyicisi bu commitlerden otomatik yeni koşu başlatmadı. Son kullanıcı push'uyla CI tekrar çalıştırılmalıdır. Güncel kod için başarılı derleme/test iddiası yoktur.
-- CI tasarımı yalnızca GitHub Actions'ın geçici PostgreSQL 18.6 servisini ve sahte fixture kullanıcılarını kullanır. Yerel Windows kurulumu, tarayıcı etkileşimleri ve mevcut yerel veritabanı bu oturumda test edilmedi.
+- **3 Kasım 2026 — son doğrulanan kaynak:** `transfer/encev-pulse-source-20261103` dalındaki `46eb26cd044640182e7f1cbfffa0684ab268f6b6` commit'i GitHub Actions koşusu `41669777611` ile doğrulandı. Temiz PostgreSQL 18.6 üzerinde migration'lar uygulandı; web testleri 12/12, API testleri 25/25 geçti; iki workspace için TypeScript kontrolleri ve API/Web üretim derlemeleri başarılı oldu. Kaynak ZIP'i oluşturuldu ve `encev-pulse-validated-source` artifact'i olarak yüklendi.
+- Bu doğrulama izole Linux CI ortamına aittir. Yerel Windows kurulumu, gerçek tarayıcı görsel kabulü, ofis ağı/ortak dosyalar, gerçek kullanıcı verisi ve üretim dağıtımı test edilmedi.
 - **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
@@ -101,7 +101,7 @@
 - Yerel ilk yönetici hesabı kullanıcı tarafından oluşturuldu; parola ve kimlik bilgileri bu belgeye yazılmaz.
 - **Sıradaki geliştirme alanları:**
   - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
-  - Güncel çalışan/sohbet kodu için son CI koşusunu çalıştırma, başarısız testleri giderme ve yerel Windows ortamında kontrollü uygulama testi.
+  - Yerel Windows ortamında kontrollü uygulama ve gerçek tarayıcı görsel kabul testlerini tamamlama.
   - Modül bazlı rol/izin matrisi ve ekip hiyerarşisini süreç sahipleriyle doğrulama.
   - Sohbet için WebSocket/SSE veya outbox tabanlı gerçek zamanlı teslim; mesaj saklama/düzenleme/silme süre politikası onaylanmadan kalıcı saklama davranışı genişletilmez.
   - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
