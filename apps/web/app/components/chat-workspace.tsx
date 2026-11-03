@@ -32,6 +32,7 @@ export function ChatWorkspace({
   request,
   people,
   currentUserId,
+  projects,
   startUserId,
   initialConversationId,
   onStartConsumed,
@@ -40,6 +41,7 @@ export function ChatWorkspace({
   request:Request;
   people:DirectoryPerson[];
   currentUserId:string;
+  projects:Array<{id:string;name:string;status:string}>;
   startUserId?:string|null;
   initialConversationId?:string|null;
   onStartConsumed:()=>void;
@@ -71,6 +73,10 @@ export function ChatWorkspace({
   const [searchOpen,setSearchOpen]=useState(false);
   const [searchTargetMessageId,setSearchTargetMessageId]=useState<string|null>(null);
   const [actionBusy,setActionBusy]=useState(false);
+  const [taskDraftMessage,setTaskDraftMessage]=useState<Message|null>(null);
+  const [taskDraftTitle,setTaskDraftTitle]=useState('');
+  const [taskDraftAssigneeId,setTaskDraftAssigneeId]=useState(currentUserId);
+  const [taskDraftProjectId,setTaskDraftProjectId]=useState('');
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
@@ -367,10 +373,24 @@ export function ChatWorkspace({
     finally {setActionBusy(false);}
   }
 
-  async function createTaskFromMessage(message:Message) {
+  function openTaskDraft(message:Message) {
+    setTaskDraftMessage(message);
+    setTaskDraftTitle(message.body.trim().slice(0,240));
+    setTaskDraftAssigneeId(currentUserId);
+    setTaskDraftProjectId('');
+  }
+
+  async function createTaskFromMessage(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if(!taskDraftMessage||!taskDraftTitle.trim()||!taskDraftAssigneeId)return;
     setActionBusy(true);
     try {
-      const result=await request('chat/messages/'+message.id+'/create-task','POST',{});
+      const result=await request('chat/messages/'+taskDraftMessage.id+'/create-task','POST',{
+        title:taskDraftTitle.trim(),
+        assigneeId:taskDraftAssigneeId,
+        projectId:taskDraftProjectId||null,
+      });
+      setTaskDraftMessage(null);
       onTaskOpen(result.task.id);
     } catch(cause) {setError(cause instanceof Error?cause.message:'Mesajdan görev oluşturulamadı.');}
     finally {setActionBusy(false);}
@@ -521,7 +541,7 @@ export function ChatWorkspace({
                               <>
                                 <div className="chat-message-tools">
                                   <button type="button" onClick={()=>setReplyTo(message)} title="Yanıtla">↶ Yanıtla</button>
-                                  <button type="button" onClick={()=>void createTaskFromMessage(message)} title="Mesajdan görev oluştur">＋ Görev</button>
+                                  <button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>
                                   {(!message.isMine||detail.myRole==='owner'||detail.myRole==='admin')&&<button type="button" onClick={()=>void togglePin(message)}>{message.pinnedAt?'Sabitlemeyi kaldır':'Sabitle'}</button>}
                                   {message.isMine&&<button type="button" onClick={()=>{setEditingId(message.id);setEditingBody(message.body);}}>Düzenle</button>}
                                   {message.isMine&&<button type="button" onClick={()=>void deleteMessage(message)}>Sil</button>}
@@ -601,6 +621,44 @@ export function ChatWorkspace({
       </aside>
 
       {error&&<div className="chat-error" role="alert">{error}<button type="button" onClick={()=>setError('')}>×</button></div>}
+
+      {taskDraftMessage&&(
+        <div className="chat-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setTaskDraftMessage(null);}}>
+          <form className="chat-group-modal chat-task-modal" onSubmit={createTaskFromMessage}>
+            <div>
+              <span className="eyebrow">MESAJDAN GÖREV</span>
+              <h2>Yeni görev oluştur</h2>
+              <p>Mesaj içeriği açıklama olarak eklenecek; görev başlığını ve sorumlusunu belirleyin.</p>
+            </div>
+            <label className="chat-modal-field">
+              <span>Görev başlığı</span>
+              <input value={taskDraftTitle} onChange={event=>setTaskDraftTitle(event.target.value)} maxLength={240} required/>
+            </label>
+            <label className="chat-modal-field">
+              <span>Sorumlu</span>
+              <select value={taskDraftAssigneeId} onChange={event=>setTaskDraftAssigneeId(event.target.value)} required>
+                {people.map(person=><option key={person.id} value={person.id}>{person.displayName}{person.department?' · '+person.department:''}</option>)}
+              </select>
+            </label>
+            <label className="chat-modal-field">
+              <span>Proje</span>
+              <select value={taskDraftProjectId} onChange={event=>setTaskDraftProjectId(event.target.value)}>
+                <option value="">Projeye bağlama</option>
+                {projects.filter(project=>project.status!=='archived').map(project=><option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+            </label>
+            <div className="chat-task-source">
+              <strong>Kaynak mesaj</strong>
+              <p>{taskDraftMessage.body}</p>
+              <span>{taskDraftMessage.senderName} · {timeLabel(taskDraftMessage.createdAt)}</span>
+            </div>
+            <div className="chat-modal-footer">
+              <button type="button" className="secondary-button" onClick={()=>setTaskDraftMessage(null)}>Vazgeç</button>
+              <button type="submit" className="primary-button" disabled={actionBusy||!taskDraftTitle.trim()||!taskDraftAssigneeId}>{actionBusy?'Oluşturuluyor…':'Görevi oluştur'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showNewGroup&&(
         <div className="chat-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowNewGroup(false);}}>
