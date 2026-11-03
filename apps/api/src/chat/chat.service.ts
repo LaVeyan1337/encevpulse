@@ -32,7 +32,8 @@ export class ChatService {
        LEFT JOIN conversation_read_cursors cursor ON cursor.conversation_id=c.id AND cursor.user_id=$1
        LEFT JOIN messages read_message ON read_message.id=cursor.last_read_message_id
        LEFT JOIN LATERAL (
-         SELECT m.body,m.created_at,m.sender_id,u.display_name AS sender_name
+         SELECT CASE WHEN m.deleted_at IS NULL THEN m.body ELSE 'Mesaj silindi' END AS body,
+           m.created_at,m.sender_id,u.display_name AS sender_name
          FROM messages m JOIN users u ON u.id=m.sender_id
          WHERE m.conversation_id=c.id
          ORDER BY m.created_at DESC,m.id DESC LIMIT 1
