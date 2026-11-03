@@ -1,6 +1,6 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (Ghost loading ve sayfa geçiş sistemi)
+**Son güncelleme:** 3 Kasım 2026 (Çalışan profilleri, roller ve kalıcı sohbet çekirdeği)
 
 ## Gerçekten uygulananlar
 
@@ -13,7 +13,11 @@
 - CSRF koruması: Oturuma bağlı synchronizer token ve pre-auth tek kullanımlık challenge (`auth_csrf_challenges`).
 - Giriş denemelerine PostgreSQL tabanlı atomik rate limit (`auth_rate_limit_buckets`).
 - Güvenli oturum kapatma (`/api/auth/logout`) oturumu veritabanında iptal eder.
-- Sistem yöneticisi yetkisiyle kullanıcı oluşturma, devre dışı bırakma ve parola sıfırlama (`/api/auth/users/*`).
+- Sistem yöneticisi yetkisiyle kullanıcı oluşturma, devre dışı bırakma, parola sıfırlama ve profil/rol düzenleme (`/api/auth/users/*`).
+- Kullanıcı profili: meslek/unvan, birim, 12 seçenekli sistem avatarı ve birden fazla rol; mevcut hesaplara migration ile varsayılan profil ve kararlı avatar atanır.
+- Çalışan rehberi: gerçek etkin kullanıcıları arama ve birim filtresiyle kartlarda gösterir; karttan doğrudan sohbet başlatılır.
+- Roller: employee, team_lead, project_manager, process_owner, document_steward, auditor ve system_admin katalogda yer alır. Grup sohbetinin owner/admin/member rolleri ayrı ve etkili izinlerdir; sohbet sahibi yönetici/üye atamasını yapar.
+- Not: iş modüllerindeki kapsam bazlı rol izin matrisi organizasyon ve kayıt görünürlüğü kararları doğrulanmadan tamamlanmış sayılmaz; mevcut sistem yöneticisi kontrolü ve proje/görev kayıt erişimleri korunur.
 - Son etkin sistem yöneticisinin devre dışı bırakılması ve kendi kendini kapatma engellenmiştir.
 - İlk yönetici için gizli terminal girişi kullanan tek seferlik interaktif kurulum komutu hazır (`npm run auth:bootstrap-admin`). Parola terminale ve geçmişe yazılmaz; advisory lock ile korunur.
 - Oturum açmış her kullanıcı için profil menüsünden erişilebilen self-service parola değiştirme çekmecesi (`/api/auth/password`).
@@ -21,7 +25,7 @@
 
 ### B. Profesyonel ana uygulama arayüzü
 - Modern, Bitrix24 kullanım kolaylığına yakın, ENCEV PULSE'a özgü kurumsal tasarım sistemi.
-- Sabit sol navigasyon: Genel Bakış, Görevler, Projeler ve sistem yöneticisine özel Kullanıcılar.
+- Sabit sol navigasyon: Genel Bakış, Görevler, Çalışanlar, Sohbet, Projeler ve sistem yöneticisine özel Kullanıcılar.
 - Üst bar (topbar):
   - Üst arama alanı (topbar-search): Görev filtreleme ve anlık arama ile tam senkronize.
   - Bildirim menüsü: Görev atama bildirimleri, okunmamış rozeti ve bildirime tıklandığında görevi sağ çekmecede açma.
@@ -29,7 +33,7 @@
   - Açık ve koyu tema geçişi (`localStorage` kalıcı, semantik CSS token'ları).
   - Mobil uyumlu gezinme: Dar ekranlar ve mobil cihazlar için optimize edilmiş düzen.
 - Yalnızca gerçekten çalışan modüller navigasyonda yer alır.
-- Ortak hareket sistemi: sayfa geçişinde hafif büyüklükten doğal boyuta oturan giriş animasyonu; drawer ve açılır menü geçişleri; kart/sütun giriş gecikmeleri; `prefers-reduced-motion` desteği.
+- Ortak hareket sistemi: daha yavaş, yumuşak sayfa/panel geçişleri; drawer ve açılır menü hareketleri; kart/sütun giriş gecikmeleri; `prefers-reduced-motion` desteği. Görsel tema sıcak antrasit, kil/terracotta ve adaçayı paletine geçirildi.
 - Gerçek veri istekleri sürerken Genel Bakış, Kanban/liste, görev geçmişi ve yorum alanlarında yerleşimi koruyan ghost skeleton kullanılır; örnek kayıt veya sahte metrik gösterilmez.
 
 ### C. Görev yönetimi
@@ -52,6 +56,21 @@
 - Yorum silme metni boşaltır; yorum kaydı ve metin içermeyen, eklemeli yorum olay geçmişi korunur.
 - Yorum eklendiğinde görev kaydına erişebilen diğer etkin kullanıcılara aynı transaction içinde tekil uygulama içi bildirim yazılır.
 
+### E. Çalışan rehberi ve profiller
+- Kişi listesi gerçek etkin kullanıcı verisini kullanır; isim, kullanıcı adı, meslek/unvan, birim, e-posta ve roller görünür.
+- Arama; isim, kullanıcı adı, e-posta, meslek ve birimde yapılır. Birim filtresi gerçek kayıtlardan türetilir.
+- 12 yerleşik, şirin hayvan avatarı vardır. Yeni hesapta avatar seçilmezse sunucu rastgele avatar anahtarı üretir; aynı kişi için sonraki oturumlarda aynı avatar görünür.
+- Sistem yöneticisi hesap açarken meslek/unvan, birim, avatar ve birden fazla rol seçebilir; daha sonra profili/rolleri düzenleyebilir. Kullanıcı adı ve e-posta düzenleme ekranında kilitlidir.
+- Gerçek fotoğraf yükleme henüz açılmadı; dosya türü/boyutu, antivirüs taraması, saklama ve erişim politikası karara bağlanmadan kullanıcı dosyası kabul edilmez.
+
+### F. Kalıcı üç panelli sohbet
+- Bire bir ve grup konuşmaları PostgreSQL'de saklanır; aynı iki kullanıcı için yinelenen aktif bire bir konuşma oluşturulmaz.
+- Mesajlar 4.000 karaktere kadar; idempotent istek kimliği, yanıt, emoji tepkileri, yazarın düzenleme/silmesi, sürüm çakışma kontrolü ve silinen mesaj için metin içermeyen tombstone kullanılır.
+- Konuşma arama, son 50 mesaj ve daha eski mesajları imleçle sayfalama, okundu imleçleri, okunmamış sayacı ve sabitlenmiş mesajlar yer alır.
+- Grup sahibi yönetici/üye atayabilir; owner/admin/member izinleri API'de doğrulanır. Üye ekleme, çıkarma ve rol değişiklikleri değiştirilemez olay tablosunda kaydedilir.
+- Mesajdan görev oluşturma, kaynak mesaja geri bağlantı ve yinelenen görev üretimini önleyen tekillik kuralı içerir.
+- Tarayıcı tarafında yaklaşık 3 saniyelik yenileme kullanılır; bu sürüm WebSocket/SSE değildir ve gerçek zamanlı push olarak tanımlanmamalıdır.
+- Sohbet eki yükleme kapalıdır. Eklerin izinli MIME türleri, boyut sınırı, zararlı yazılım taraması ve saklama süresi karara bağlanmamıştır. Sesli/görüntülü görüşme düğmesi eklenmemiştir.
 ### D. Gerçek Genel Bakış
 - Veriler doğrudan PostgreSQL üzerinden hesaplanır:
   - **Bana atanan görevler:** `summary.assignedTotal`
@@ -66,31 +85,20 @@
 
 ## Doğrulama ve test sonuçları
 
-- **API Build:** `@encev-pulse/api` `nest build` hatasız geçti.
-- **Web Build:** `@encev-pulse/web` `react-router build` SPA çıktısı hatasız geçti.
-- **TypeScript Typecheck:** İki workspace'te de `tsc --noEmit` hatasız geçti (0 hata).
-- **API Entegrasyon Testleri:** 19 geçti:
-  - Yerel auth akışı: Origin, CSRF challenge, yanlış parola doğrulaması, oturum süresi, çıkış, yönetici kullanıcı oluşturma, geçici parola ve rate limit.
-  - Argon2id parola hashi doğrulaması ve kullanıcı başına farklı salt.
-  - Health/readiness kontrolleri (PostgreSQL canlı kontrolü).
-  - Görev CRUD, sürüm kontrolü (version conflict 409), arşivleme, geri yükleme, proje üyeliği, bildirimler, genel özet ve göreve özel audit geçmişi (`GET /tasks/:id/activity`).
-  - Görev yorumları: erişim sınırı, yalnız yazarın düzenleme/silme yetkisi, sürüm çakışması, silinen metnin boşaltılması ve yorum bildirimi.
-  - Proje çalışma alanı: sahip/üye erişimi, detay, durum/tarih, üye değişikliği, sürüm çakışması, arşiv/geri yükleme ve önceki durumu bilinmeyen eski arşiv kaydında açık durum seçimi.
-- **Web Testleri:** 8 geçti:
-  - Same-origin API istemcisi doğrulaması.
-  - Tema kalıcılığı ve yerel depolama bağımsızlığı.
-  - Doğal kurumsal ürün dili ve pazarlama sloganı/tanılama sızıntısı yokluğu.
-  - Workspace Genel Bakış metrikleri, Görev Geçmişi, Kanban sürükle-bırak, arama ve görev yorum arayüzü kontrolleri.
-  - Cam görsel katmanının kök uygulamaya bağlanması.
-  - Ghost skeleton, sayfa/drawer animasyonları ve hareket azaltma tercihinin kontrolü.
-  - Proje listesi, proje detay sekmeleri, edit/üyelik, arşiv/geri yükleme ve eski arşiv durum seçimi.
-- **Güvenlik Sınırı:** Testler ve geliştirme yalnızca izole yerel PostgreSQL (`127.0.0.1:5432`) ve fixture verileriyle yürütüldü; şirket dosya sunucusuna (`\\192.168.1.55\Genel Evrak`) hiçbir ağ isteği gönderilmedi.
+- Önceki kaynak sürümünde API/Web build, TypeScript ve görev/proje/yorum testleri CI'da başarılıydı. Bu sonuç yeni çalışan/sohbet kodunun test edildiği anlamına gelmez.
+- Yeni çalışan profili testleri; alanlar, avatar, roller, rehber API'si ve profil güncellemesini kapsayacak şekilde genişletildi.
+- Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, mesaj, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi ve mesajdan görev oluşturmayı kapsar.
+- Yeni testlerin ilk CI denemesinde PostgreSQL bildirim INSERT sorgusunda aynı parametrenin UUID/metin olarak çıkarımlanması hatası yakalandı. Parametreler açık UUID cast'iyle düzeltildi; mesaj düzenleme ve denetim kaydı aynı transaction içine alındı.
+- **Güncel özellik dalının tam test/build doğrulaması henüz tamamlanmadı.** Son kod güncellemeleri GitHub içeriği üzerinden ayrı commitler olarak işlendi; kullanılan CI tetikleyicisi bu commitlerden otomatik yeni koşu başlatmadı. Son kullanıcı push'uyla CI tekrar çalıştırılmalıdır. Güncel kod için başarılı derleme/test iddiası yoktur.
+- CI tasarımı yalnızca GitHub Actions'ın geçici PostgreSQL 18.6 servisini ve sahte fixture kullanıcılarını kullanır. Yerel Windows kurulumu, tarayıcı etkileşimleri ve mevcut yerel veritabanı bu oturumda test edilmedi.
+- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
 
 - Yerel ilk yönetici hesabı kullanıcı tarafından oluşturuldu; parola ve kimlik bilgileri bu belgeye yazılmaz.
 - **Sıradaki geliştirme alanları:**
   - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
-  - Sohbet: üç panelli, kalıcı mesajlaşma; yanıt, reaksiyon, düzenleme/silme, okundu bilgisi, arama ve mesajdan görev oluşturma.
-  - Sohbetin gönderim/okunma ve gerçek zamanlı teslim politikası için outbox akışının uygulanması; tek instance çalışma sınırları doğrulanmadan Redis/mikroservis eklenmez.
+  - Güncel çalışan/sohbet kodu için son CI koşusunu çalıştırma, başarısız testleri giderme ve yerel Windows ortamında kontrollü uygulama testi.
+  - Modül bazlı rol/izin matrisi ve ekip hiyerarşisini süreç sahipleriyle doğrulama.
+  - Sohbet için WebSocket/SSE veya outbox tabanlı gerçek zamanlı teslim; mesaj saklama/düzenleme/silme süre politikası onaylanmadan kalıcı saklama davranışı genişletilmez.
   - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
