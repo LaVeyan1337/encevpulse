@@ -258,3 +258,8 @@
 .chat-load-older button{padding:6px 11px;color:var(--accent);background:var(--accent-subtle);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--border));border-radius:999px;font:inherit;font-size:8.5px;font-weight:700;cursor:pointer;transition:background .25s ease,transform .25s ease}
 .chat-load-older button:hover:not(:disabled){background:var(--accent-subtle-hover);transform:translateY(-1px)}
 .chat-load-older button:disabled{opacity:.55;cursor:wait}
+
+.notification-preview{display:block;overflow:hidden;color:var(--text-secondary);font-size:10px;line-height:1.45;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+.user-profile-roles{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.user-profile-roles .user-role-tag{display:inline-flex;width:max-content;max-width:100%;padding:3px 7px;border-radius:999px;background:var(--accent-subtle);color:var(--accent);font-size:9px;font-weight:700}
+.people-self-label{display:inline-flex;align-items:center;min-height:27px;padding:0 9px;color:var(--text-muted);background:var(--surface-hover);border:1px solid var(--border);border-radius:8px;font-size:9px;font-weight:700}
