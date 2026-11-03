@@ -1,6 +1,6 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (İlk Büyük Ürün Geliştirme Sprinti)
+**Son güncelleme:** 3 Kasım 2026 (Görev içi yorum akışı)
 
 ## Gerçekten uygulananlar
 
@@ -42,6 +42,9 @@
   - **Temel görev geçmişi (Task audit trail)**: `/api/tasks/:id/activity` uç noktası üzerinden göreve ait tüm hareketleri (oluşturulma, alan güncellemeleri, arşivleme, geri yükleme) aktör ve zaman bilgisiyle listeler.
 - Görev arşivleme ve arşivden geri yükleme (iyimser eşzamanlılık ve sürüm doğrulaması ile).
 - Proje oluşturma ve üyeleri atama çekmecesi.
+- Görev içi yorumlar: görev erişim kuralına bağlı listeleme/ekleme; yalnız yorum yazarının düzenleme ve silme yetkisi; 4.000 karakter sınırı; iyimser sürüm kontrolü.
+- Yorum silme metni boşaltır; yorum kaydı ve metin içermeyen, eklemeli yorum olay geçmişi korunur.
+- Yorum eklendiğinde görev kaydına erişebilen diğer etkin kullanıcılara aynı transaction içinde tekil uygulama içi bildirim yazılır.
 
 ### D. Gerçek Genel Bakış
 - Veriler doğrudan PostgreSQL üzerinden hesaplanır:
@@ -60,23 +63,24 @@
 - **API Build:** `@encev-pulse/api` `nest build` hatasız geçti.
 - **Web Build:** `@encev-pulse/web` `react-router build` SPA çıktısı hatasız geçti.
 - **TypeScript Typecheck:** İki workspace'te de `tsc --noEmit` hatasız geçti (0 hata).
-- **API Entegrasyon Testleri:** 17 geçti:
+- **API Entegrasyon Testleri:** 18 geçti:
   - Yerel auth akışı: Origin, CSRF challenge, yanlış parola doğrulaması, oturum süresi, çıkış, yönetici kullanıcı oluşturma, geçici parola ve rate limit.
   - Argon2id parola hashi doğrulaması ve kullanıcı başına farklı salt.
   - Health/readiness kontrolleri (PostgreSQL canlı kontrolü).
   - Görev CRUD, sürüm kontrolü (version conflict 409), arşivleme, geri yükleme, proje üyeliği, bildirimler, genel özet ve göreve özel audit geçmişi (`GET /tasks/:id/activity`).
+  - Görev yorumları: erişim sınırı, yalnız yazarın düzenleme/silme yetkisi, sürüm çakışması, silinen metnin boşaltılması ve yorum bildirimi.
 - **Web Testleri:** 5 geçti:
   - Same-origin API istemcisi doğrulaması.
   - Tema kalıcılığı ve yerel depolama bağımsızlığı.
   - Doğal kurumsal ürün dili ve pazarlama sloganı/tanılama sızıntısı yokluğu.
-  - Workspace Genel Bakış metrikleri, Görev Geçmişi, Kanban sürükle-bırak ve arama kontrolleri.
+  - Workspace Genel Bakış metrikleri, Görev Geçmişi, Kanban sürükle-bırak, arama ve görev yorum arayüzü kontrolleri.
 - **Güvenlik Sınırı:** Testler ve geliştirme yalnızca izole yerel PostgreSQL (`127.0.0.1:5432`) ve fixture verileriyle yürütüldü; şirket dosya sunucusuna (`\\192.168.1.55\Genel Evrak`) hiçbir ağ isteği gönderilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
 
-- İlk yönetici hesabı henüz interaktif terminalden oluşturulmadı. Yerel kurulum için:
-  `npm run auth:bootstrap-admin --workspace @encev-pulse/api`
-  komutu çalıştırılarak ad soyad, kullanıcı adı, kurumsal e-posta ve gizli parola belirlenebilir.
-- **Geliştirmeye devam edilecek sonraki büyük görev:**
-  - Görev detayında yorumlar ve dosya ekleri tasarımı (yerel test deposu üzerinden).
-  - Üç panelli şirket içi sohbet (Chat) modülü ve WebSocket gateway entegrasyonu (mimariye uygun olarak aynı NestJS süreci ve PostgreSQL outbox ile).
+- Yerel ilk yönetici hesabı kullanıcı tarafından oluşturuldu; parola ve kimlik bilgileri bu belgeye yazılmaz.
+- **Sıradaki geliştirme alanları:**
+  - Görev dosya ekleri için yerel uygulama deposu, karantina/indirme yetkisi ve hata telafisi tasarımı. Gerçek yükleme; izin verilen tür/boyut, zararlı yazılım taraması ve saklama süresi karara bağlanana kadar açılmaz.
+  - Temel Projeler iş akışının tamamlanması: proje ayrıntısı, düzenleme, durum/tarih yönetimi, üyelik değişiklikleri ve görev bağlantıları.
+  - Üç panelli şirket içi sohbet: kalıcı mesajlar, yanıtlar, reaksiyonlar, düzenleme/silme, okundu bilgisi, arama ve mesajdan görev oluşturma; WebSocket/outbox ile gerçek zamanlı dağıtım.
+  - Takvim ve yasal operasyon modülleri, süreç sahiplerince doğrulanmış süre kuralları ve tatil kaynağıyla aşamalı olarak eklenir.
