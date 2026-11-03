@@ -557,9 +557,11 @@ export class TasksService {
       const old=found.rows[0];
       if(old.version!==Number(value.version)) throw new ConflictException({code:'PROJECT_CHANGED',message:'Proje başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
       if(old.created_by!==user.id&&old.owner_user_id!==user.id&&!user.roles.includes('system_admin')) throw new ForbiddenException({code:'PROJECT_MANAGE_DENIED',message:'Bu proje için arşiv yetkiniz yok.'});
-      if(restore){
-        if(!old.archived_at&&old.status!=='archived') throw new ConflictException({code:'PROJECT_NOT_ARCHIVED',message:'Proje zaten arşivde değil.'});
-        await client.query(`UPDATE projects SET status=$1,status_before_archive=NULL,archived_at=NULL,updated_at=now(),version=version+1 WHERE id=$2 AND version=$3`,let restoreStatus = old.status_before_archive as string | null;
+      if (restore) {
+        if (!old.archived_at && old.status !== 'archived') {
+          throw new ConflictException({ code: 'PROJECT_NOT_ARCHIVED', message: 'Proje zaten arşivde değil.' });
+        }
+        let restoreStatus = old.status_before_archive as string | null;
         if (restoreStatus === null) {
           restoreStatus = typeof value.restoreStatus === 'string' ? value.restoreStatus : null;
           if (!['planning', 'active', 'on_hold', 'completed'].includes(String(restoreStatus))) {
@@ -568,7 +570,13 @@ export class TasksService {
         } else if (value.restoreStatus !== undefined) {
           throw invalid('Bu proje için arşiv öncesi durum zaten kayıtlı.');
         }
-        [restoreStatus,id,Number(value.version)]);
+        await client.query(
+          `UPDATE projects
+           SET status = $1, status_before_archive = NULL, archived_at = NULL,
+               updated_at = now(), version = version + 1
+           WHERE id = $2 AND version = $3`,
+          [restoreStatus, id, Number(value.version)],
+        );
       }else{
         if(old.archived_at||old.status==='archived') throw new ConflictException({code:'PROJECT_ALREADY_ARCHIVED',message:'Proje zaten arşivlenmiş.'});
         await client.query(`UPDATE projects SET status_before_archive=status,status='archived',archived_at=now(),updated_at=now(),version=version+1 WHERE id=$1 AND version=$2`,[id,Number(value.version)]);
