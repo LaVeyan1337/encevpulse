@@ -26,6 +26,8 @@
 .calendar-day-cell.selected-day{background:color-mix(in srgb,var(--accent, #b77b60) 8%,var(--surface))}
 .calendar-day-cell.is-today .calendar-day-number{background:var(--accent,#b77b60);color:#fff}
 .calendar-day-cell.outside-month{opacity:.48}
+.calendar-day-select{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.calendar-day-select:focus-visible{outline:2px solid var(--accent,#b77b60);outline-offset:2px;border-radius:7px}
 .calendar-day-number{align-self:flex-start;display:grid;place-items:center;min-width:27px;height:27px;padding:0 5px;border-radius:9px;font-size:12px;font-weight:750}
 .calendar-day-name{display:none;color:var(--text-muted);font-size:10px;font-weight:700;text-transform:capitalize}
 .calendar-days-week .calendar-day-name,.calendar-days-day .calendar-day-name{display:inline-block}

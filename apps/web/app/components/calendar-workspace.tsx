@@ -509,29 +509,33 @@ export function CalendarWorkspace({
       <div className="calendar-main-grid">
         <div className="calendar-primary">
           {view !== 'agenda' ? (
-            <div className={'calendar-days-grid calendar-days-' + view} style={{ gridTemplateColumns: 'repeat(' + days.length + ', minmax(0, 1fr))' }}>
+            <div className={'calendar-days-grid calendar-days-' + view} style={{ gridTemplateColumns: 'repeat(' + (view === 'month' ? 7 : days.length) + ', minmax(0, 1fr))' }}>
               {view !== 'day' && weekdayNames.map((name) => <div className="calendar-weekday" key={name}>{name}</div>)}
               {days.map((day) => {
                 const sameMonth = day.slice(0, 7) === month;
                 const entries = entriesForDay(day);
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={day}
                     className={'calendar-day-cell' + (view === 'month' && !sameMonth ? ' outside-month' : '') +
                       (day === selectedDate ? ' selected-day' : '') + (day === today ? ' is-today' : '')}
-                    onClick={() => changeSelectedDate(day)}
-                    aria-label={formatDate(day) + ', ' + entries.length + ' kayıt'}
-                    aria-pressed={day === selectedDate}
                   >
-                    <span className="calendar-day-number">{Number(day.slice(-2))}</span>
-                    <span className="calendar-day-name">{formatDate(day, { weekday: 'short' })}</span>
-                    <span className="calendar-day-count">{entries.length > 0 ? entries.length + ' kayıt' : ''}</span>
-                    <span className="calendar-cell-entries">
+                    <button
+                      type="button"
+                      className="calendar-day-select"
+                      onClick={() => changeSelectedDate(day)}
+                      aria-label={formatDate(day) + ', ' + entries.length + ' kayıt'}
+                      aria-pressed={day === selectedDate}
+                    >
+                      <span className="calendar-day-number">{Number(day.slice(-2))}</span>
+                      <span className="calendar-day-name">{formatDate(day, { weekday: 'short' })}</span>
+                      <span className="calendar-day-count">{entries.length > 0 ? entries.length + ' kayıt' : ''}</span>
+                    </button>
+                    <div className="calendar-cell-entries">
                       {entries.slice(0, view === 'month' ? 3 : 12).map((entry) => renderEntry(entry, view === 'month'))}
                       {view === 'month' && entries.length > 3 && <span className="calendar-more">+{entries.length - 3} kayıt daha</span>}
-                    </span>
-                  </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
