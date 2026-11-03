@@ -1,0 +1,26 @@
+name: Temporary source ZIP export
+
+on:
+  push:
+    branches:
+      - transfer/source-zip-20261103
+    paths:
+      - .github/workflows/temporary-source-zip-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Export only the requested ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: encev-pulse-source
+          path: encev-pulse-source.zip
+          if-no-files-found: error
+          retention-days: 1
