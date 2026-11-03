@@ -541,7 +541,9 @@ export function ChatWorkspace({
                               <>
                                 <div className="chat-message-tools">
                                   <button type="button" onClick={()=>setReplyTo(message)} title="Yanıtla">↶ Yanıtla</button>
-                                  <button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>
+                                  {message.linkedTaskId
+                                    ? <button type="button" onClick={()=>onTaskOpen(message.linkedTaskId!)} title="Bağlı görevi aç">✓ Görevi aç</button>
+                                    : <button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>}
                                   {(!message.isMine||detail.myRole==='owner'||detail.myRole==='admin')&&<button type="button" onClick={()=>void togglePin(message)}>{message.pinnedAt?'Sabitlemeyi kaldır':'Sabitle'}</button>}
                                   {message.isMine&&<button type="button" onClick={()=>{setEditingId(message.id);setEditingBody(message.body);}}>Düzenle</button>}
                                   {message.isMine&&<button type="button" onClick={()=>void deleteMessage(message)}>Sil</button>}
