@@ -3,6 +3,7 @@ import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import './app.css';
 import './bitrix-glass.css';
 import './motion.css';
+import './projects.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
