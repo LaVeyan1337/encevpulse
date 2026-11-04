@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { Script } from 'node:vm';
 import { test } from 'node:test';
 
 test('Workspace usability: project categories, multi-opinion flow, calendar scopes, chat filters and drawer portal', async () => {
@@ -21,6 +22,11 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     chatStyles: '../app/people-chat.css',
     drawer: '../app/components/drawer.tsx',
     glass: '../app/bitrix-glass.css',
+    extensionManifest: '../../../browser_extension/manifest.json',
+    extensionWorker: '../../../browser_extension/service-worker.js',
+    extensionPopup: '../../../browser_extension/popup.js',
+    extensionContent: '../../../browser_extension/content-script.js',
+    extensionOptions: '../../../browser_extension/options.js',
   };
   const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => [
     key, await readFile(new URL(path, import.meta.url), 'utf8'),
@@ -74,6 +80,21 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
 
   assert.match(source.drawer,/createPortal/);
   assert.match(source.drawer,/document\.body/);
+  assert.match(source.drawer,/visually top-most drawer/);
+  assert.match(source.drawer,/topLayer\.contains\(opener\)/);
+  assert.match(source.extensionManifest,/"scripting"/);
+  assert.doesNotMatch(source.extensionManifest,/"content_scripts"/);
+  assert.match(source.extensionPopup,/chrome\.scripting\.executeScript/);
+  assert.match(source.extensionContent,/__encevPulseAccountObserver/);
+  assert.match(source.extensionContent,/PROFILE_SELECTORS/);
+  assert.doesNotMatch(source.extensionContent,/document\.cookie|localStorage|sessionStorage|innerHTML|outerHTML|document\.body\.innerText/);
+  for(const [name,code] of Object.entries({
+    'service-worker.js':source.extensionWorker,
+    'popup.js':source.extensionPopup,
+    'content-script.js':source.extensionContent,
+    'options.js':source.extensionOptions,
+  })) new Script(code,{filename:name});
+  assert.doesNotThrow(()=>JSON.parse(source.extensionManifest));
   assert.match(source.glass,/select option,select optgroup/);
   assert.match(source.glass,/:root\[data-theme='light'\] select option/);
 });
