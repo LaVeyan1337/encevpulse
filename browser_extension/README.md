@@ -1,6 +1,6 @@
 # ENCEV PULSE e-ÇED İzleyici (Manifest V3)
 
-Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED sekmelerine ait sınırlı sinyalleri PULSE'a gönderir. Parola, çerez, form alanı, localStorage/sessionStorage, ağ istekleri, sayfa HTML'i veya tüm sayfa metni toplanmaz.
+Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED sekmelerine ait sınırlı sinyalleri PULSE'a gönderir. Parola, çerez, form alanı, localStorage/sessionStorage, ağ istekleri, sayfa HTML'i veya tüm sayfa metni toplanmaz. Site izni yalnızca resmî `https://eced.csb.gov.tr` origin'i için istenir; başka alan adlarında algılayıcı çalışmaz.
 
 ## Kurulum
 
