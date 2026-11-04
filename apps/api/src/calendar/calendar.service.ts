@@ -6,7 +6,7 @@ import { CedService } from '../ced/ced.service.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const EVENT_TYPES = ['meeting', 'event', 'reminder', 'deadline'] as const;
+const EVENT_TYPES = ['meeting', 'event', 'reminder', 'deadline', 'presentation', 'site_visit', 'hkt', 'idk'] as const;
 const VISIBILITIES = ['personal', 'shared', 'project'] as const;
 type EventType = typeof EVENT_TYPES[number];
 type Visibility = typeof VISIBILITIES[number];
