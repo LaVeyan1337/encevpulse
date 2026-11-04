@@ -941,7 +941,7 @@ export function Workspace({
               setMobileNavOpen(false);
             }}
           >
-            <Icon name="landmark" />
+            <Icon name="folder" />
             <span>Kurum Görüşleri</span>
           </button>
           )}
