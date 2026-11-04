@@ -88,7 +88,7 @@ export class EcedMonitorService {
   async getMonitor(user: AuthUser) {
     const [reports, devices, claims, seenAccounts] = await Promise.all([
       this.db.query(
-        'SELECT r.id,r.device_id AS "deviceId",d.device_name AS "deviceName",owner.display_name AS "deviceOwnerName",r.browser,r.tab_id AS "tabId",r.tab_title AS "tabTitle",r.portal_origin AS "portalOrigin",r.page_path AS "pagePath",r.active_ui_tab AS "activeUiTab",r.account_name AS "accountName",r.normalized_account AS "normalizedAccount",r.account_source AS "accountSource",r.session_state AS "sessionState",r.tab_active AS "tabActive",r.last_seen AS "lastSeen" FROM eced_browser_reports r JOIN eced_browser_devices d ON d.id=r.device_id JOIN users owner ON owner.id=d.user_id WHERE d.revoked_at IS NULL AND owner.status=\\'active\\' ORDER BY r.last_seen DESC LIMIT 500',
+        "SELECT r.id,r.device_id AS \"deviceId\",d.device_name AS \"deviceName\",owner.display_name AS \"deviceOwnerName\",r.browser,r.tab_id AS \"tabId\",r.tab_title AS \"tabTitle\",r.portal_origin AS \"portalOrigin\",r.page_path AS \"pagePath\",r.active_ui_tab AS \"activeUiTab\",r.account_name AS \"accountName\",r.normalized_account AS \"normalizedAccount\",r.account_source AS \"accountSource\",r.session_state AS \"sessionState\",r.tab_active AS \"tabActive\",r.last_seen AS \"lastSeen\" FROM eced_browser_reports r JOIN eced_browser_devices d ON d.id=r.device_id JOIN users owner ON owner.id=d.user_id WHERE d.revoked_at IS NULL AND owner.status='active' ORDER BY r.last_seen DESC LIMIT 500",
       ),
       this.db.query(
         'SELECT id,device_name AS "deviceName",created_at AS "createdAt",last_seen_at AS "lastSeenAt" FROM eced_browser_devices WHERE user_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100',
@@ -226,7 +226,7 @@ export class EcedMonitorService {
     if (!TOKEN.test(normalized)) throw new ForbiddenException({ code: 'ECED_PAIRING_INVALID', message: 'Tarayıcı eşleştirme anahtarı geçersiz veya iptal edilmiş.' });
     const runner = client ?? this.db.pool;
     const result = await runner.query(
-      'SELECT d.id,d.user_id,d.device_name,u.display_name AS owner_name FROM eced_browser_devices d JOIN users u ON u.id=d.user_id WHERE d.token_hash=$1 AND d.revoked_at IS NULL AND u.status=\\'active\\'' + (lock ? ' FOR UPDATE OF d' : ''),
+      "SELECT d.id,d.user_id,d.device_name,u.display_name AS owner_name FROM eced_browser_devices d JOIN users u ON u.id=d.user_id WHERE d.token_hash=$1 AND d.revoked_at IS NULL AND u.status='active'" + (lock ? ' FOR UPDATE OF d' : ''),
       [hashToken(normalized)],
     );
     if (!result.rowCount) throw new ForbiddenException({ code: 'ECED_PAIRING_INVALID', message: 'Tarayıcı eşleştirme anahtarı geçersiz veya iptal edilmiş.' });
