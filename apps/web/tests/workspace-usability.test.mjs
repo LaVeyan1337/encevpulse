@@ -11,6 +11,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     opinionController: '../../api/src/ced/ced.controller.ts',
     projectService: '../../api/src/tasks/tasks.service.ts',
     projectMigration: '../../../drizzle/0014_project_types_and_opinion_statuses.sql',
+    cedMigration: '../../../drizzle/0015_project_scoped_institution_opinions.sql',
     projectStyles: '../app/projects.css',
     opinionStyles: '../app/institution-opinions.css',
     calendar: '../app/components/calendar-workspace.tsx',
@@ -37,7 +38,9 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.workspace,/id="project-type"/);
   assert.match(source.workspace,/id="project-edit-type"/);
   assert.match(source.workspace,/projectTab === 'opinions'/);
-  assert.doesNotMatch(source.workspace,/projectTab === 'ced'/);
+  assert.match(source.workspace,/projectTab === 'ced'/);
+  assert.match(source.workspace,/import \{ CedWorkspace \}/);
+  assert.match(source.workspace,/hasModulePermission\('eced'\) \? 'ced'/);
   for(const type of ['res','ges','maden','yk_ges','storage']) {
     assert.match(source.projectMigration,new RegExp(type));
     assert.match(source.projectStyles,new RegExp('project-kind-'+type));
@@ -54,8 +57,17 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     assert.match(source.opinionService,new RegExp("'"+status+"'"));
   }
   assert.match(source.opinionController,/@Post\('projects\/:projectId\/opinions'\)/);
-  assert.match(source.opinionService,/ON CONFLICT\(project_id\) DO NOTHING/);
-  assert.match(source.opinionService,/institution_opinion_workspace/);
+  assert.match(source.opinionService,/INSERT INTO ced_institution_opinions\(project_id,case_id/);
+  assert.match(source.opinionService,/private async auditProject/);
+  assert.match(source.opinionService,/row\.case_origin !== 'opinion_workspace'/);
+  assert.match(source.opinionService,/stageLockedByPtd/);
+  assert.match(source.opinionService,/const initialStatus: StageStatus = ptdLocked/);
+  assert.match(source.opinionService,/PTD kararı verilmeden sonraki ÇED aşamaları etkinleştirilemez/);
+  assert.match(source.opinionService,/const ROUTES = \['ek1_cbd', 'ek2_ptd'\]/);
+  assert.match(source.cedMigration,/ALTER COLUMN case_id DROP NOT NULL/);
+  assert.match(source.cedMigration,/case_origin IN \('process','opinion_workspace'\)/);
+  assert.match(source.cedMigration,/SET project_id = c\.project_id\s+FROM ced_cases c/);
+  assert.match(source.cedMigration,/DISABLE TRIGGER ced_audit_events_append_only/);
   assert.match(source.opinionStyles,/\.opinions-add-button/);
   assert.match(source.opinionStyles,/\.opinions-editor-grid/);
 

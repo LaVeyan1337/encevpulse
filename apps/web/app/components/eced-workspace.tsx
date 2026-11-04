@@ -276,7 +276,7 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
       const state=report?stateOf(report,data.staleAfterSeconds):null;
       const tone=state?.fresh&&report?.sessionState==='active'?'busy'
         :state?.fresh&&report?.sessionState==='logged_out'?'ready':'unknown';
-      const label=tone==='busy'?'Açık':tone==='ready'?'Girişe hazır':state?.tone==='stale'?'Sinyal eski':'Durum belirsiz';
+      const label=tone==='busy'?'Etkin portal sinyali':tone==='ready'?'Oturum kapalı işaretli':state?.tone==='stale'?'Sinyal eski':'Durum belirsiz';
       return {...account,tone,label};
     }).sort((a,b)=>({busy:0,ready:1,unknown:2}[a.tone]-{busy:0,ready:1,unknown:2}[b.tone])||a.accountName.localeCompare(b.accountName,'tr'));
   },[data]);
@@ -284,13 +284,13 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
   const readyCount=accounts.filter(x=>x.tone==='ready').length;
   return <section className="eced-overview-panel" aria-label="e-ÇED hesap durumları">
     <div className="eced-overview-heading">
-      <div><span className="eced-overview-kicker">CANLI HESAP DURUMU</span><h2>e-ÇED hesapları</h2>
-      <p>Açık oturumlar kırmızı, girişe hazır hesaplar yeşil gösterilir.</p></div>
+      <div><span className="eced-overview-kicker">TARAYICI GÖZLEMİ</span><h2>e-ÇED hesapları</h2>
+      <p>Durumlar tarayıcı eklentisinin son görünür portal sinyalidir; resmî e-ÇED oturum doğrulaması değildir.</p></div>
       <button type="button" onClick={onOpen}>Tümünü görüntüle <span aria-hidden="true">↗</span></button>
     </div>
     <div className="eced-overview-summary">
-      <span className="eced-mini-count is-busy"><i/>{busyCount} açık</span>
-      <span className="eced-mini-count is-ready"><i/>{readyCount} girişe hazır</span>
+      <span className="eced-mini-count is-busy"><i/>{busyCount} etkin sinyal</span>
+      <span className="eced-mini-count is-ready"><i/>{readyCount} kapalı işaretli</span>
       <span className="eced-overview-total">{accounts.length} kayıtlı hesap</span>
     </div>
     {error?<p className="eced-overview-state" role="status">Durum yenilenemedi. {error}</p>

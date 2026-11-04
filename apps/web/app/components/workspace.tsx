@@ -5,6 +5,7 @@ import { PeopleDirectory } from './people-directory';
 import { CalendarWorkspace } from './calendar-workspace';
 import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
 import { EcedWorkspace, EcedAccountOverview } from './eced-workspace';
+import { CedWorkspace } from './ced-workspace';
 import { PetitionsWorkspace } from './petitions-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
@@ -271,7 +272,7 @@ export function Workspace({
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState('');
   const [projectEditing, setProjectEditing] = useState(false);
-  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'opinions'>('overview');
+  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'opinions' | 'ced'>('overview');
   const [projectRestoreStatus, setProjectRestoreStatus] = useState<'' | 'planning' | 'active' | 'on_hold' | 'completed'>('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -681,13 +682,13 @@ export function Workspace({
     }
   }
 
-  async function openProject(projectId: string, initialTab: 'overview' | 'opinions' = 'overview') {
+  async function openProject(projectId: string, initialTab?: 'overview' | 'opinions' | 'ced') {
     setProjectDetailOpen(true);
     setProjectLoading(true);
     setProjectEditing(false);
     setProjectError('');
     setProjectDetail(null);
-    setProjectTab(initialTab);
+    setProjectTab(initialTab ?? (hasModulePermission('eced') ? 'ced' : 'overview'));
     setProjectRestoreStatus('');
     try {
       const result = await request(`projects/${projectId}`);
@@ -2469,6 +2470,7 @@ export function Workspace({
                 <button type="button" role="tab" aria-selected={projectTab === 'overview'} onClick={() => setProjectTab('overview')}>Genel bakış</button>
                 <button type="button" role="tab" aria-selected={projectTab === 'tasks'} onClick={() => setProjectTab('tasks')}>Görevler <span>{projectDetail.tasks.length}</span></button>
                 <button type="button" role="tab" aria-selected={projectTab === 'members'} onClick={() => setProjectTab('members')}>Üyeler <span>{projectDetail.members.length}</span></button>
+                {hasModulePermission('eced') && <button type="button" role="tab" aria-selected={projectTab === 'ced'} onClick={() => setProjectTab('ced')}>ÇED Süreci</button>}
                 {hasModulePermission('institution_opinions') && <button type="button" role="tab" aria-selected={projectTab === 'opinions'} onClick={() => setProjectTab('opinions')}>Kurum Görüşleri</button>}
               </div>
 
@@ -2530,6 +2532,20 @@ export function Workspace({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {projectTab === 'ced' && hasModulePermission('eced') && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <CedWorkspace
+                    projectId={projectDetail.project.id}
+                    request={request}
+                    canCreate={hasModulePermission('eced','create')}
+                    canUpdate={hasModulePermission('eced','update')}
+                    canViewOpinions={hasModulePermission('institution_opinions')}
+                    canCreateOpinions={hasModulePermission('institution_opinions','create')}
+                    canUpdateOpinions={hasModulePermission('institution_opinions','update')}
+                  />
                 </div>
               )}
 

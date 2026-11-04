@@ -29,7 +29,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
   const userIds: string[] = [];
   const projectIds: string[] = [];
   let caseId = '';
-  let directCaseId = '';
+  let ptdCaseId = '';
   let app: Awaited<ReturnType<typeof NestFactory.create>> | null = null;
 
   async function api(base: string, client: Client, path: string, method = 'GET', body?: unknown) {
@@ -96,6 +96,9 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const projectId = project.data.project.id as string;
     projectIds.push(projectId);
 
+    const mixedRoute = await api(base, processOwner, 'ced/projects/' + projectId, 'POST', { routeCode: 'combined' });
+    assert.equal(mixedRoute.response.status, 400, 'Yeni süreçlerde karma rota kullanılamamalı.');
+
     const created = await api(base, processOwner, 'ced/projects/' + projectId, 'POST', {
       routeCode: 'ek1_cbd', fileNumber: 'CED-' + suffix,
     });
@@ -109,6 +112,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const ptd = stages.find((stage) => stage.stageKey === 'ptd_upload')!;
     assert.equal(cbd.status, 'pending');
     assert.equal(ptd.status, 'not_applicable');
+    assert.equal(stages.find((stage) => stage.stageKey === 'initial_review')?.status, 'pending');
 
     const cannotUsePtd = await api(base, processOwner, 'ced/cases/' + caseId + '/documents', 'POST', {
       stageId: ptd.id, documentType: 'ptd', title: 'PTD not applicable',
@@ -158,8 +162,8 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const refreshedOpinion = refreshedOpinions.data.opinions.find((item: { id: string }) => item.id === listedOpinion.id);
     assert.equal(refreshedOpinion.status, 'responded');
 
-    // A second project starts without a ÇED case. Two simultaneous project-level opinion
-    // requests must create one case container and preserve both opinion records.
+    // A second project starts without a ÇED case. Concurrent project-level opinions must
+    // remain project-scoped and must not create a fake ÇED workflow record.
     const opinionOnlyProject = await api(base, projectManager, 'projects', 'POST', {
       name: 'CED opinion-only test ' + suffix, status: 'active', memberIds: [userIds[1]],
     });
@@ -179,13 +183,77 @@ test('ÇED API: route-specific milestones, document completion and project acces
     ]);
     assert.equal(directOpinionA.response.status, 201, JSON.stringify(directOpinionA.data));
     assert.equal(directOpinionB.response.status, 201, JSON.stringify(directOpinionB.data));
-    directCaseId = directOpinionA.data.caseId as string;
-    assert.equal(directOpinionB.data.caseId, directCaseId, 'Concurrent project opinion creation must reuse one case container.');
+    assert.equal(directOpinionA.data.caseId, null, 'Kurum görüşü ÇED dosyası olmadan projeye bağlanmalı.');
+    assert.equal(directOpinionB.data.caseId, null, 'Eşzamanlı ikinci görüş de yapay ÇED dosyası oluşturmamalı.');
     assert.ok(directOpinionA.data.opinionId && directOpinionB.data.opinionId);
+    const fakeCaseCheck = await pool.query('SELECT id FROM ced_cases WHERE project_id=$1', [opinionOnlyProjectId]);
+    assert.equal(fakeCaseCheck.rowCount, 0, 'Kurum görüşleri boş bir ÇED dosyası üretmemeli.');
     const directOpinions = await api(base, processOwner, 'ced/opinions');
     const projectOpinions = directOpinions.data.opinions.filter((item: {projectId:string})=>item.projectId===opinionOnlyProjectId);
     assert.equal(projectOpinions.length,2,'Bir projede birden fazla kurum görüşü tutulabilmeli.');
     assert.deepEqual(new Set(projectOpinions.map((item: {status:string})=>item.status)),new Set(['positive','revision']));
+    const projectOpinionToUpdate = projectOpinions[0] as {id:string;version:number;subject:string};
+    const updatedProjectOpinion = await api(base, processOwner, 'ced/opinions/' + projectOpinionToUpdate.id, 'PATCH', {
+      version: projectOpinionToUpdate.version, subject: projectOpinionToUpdate.subject + ' · güncellendi',
+    });
+    assert.equal(updatedProjectOpinion.response.status,200,JSON.stringify(updatedProjectOpinion.data));
+    const beforeCase = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
+    assert.equal(beforeCase.data.case,null,'Kurum görüşü için gerçek süreç kaydı oluşana kadar ÇED dosyası olmamalı.');
+    assert.equal(beforeCase.data.opinions.length,2,'ÇED dosyası olmadan proje görüşleri okunabilmeli.');
+    const ptdCreated = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId, 'POST', {
+      routeCode: 'ek2_ptd', fileNumber: 'PTD-' + suffix,
+    });
+    assert.equal(ptdCreated.response.status, 201, JSON.stringify(ptdCreated.data));
+    ptdCaseId = ptdCreated.data.caseId as string;
+    const customStageCreated = await api(base, processOwner, 'ced/cases/' + ptdCaseId + '/stages', 'POST', {
+      title: 'PTD sonucu sonrası kontrol', sortOrder: 85,
+    });
+    assert.equal(customStageCreated.response.status, 201, JSON.stringify(customStageCreated.data));
+    const ptdInitial = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
+    const ptdStages = ptdInitial.data.stages as Array<{id:string;stageKey:string;status:string;version:number;title:string;isCustom:boolean}>;
+    assert.equal(ptdStages.find((stage)=>stage.stageKey==='cbd_upload')?.status,'not_applicable');
+    assert.equal(ptdStages.find((stage)=>stage.stageKey==='ptd_upload')?.status,'pending');
+    assert.equal(ptdStages.find((stage)=>stage.stageKey==='ptd_assessment')?.status,'pending');
+    assert.equal(ptdStages.find((stage)=>stage.stageKey==='initial_review')?.status,'not_applicable');
+    const customPtdStage = ptdStages.find((stage)=>stage.title==='PTD sonucu sonrası kontrol');
+    assert.ok(customPtdStage);
+    assert.equal(customPtdStage.status,'not_applicable');
+    const blockedStageActivation = await api(base, processOwner, 'ced/stages/' + customPtdStage.id, 'PATCH', {
+      version: customPtdStage.version, status: 'in_progress',
+    });
+    assert.equal(blockedStageActivation.response.status,400,'PTD kararı olmadan özel ÇED aşaması başlatılamamalı.');
+    const blockedDocument = await api(base, processOwner, 'ced/cases/' + ptdCaseId + '/documents', 'POST', {
+      stageId: customPtdStage.id, documentType: 'other', title: 'PTD öncesi belge',
+      sourceType: 'other', sourceReference: 'PTD kararı bekleniyor',
+    });
+    assert.equal(blockedDocument.response.status,400,'PTD kararı olmadan sonraki aşamaya belge eklenememeli.');
+
+    const activateFullCed = await api(base, processOwner, 'ced/cases/' + ptdCaseId, 'PATCH', {
+      version: ptdInitial.data.case.version, decision: 'ced_report_required',
+    });
+    assert.equal(activateFullCed.response.status, 200, JSON.stringify(activateFullCed.data));
+    const afterPtdRequired = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
+    assert.equal(afterPtdRequired.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='ptd_assessment').status,'completed');
+    assert.equal(afterPtdRequired.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='initial_review').status,'pending');
+    assert.equal(afterPtdRequired.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='ced_report_upload').status,'pending');
+    assert.equal(afterPtdRequired.data.stages.find((stage: {title:string})=>stage.title==='PTD sonucu sonrası kontrol').status,'pending');
+
+    const resetPtd = await api(base, processOwner, 'ced/cases/' + ptdCaseId, 'PATCH', {
+      version: afterPtdRequired.data.case.version, decision: 'pending',
+    });
+    assert.equal(resetPtd.response.status, 200, JSON.stringify(resetPtd.data));
+    const afterReset = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
+    assert.equal(afterReset.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='initial_review').status,'not_applicable');
+    assert.equal(afterReset.data.stages.find((stage: {title:string})=>stage.title==='PTD sonucu sonrası kontrol').status,'not_applicable');
+
+    const positivePtd = await api(base, processOwner, 'ced/cases/' + ptdCaseId, 'PATCH', {
+      version: afterReset.data.case.version, decision: 'ced_positive',
+    });
+    assert.equal(positivePtd.response.status, 200, JSON.stringify(positivePtd.data));
+    const afterPositive = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
+    assert.match(afterPositive.data.case.closedOn,/^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(afterPositive.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='initial_review').status,'not_applicable');
+    assert.equal(afterPositive.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='ptd_assessment').status,'completed');
 
     const outsiderOpinionList = await api(base, outsider, 'ced/opinions');
     assert.equal(outsiderOpinionList.response.status, 200);
@@ -207,12 +275,14 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [caseId]);
         await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [caseId]);
       }
-      if(directCaseId&&directCaseId!==caseId){
-        await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [directCaseId]);
-        await cleanup.query('DELETE FROM ced_institution_opinions WHERE case_id=$1', [directCaseId]);
-        await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [directCaseId]);
-        await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [directCaseId]);
+      if(ptdCaseId){
+        await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [ptdCaseId]);
+        await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id=ANY($1::uuid[])', [projectIds]);
+        await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [ptdCaseId]);
+        await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [ptdCaseId]);
       }
+      await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id=ANY($1::uuid[])', [projectIds]);
+      await cleanup.query('DELETE FROM ced_audit_events WHERE project_id=ANY($1::uuid[])', [projectIds]);
       await cleanup.query('ALTER TABLE ced_audit_events ENABLE TRIGGER ced_audit_events_append_only');
       if (projectIds.length) {
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
