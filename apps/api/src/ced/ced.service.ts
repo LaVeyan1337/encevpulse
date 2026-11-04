@@ -53,18 +53,18 @@ export class CedService {
     try { await this.assertProjectAccess(client, projectId, user.id); }
     finally { client.release(); }
     const found = await this.db.query<{ id: string }>(
-      \`SELECT id FROM ced_cases WHERE project_id=$1 AND archived_at IS NULL\`, [projectId],
+      `SELECT id FROM ced_cases WHERE project_id=$1 AND archived_at IS NULL`, [projectId],
     );
     if (!found.rowCount) {
       const opinions = includeOpinions ? await this.db.query(
-        \`SELECT o.id,o.case_id AS "caseId",o.institution_name AS "institutionName",o.subject,o.status,
+        `SELECT o.id,o.case_id AS "caseId",o.institution_name AS "institutionName",o.subject,o.status,
          o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",
          o.outgoing_letter_no AS "outgoingLetterNo",o.incoming_letter_no AS "incomingLetterNo",
          o.contact_person AS "contactPerson",o.notes,o.version,o.created_by AS "createdBy",
          creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
          WHERE o.project_id=$1 AND o.archived_at IS NULL
-         ORDER BY o.deadline_date NULLS LAST,o.institution_name,o.created_at\`,
+         ORDER BY o.deadline_date NULLS LAST,o.institution_name,o.created_at`,
         [projectId],
       ) : { rows: [] as any[] };
       return { case: null, stages: [], documents: [], opinions: opinions.rows, meetings: [], activity: [], permissions: { opinions: includeOpinions } };
@@ -74,7 +74,7 @@ export class CedService {
 
   async listInstitutionOpinions(user: AuthUser) {
     const result = await this.db.query(
-      \`SELECT o.id,o.case_id AS "caseId",o.project_id AS "projectId",
+      `SELECT o.id,o.case_id AS "caseId",o.project_id AS "projectId",
         p.name AS "projectName",COALESCE(c.file_number,'') AS "fileNumber",COALESCE(c.eced_reference,'') AS "ecedReference",
         owner.display_name AS "projectOwnerName",
         o.institution_name AS "institutionName",o.subject,o.status,
@@ -93,7 +93,7 @@ export class CedService {
          ))
        ORDER BY CASE WHEN o.status IN ('responded','closed','positive','negative') THEN 1 ELSE 0 END,
          o.deadline_date NULLS LAST,o.updated_at DESC,o.institution_name
-       LIMIT 500\`,
+       LIMIT 500`,
       [user.id],
     );
     return { opinions: result.rows };
@@ -124,14 +124,14 @@ export class CedService {
         caseId = row.id;
         promoted = true;
         await client.query(
-          \`UPDATE ced_cases SET route_code=$1,file_number=$2,eced_reference=$3,started_on=$4,notes=$5,
-           case_origin='process',decision='pending',updated_by=$6,updated_at=now(),version=version+1 WHERE id=$7\`,
+          `UPDATE ced_cases SET route_code=$1,file_number=$2,eced_reference=$3,started_on=$4,notes=$5,
+           case_origin='process',decision='pending',updated_by=$6,updated_at=now(),version=version+1 WHERE id=$7`,
           [routeCode,fileNumber,ecedReference,startedOn,notes,user.id,caseId],
         );
       } else {
         const inserted = await client.query<{ id: string }>(
-          \`INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,case_origin,created_by,updated_by)
-           VALUES($1,$2,$3,$4,$5,$6,'process',$7,$7) RETURNING id\`,
+          `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,case_origin,created_by,updated_by)
+           VALUES($1,$2,$3,$4,$5,$6,'process',$7,$7) RETURNING id`,
           [projectId, routeCode, fileNumber, ecedReference, startedOn, notes, user.id],
         );
         caseId = inserted.rows[0].id;
@@ -143,9 +143,9 @@ export class CedService {
         const awaitingPtdOutcome = routeCode === 'ek2_ptd' && stage.order > 45;
         const status = routeNotUsed || awaitingPtdOutcome ? 'not_applicable' : 'pending';
         await client.query(
-          \`INSERT INTO ced_case_stages(case_id,stage_key,title,sort_order,status,required_document_type,is_milestone,created_by,updated_by)
+          `INSERT INTO ced_case_stages(case_id,stage_key,title,sort_order,status,required_document_type,is_milestone,created_by,updated_by)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)
-           ON CONFLICT(case_id,stage_key) DO NOTHING\`,
+           ON CONFLICT(case_id,stage_key) DO NOTHING`,
           [caseId, stage.key, stage.title, stage.order, status, stage.documentType ?? null, Boolean(stage.milestone), user.id],
         );
       }
@@ -182,9 +182,9 @@ export class CedService {
       }
       if (routeCode === 'ek2_ptd' && decisionWasSubmitted && decision !== current.decision) {
         const progressed = await client.query<{ count: string }>(
-          \`SELECT count(*)::text AS count FROM ced_case_stages
+          `SELECT count(*)::text AS count FROM ced_case_stages
            WHERE case_id=$1 AND (sort_order>45 OR is_custom=true)
-             AND status NOT IN ('not_applicable','pending')\`,
+             AND status NOT IN ('not_applicable','pending')`,
           [caseId],
         );
         if (decision !== 'ced_report_required' && Number(progressed.rows[0]?.count ?? 0) > 0) {
@@ -195,34 +195,34 @@ export class CedService {
         }
         if (decision === 'ced_report_required') {
           await client.query(
-            \`UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),
+            `UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),
              updated_by=$1,updated_at=now(),version=version+1
-             WHERE case_id=$2 AND stage_key='ptd_assessment' AND status<>'completed'\`,
+             WHERE case_id=$2 AND stage_key='ptd_assessment' AND status<>'completed'`,
             [user.id,caseId],
           );
           await client.query(
-            \`UPDATE ced_case_stages SET status='pending',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
-             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status='not_applicable'\`,
+            `UPDATE ced_case_stages SET status='pending',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
+             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status='not_applicable'`,
             [user.id,caseId],
           );
         } else if (decision === 'ced_positive' || decision === 'pending' || decision === 'withdrawn') {
           if (decision === 'pending') {
             await client.query(
-              \`UPDATE ced_case_stages SET status='pending',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
-               WHERE case_id=$2 AND stage_key='ptd_assessment'\`,
+              `UPDATE ced_case_stages SET status='pending',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
+               WHERE case_id=$2 AND stage_key='ptd_assessment'`,
               [user.id,caseId],
             );
           } else if (decision === 'ced_positive') {
             await client.query(
-              \`UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),
+              `UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),
                updated_by=$1,updated_at=now(),version=version+1
-               WHERE case_id=$2 AND stage_key='ptd_assessment' AND status<>'completed'\`,
+               WHERE case_id=$2 AND stage_key='ptd_assessment' AND status<>'completed'`,
               [user.id,caseId],
             );
           }
           await client.query(
-            \`UPDATE ced_case_stages SET status='not_applicable',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
-             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status<>'not_applicable'\`,
+            `UPDATE ced_case_stages SET status='not_applicable',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
+             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status<>'not_applicable'`,
             [user.id,caseId],
           );
         }
@@ -235,13 +235,13 @@ export class CedService {
       const notes = Object.hasOwn(value, 'notes') ? boundedText(value.notes, 0, 6000, 'Açıklama') : current.notes;
       const closePtdTerminal = routeCode === 'ek2_ptd' && ['ced_positive','withdrawn'].includes(decision) && !Object.hasOwn(value, 'closedOn');
       await client.query(
-        \`UPDATE ced_cases SET decision=$1,file_number=$2,eced_reference=$3,started_on=$4,
+        `UPDATE ced_cases SET decision=$1,file_number=$2,eced_reference=$3,started_on=$4,
          closed_on=CASE WHEN $9::boolean AND $5::date IS NULL THEN CURRENT_DATE ELSE $5::date END,
-         notes=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$8\`,
+         notes=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$8`,
         [decision, fileNumber, ecedReference, startedOn, closedOn, notes, user.id, caseId, closePtdTerminal],
       );
       await this.audit(client, caseId, 'case', caseId, 'updated',
-        { decision, routeCode, fileNumber, ecedReference, startedOn, closedOn: closePositivePtd ? 'CURRENT_DATE' : closedOn }, user.id);
+        { decision, routeCode, fileNumber, ecedReference, startedOn, closedOn: closePtdTerminal ? 'CURRENT_DATE' : closedOn }, user.id);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
@@ -399,9 +399,9 @@ export class CedService {
       // Lock the project row to serialize simultaneous submissions without creating a fake ÇED case.
       await this.assertProjectAccess(client, projectId, user.id, true);
       const inserted = await client.query<{id:string}>(
-        \`INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+        `INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
          outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id\`,
+         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
         [projectId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
           draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
       );
@@ -423,9 +423,9 @@ export class CedService {
       await client.query('BEGIN');
       const current = await this.loadAccessibleCase(client, caseId, user.id, true);
       const inserted = await client.query<{ id: string }>(
-        \`INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+        `INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
          outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id\`,
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
         [current.project_id,caseId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
           draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
       );
@@ -446,9 +446,9 @@ export class CedService {
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        \`SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
+        `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
           o.response_date::text AS response_date
-         FROM ced_institution_opinions o WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o\`,
+         FROM ced_institution_opinions o WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
         [opinionId],
       );
       if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
@@ -472,8 +472,8 @@ export class CedService {
         notes: Object.hasOwn(value, 'notes') ? value.notes : old.notes,
       });
       await client.query(
-        \`UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
-         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,notes=$10,updated_by=$11,updated_at=now(),version=version+1 WHERE id=$12\`,
+        `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
+         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,notes=$10,updated_by=$11,updated_at=now(),version=version+1 WHERE id=$12`,
         [merged.institutionName, merged.subject, merged.status, merged.requestDate, merged.deadlineDate, merged.responseDate,
           merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, merged.notes, user.id, opinionId],
       );
@@ -682,8 +682,8 @@ export class CedService {
 
   private async auditProject(client: PoolClient, projectId: string, entityType: string, entityId: string, action: string, details: unknown, actorId: string) {
     await client.query(
-      \`INSERT INTO ced_audit_events(case_id,project_id,entity_type,entity_id,action,details,actor_user_id)
-       VALUES(NULL,$1,$2,$3,$4,$5,$6)\`,
+      `INSERT INTO ced_audit_events(case_id,project_id,entity_type,entity_id,action,details,actor_user_id)
+       VALUES(NULL,$1,$2,$3,$4,$5,$6)`,
       [projectId, entityType, entityId, action, details, actorId],
     );
   }
