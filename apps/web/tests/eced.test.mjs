@@ -52,7 +52,12 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(worker, /accountSources\[tabKey\]==='manual'/);
   assert.match(popup, /accountSources\[currentTabKey\]='manual'/);
   assert.match(popup, /detectedByPortal/);
-  assert.match(manifest, /content-script\.js/);
+  assert.match(manifest, /"scripting"/);
+  assert.doesNotMatch(manifest, /"content_scripts"/);
+  assert.match(popup, /chrome\.scripting\.executeScript/);
+  assert.match(popup, /files:\['content-script\.js'\]/);
+  assert.doesNotMatch(popup, /chrome\.tabs\.reload/);
+  assert.match(contentScript, /__encevPulseAccountObserver/);
   assert.match(contentScript, /PROFILE_SELECTORS/);
   assert.match(contentScript, /findVisibleAccountName/);
   assert.match(contentScript, /candidates\.size === 1/);
