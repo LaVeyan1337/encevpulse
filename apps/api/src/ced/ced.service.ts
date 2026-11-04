@@ -179,3 +179,48 @@ export class CedService {
       await this.assertProjectAccess(client, stage.project_id, user.id);
       if (stage.version !== Number(value.version)) throw new ConflictException({ code: 'CED_STAGE_CHANGED', message: 'Aşama başka bir işlemde güncellendi. Yenileyip tekrar deneyin.' });
       if (Object.hasOwn(value, 'status')) {
+        const status = enumValue(value.status, STAGE_STATUSES, 'Aşama durumu') as StageStatus;
+        if (status === 'completed' && stage.required_document_type) {
+          const document = await client.query('SELECT 1 FROM ced_documents WHERE stage_id=$1 AND archived_at IS NULL LIMIT 1', [stageId]);
+          if (!document.rowCount) throw invalid('Bu belge kilometre taşını tamamlamak için belge kaydı ve kaynak konumu eklemelisiniz.');
+        }
+      }
+      const title = Object.hasOwn(value, 'title') ? boundedText(value.title, 2, 180, 'Aşama adı') : stage.title;
+      const status = Object.hasOwn(value, 'status') ? enumValue(value.status, STAGE_STATUSES, 'Aşama durumu') : stage.status;
+      const sortOrder = Object.hasOwn(value, 'sortOrder') ? Number(value.sortOrder) : stage.sort_order;
+      if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10000) throw invalid('Aşama sırası geçersiz.');
+      const dueOn = Object.hasOwn(value, 'dueOn') ? optionalDate(value.dueOn, 'Hedef tarihi') : stage.due_on;
+      const notes = Object.hasOwn(value, 'notes') ? boundedText(value.notes, 0, 3000, 'Açıklama') : stage.notes;
+      await client.query(
+        `UPDATE ced_case_stages SET title=$1,status=$2,sort_order=$3,due_on=$4,notes=$5,
+         completed_at=CASE WHEN $2='completed' THEN COALESCE(completed_at,now()) ELSE NULL END,
+         updated_by=$6,updated_at=now(),version=version+1 WHERE id=$7`,
+        [title, status, sortOrder, dueOn, notes, user.id, stageId],
+      );
+      await this.audit(client, caseId, 'stage', stageId, 'updated', { title, status, sortOrder, dueOn }, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async createDocument(user: AuthUser, caseId: string, input: unknown) {
+    assertUuid(caseId, 'ÇED kaydı');
+    const value = objectInput(input);
+    assertKeys(value, ['stageId', 'meetingId', 'documentType', 'title', 'sourceType', 'sourceReference', 'versionLabel', 'documentDate', 'notes']);
+    const documentType = enumValue(value.documentType, DOCUMENT_TYPES, 'Belge türü');
+    const title = boundedText(value.title, 2, 200, 'Belge adı');
+    const sourceType = enumValue(value.sourceType, SOURCE_TYPES, 'Belge kaynağı');
+    const sourceReference = boundedText(value.sourceReference, 1, 1200, 'Belge konumu / referansı');
+    const versionLabel = boundedText(value.versionLabel ?? '', 0, 80, 'Sürüm');
+    const documentDate = optionalDate(value.documentDate, 'Belge tarihi');
+    const notes = boundedText(value.notes ?? '', 0, 3000, 'Açıklama');
+    const stageId = optionalUuid(value.stageId, 'Aşama');
+    const meetingId = optionalUuid(value.meetingId, 'Toplantı');
+    if (stageId && meetingId) throw invalid('Belge bir aşamaya veya toplantıya bağlanabilir; ikisine birden bağlanamaz.');
+    if (sourceType === 'external_url' && !/^https?:\/\//i.test(sourceReference)) throw invalid('Dış bağlantı http:// veya https:// ile başlamalıdır.');
+    if (sourceType === 'network_path' && !/^(\\\\|[A-Za-z]:\\)/.test(sourceReference)) throw invalid('Ağ yolu \\\\sunucu\\paylaşım veya C:\\klasör biçiminde olmalıdır.');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.loadAccessibleCase(client, caseId, user.id, true);
