@@ -49,15 +49,25 @@ export class EcedMonitorService {
     const deviceName = clean(value.deviceName, 80);
     if (deviceName.length < 2) invalid('Cihaz adı en az 2 karakter olmalıdır.');
     const token = randomBytes(32).toString('base64url');
-    const result = await this.db.query(
-      'INSERT INTO eced_browser_devices(user_id,device_name,token_hash) VALUES($1,$2,$3) RETURNING id,device_name AS "deviceName",created_at AS "createdAt"',
-      [user.id, deviceName, hashToken(token)],
-    );
-    await this.db.query(
-      "INSERT INTO eced_audit_events(actor_user_id,device_id,event_type,details) VALUES($1,$2,'pairing_created',jsonb_build_object('deviceName',$3::text))",
-      [user.id, result.rows[0].id, deviceName],
-    );
-    return { device: result.rows[0], pairingToken: token, apiPath: '/api' };
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        'INSERT INTO eced_browser_devices(user_id,device_name,token_hash) VALUES($1,$2,$3) RETURNING id,device_name AS "deviceName",created_at AS "createdAt"',
+        [user.id, deviceName, hashToken(token)],
+      );
+      await client.query(
+        "INSERT INTO eced_audit_events(actor_user_id,device_id,event_type,details) VALUES($1,$2,'pairing_created',jsonb_build_object('deviceName',$3::text))",
+        [user.id, result.rows[0].id, deviceName],
+      );
+      await client.query('COMMIT');
+      return { device: result.rows[0], pairingToken: token, apiPath: '/api' };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async revokePairing(user: AuthUser, deviceId: string) {
@@ -174,6 +184,20 @@ export class EcedMonitorService {
       const device = await client.query('SELECT id FROM eced_browser_devices WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL FOR UPDATE',[deviceId,user.id]);
       if (!device.rowCount) throw new ForbiddenException({ code: 'ECED_DEVICE_ACCESS', message: 'Bu tarayıcı eşleştirmesini kullanma yetkiniz yok.' });
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [normalizedAccount]);
+      const observed = await client.query(
+        'SELECT account_name FROM eced_seen_accounts WHERE normalized_account=$1',
+        [normalizedAccount],
+      );
+      if (!observed.rowCount) {
+        throw new BadRequestException({ code: 'ECED_ACCOUNT_NOT_OBSERVED', message: 'Bu hesap henüz izin verilmiş bir tarayıcı sekmesinde gözlenmedi.' });
+      }
+      const activeElsewhere = await client.query(
+        "SELECT d.device_name FROM eced_browser_reports r JOIN eced_browser_devices d ON d.id=r.device_id WHERE r.normalized_account=$1 AND d.id<>$2 AND d.revoked_at IS NULL AND r.session_state='active' AND r.last_seen>now()-interval '60 seconds' LIMIT 1",
+        [normalizedAccount,deviceId],
+      );
+      if (activeElsewhere.rowCount) {
+        throw new ConflictException({ code: 'ECED_ACCOUNT_OBSERVED_ELSEWHERE', message: 'Bu hesap başka bir bilgisayarda etkin olarak gözleniyor: ' + activeElsewhere.rows[0].device_name });
+      }
       const current = await client.query('SELECT user_id,device_id,expires_at FROM eced_account_claims WHERE normalized_account=$1 FOR UPDATE',[normalizedAccount]);
       if (current.rowCount) {
         const row = current.rows[0];
