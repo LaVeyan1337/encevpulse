@@ -1,5 +1,7 @@
 (() => {
   'use strict';
+  if (window.__encevPulseAccountObserver) return;
+  window.__encevPulseAccountObserver = true;
 
   // Read only a small allowlist of visible profile labels on the official e-CED host.
   // Never inspect forms, inputs, password fields, cookies, storage, or page-wide text.
@@ -57,10 +59,10 @@
     return candidates.size === 1 ? [...candidates][0] : '';
   }
 
-  function reportAccount() {
+  function reportAccount(force = false) {
     scanScheduled = false;
     const accountName = findVisibleAccountName();
-    if (!accountName || accountName === lastValue || Date.now() - lastSentAt < 2500) return;
+    if (!accountName || (!force && accountName === lastValue) || (!force && Date.now() - lastSentAt < 2500)) return;
     lastValue = accountName;
     lastSentAt = Date.now();
     try {
@@ -79,7 +81,7 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'scan-visible-account') {
-      reportAccount();
+      reportAccount(true);
       sendResponse({ ok: true });
     }
     return false;
