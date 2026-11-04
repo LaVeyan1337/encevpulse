@@ -10,8 +10,7 @@
     "scripting"
   ],
   "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "https://eced.csb.gov.tr/*"
   ],
   "background": {
     "service_worker": "service-worker.js"
