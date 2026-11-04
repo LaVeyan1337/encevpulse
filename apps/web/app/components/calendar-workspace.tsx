@@ -29,7 +29,7 @@ interface CalendarEvent {
 
 interface Milestone {
   id: string;
-  kind: 'task_start' | 'task_due' | 'project_start' | 'project_target';
+  kind: 'task_start' | 'task_due' | 'project_start' | 'project_target' | 'project_ced_stage_due' | 'project_institution_opinion_due' | 'project_idk_meeting';
   entityId: string;
   title: string;
   date: string;
@@ -207,6 +207,9 @@ function milestoneLabel(item: Milestone): string {
     task_due: 'Görev teslimi',
     project_start: 'Proje başlangıcı',
     project_target: 'Proje hedefi',
+    project_ced_stage_due: 'ÇED süreç aşaması',
+    project_institution_opinion_due: 'Kurum görüşü son tarihi',
+    project_idk_meeting: 'İDK / toplantı',
   })[item.kind];
 }
 
@@ -466,7 +469,7 @@ export function CalendarWorkspace({
         onClick={(clickEvent) => { clickEvent.stopPropagation(); openEntry(entry); }}
         title={milestoneLabel(item) + ': ' + item.title}
       >
-        <span className="calendar-entry-time">{item.kind.startsWith('task_') ? 'Görev' : 'Proje'}</span>
+        <span className="calendar-entry-time">{item.kind.startsWith('task_') ? 'Görev' : item.kind === 'project_idk_meeting' ? 'İDK' : item.kind === 'project_institution_opinion_due' ? 'Kurum' : item.kind === 'project_ced_stage_due' ? 'ÇED' : 'Proje'}</span>
         <span className="calendar-entry-title">{item.title}</span>
       </button>
     );
