@@ -46,6 +46,12 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(migration, /CREATE TABLE eced_browser_reports/);
   assert.match(migration, /CREATE TABLE eced_account_claims/);
   assert.match(manifest, /optional_host_permissions/);
+  assert.match(manifest, /"https:\\/\\/eced\\.csb\\.gov\\.tr\\/\\*"/);
+  assert.doesNotMatch(manifest, /http:\\/\\/\\*\\/\\*|https:\\/\\/\\*\\/\\*/);
+  assert.match(popup, /const PORTAL_ORIGIN = 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
+  assert.match(popup, /parsed\\.origin !== PORTAL_ORIGIN/);
+  assert.match(worker, /parsed\\.origin !== 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
+  assert.match(contentScript, /location\\.origin !== 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
   assert.match(worker, /X-Pulse-Token/);
   assert.match(worker, /origin \+ '::' \+ String\(tab\.id\)/);
   assert.match(worker, /clearTabLabels/);
