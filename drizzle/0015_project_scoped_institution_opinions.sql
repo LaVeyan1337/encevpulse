@@ -49,7 +49,7 @@ CREATE INDEX ced_audit_project_time_idx
 -- In-progress/completed records are preserved; the migration never erases recorded work.
 WITH adjusted AS (
   UPDATE ced_case_stages s
-  SET status='not_applicable',completed_at=NULL,updated_at=now(),version=version+1
+  SET status='not_applicable',completed_at=NULL,updated_at=now(),version=s.version+1
   FROM ced_cases c
   WHERE s.case_id=c.id
     AND c.route_code='ek2_ptd'
