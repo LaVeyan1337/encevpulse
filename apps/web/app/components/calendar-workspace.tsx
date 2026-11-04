@@ -297,7 +297,7 @@ export function CalendarWorkspace({
     return Array.from({ length: count }, (_, index) => addDays(range.from, index));
   }, [view, range.from]);
 
-  const scopedEvents=useMemo(()=>events.filter(event=>scope==='all'||(scope==='personal'?event.visibility==='personal':event.visibility==='shared')),[events,scope]);
+  const scopedEvents=useMemo(()=>events.filter(event=>scope==='all'||(scope==='personal'?event.visibility==='personal':event.visibility!=='personal')),[events,scope]);
   const scopedMilestones=useMemo(()=>scope==='personal'?[]:milestones,[milestones,scope]);
 
   const allEntries = useMemo(() => {
