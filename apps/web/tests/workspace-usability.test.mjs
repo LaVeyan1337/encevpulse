@@ -17,6 +17,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     calendar: '../app/components/calendar-workspace.tsx',
     calendarStyles: '../app/calendar.css',
     calendarApiService: '../../api/src/calendar/calendar.service.ts',
+    calendarMigration: '../../../drizzle/0016_calendar_ced_event_types.sql',
     calendarController: '../../api/src/calendar/calendar.controller.ts',
     cedService: '../../api/src/ced/ced.service.ts',
     chat: '../app/components/chat-workspace.tsx',
@@ -77,6 +78,10 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.calendar,/scope==='corporate'\?event\.visibility!=='personal'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
   assert.match(source.calendarApiService,/includeCompanyMilestones: boolean/);
+  for(const eventType of ['presentation','site_visit','hkt','idk']) {
+    assert.match(source.calendarApiService,new RegExp("'"+eventType+"'"));
+    assert.match(source.calendarMigration,new RegExp("'"+eventType+"'"));
+  }
   assert.match(source.calendarApiService,/includeCompanyMilestones\),/);
   assert.match(source.calendarController,/includeOpinions, true/);
   assert.match(source.cedService,/companyWide = false/);
