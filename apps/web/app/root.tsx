@@ -9,6 +9,8 @@ import './people-chat.css';
 import './calendar.css';
 import './ced.css';
 import './institution-opinions.css';
+import './eced.css';
+import './petitions.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
