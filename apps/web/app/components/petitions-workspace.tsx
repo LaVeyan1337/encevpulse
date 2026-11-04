@@ -35,9 +35,9 @@ async function readTemplate():Promise<TemplateRecord|null>{
     });
   }finally{db.close();}
 }
-async function sha256Hex(bytes:ArrayBuffer):Promise<string>{
+async function sha256Hex(bytes:ArrayBuffer):Promise<string|null>{
   const subtle=globalThis.crypto?.subtle;
-  if(!subtle)throw new Error('Bu tarayıcı güvenli SHA-256 doğrulamasını desteklemiyor. Uygulamayı HTTPS üzerinden açın.');
+  if(!subtle)return null;
   const digest=await subtle.digest('SHA-256',bytes);
   return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('');
 }
@@ -45,8 +45,8 @@ async function readVerifiedTemplate():Promise<TemplateRecord|null>{
   const record=await readTemplate();
   if(!record)return null;
   const actualHash=await sha256Hex(record.bytes);
-  if(record.sha256&&record.sha256!==actualHash)throw new Error('Yerel Word şablonunun SHA-256 değeri değişmiş. Güvenlik için taslak oluşturma durduruldu; doğrulanmış şablonu yeniden aktarın.');
-  if(!record.sha256){record.sha256=actualHash;await saveTemplate(record);}
+  if(record.sha256&&actualHash&&record.sha256!==actualHash)throw new Error('Yerel Word şablonunun SHA-256 değeri değişmiş. Güvenlik için taslak oluşturma durduruldu; doğrulanmış şablonu yeniden aktarın.');
+  if(!record.sha256&&actualHash){record.sha256=actualHash;await saveTemplate(record);}
   return record;
 }
 function downloadDocx(bytes:ArrayBuffer,fileName:string):void{
@@ -148,7 +148,7 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
       if(file.size<4||file.size>MAX_TEMPLATE_BYTES)throw new Error('Word şablonu boş olamaz ve 20 MB sınırını aşamaz.');
       const bytes=await file.arrayBuffer();
       if(!isDocxPackage(bytes))throw new Error('Dosya geçerli bir DOCX ZIP paketi veya Word ana belge içeriği içermiyor. Word belgesini yeniden seçin.');
-      const record:TemplateRecord={id:TEMPLATE_KEY,name:file.name,size:file.size,updatedAt:new Date().toISOString(),bytes,sha256:await sha256Hex(bytes)};
+      const record:TemplateRecord={id:TEMPLATE_KEY,name:file.name,size:file.size,updatedAt:new Date().toISOString(),bytes,sha256:(await sha256Hex(bytes))??undefined};
       await saveTemplate(record);
       setTemplate({name:record.name,size:record.size,updatedAt:record.updatedAt,sha256:record.sha256??''});
       setNotice('Word şablonu bu tarayıcı profiline kaydedildi. Dosya sunucuya yüklenmedi.');
@@ -171,7 +171,7 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
       if(!record)throw new Error('Yedeklenecek yerel Word şablonu bulunamadı.');
       const base=fileNameSafe(record.name.replace(/\.docx$/i,''));
       downloadDocx(record.bytes,`Sablon_Yedegi_${base}.docx`);
-      setNotice(`Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. SHA-256: ${record.sha256}`);
+      setNotice(record.sha256?`Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. SHA-256: ${record.sha256}`:'Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. Bu tarayıcı güvenli bağlam sağlamadığı için SHA-256 kontrolü kullanılamadı.');
     }catch(cause){setError(cause instanceof Error?cause.message:'Word şablonu doğrulanamadı veya yedeklenemedi.');}
     finally{setBusy(false);}
   }
