@@ -16,8 +16,8 @@
 .eced-monitor-metrics article>span{color:var(--text-secondary);font-size:12px;font-weight:700}
 .eced-monitor-metrics strong{color:var(--text);font-size:27px;font-weight:850;line-height:1;font-variant-numeric:tabular-nums}
 .eced-monitor-metrics small{color:var(--text-muted);font-size:11px;line-height:1.4}
-.eced-monitor-metrics .metric-active strong{color:#65d0a8}
-.eced-monitor-metrics .metric-offline strong{color:#f18d9c}
+.eced-monitor-metrics .metric-active strong{color:#f18d9c}
+.eced-monitor-metrics .metric-offline strong{color:#65d0a8}
 .eced-monitor-metrics .metric-unknown strong{color:#e6bc77}
 .eced-monitor-metrics .metric-conflict strong{color:#ff929c}
 .eced-pairing-panel,.eced-reports-panel,.eced-seen-panel{display:grid;gap:15px;min-width:0;padding:18px;background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;box-shadow:var(--shadow-sm);backdrop-filter:blur(22px) saturate(135%)}
@@ -64,8 +64,8 @@
 .eced-report-table td small{display:block;max-width:230px;margin-top:4px;color:var(--text-muted);font-size:10px;line-height:1.45;overflow-wrap:anywhere}
 .eced-report-state{display:inline-flex;align-items:center;gap:6px;max-width:190px;padding:5px 8px;border:1px solid currentColor;border-radius:7px;font-size:10px;font-weight:800;line-height:1.4}
 .eced-report-state:before{width:6px;height:6px;flex:0 0 6px;content:"";background:currentColor;border-radius:50%}
-.tone-active{color:#67d3a8;background:rgba(65,190,139,.09);border-color:rgba(91,213,170,.28)}
-.tone-logged-out{color:#f08b9a;background:rgba(240,107,130,.09);border-color:rgba(240,107,130,.26)}
+.tone-active{color:#ff8998;background:rgba(240,83,104,.09);border-color:rgba(240,83,104,.28)}
+.tone-logged-out{color:#59d2a1;background:rgba(61,189,139,.09);border-color:rgba(61,189,139,.28)}
 .tone-unknown{color:#e4bd78;background:rgba(227,187,113,.09);border-color:rgba(227,187,113,.24)}
 .tone-stale{color:var(--text-muted);background:var(--surface-raised);border-color:var(--border-strong)}
 .eced-conflict-flag{display:block;margin-top:5px;color:#ff9aa5;font-size:10px;font-weight:750}
