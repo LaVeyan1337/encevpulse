@@ -19,6 +19,13 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(workspace, /hasModulePermission\('eced'\)/);
   assert.match(workspace, /<EcedAccountOverview/);
   assert.match(component, /export function EcedAccountOverview/);
+  assert.match(component, /data\.claims\.some/);
+  assert.match(component, /reserved\|\|active/);
+  assert.match(component, /explicitlyLoggedOut/);
+  assert.match(component, /relevant\.length>0/);
+  assert.match(component, /Bağlantı doğrulanamadı/);
+  assert.match(component, /Girişe hazır · aktif sinyal yok/);
+
   assert.match(component, /eced-pairing-panel/);
   assert.ok(component.indexOf('eced-pairing-panel') > component.indexOf('eced-seen-panel'), 'browser pairing must be at the bottom of the e-ÇED page');
   assert.match(styles, /\.eced-overview-panel/);
