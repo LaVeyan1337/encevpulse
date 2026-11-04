@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface DrawerProps {
   isOpen: boolean;
@@ -32,15 +33,18 @@ export function Drawer({
   children,
   ariaLabelledBy = 'drawer-title',
 }: DrawerProps) {
+  const [portalTarget,setPortalTarget]=useState<HTMLElement|null>(null);
   const panelRef = useRef<HTMLElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
+
+  useEffect(()=>{setPortalTarget(document.body);},[]);
 
   // Keep the latest callback without restarting the scroll/focus lifecycle on every parent render.
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !portalTarget) return;
 
     const panel = panelRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -117,11 +121,11 @@ export function Drawer({
         });
       }
     };
-  }, [isOpen]);
+  }, [isOpen,portalTarget]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalTarget) return null;
 
-  return (
+  return createPortal((
     <div
       className="drawer-backdrop"
       role="presentation"
@@ -178,5 +182,5 @@ export function Drawer({
         {footer && <div className="drawer-footer">{footer}</div>}
       </aside>
     </div>
-  );
+  ),portalTarget);
 }
