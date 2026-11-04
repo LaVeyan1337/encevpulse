@@ -35,7 +35,7 @@ export class CalendarService {
 
   async list(
     user: AuthUser, query: Record<string, string | undefined>, includeTasks: boolean, includeProjects: boolean,
-    includeCed: boolean, includeOpinions: boolean,
+    includeCed: boolean, includeOpinions: boolean, includeCompanyMilestones: boolean,
   ) {
     const from = validDate(query.from, 'Başlangıç tarihi');
     const to = validDate(query.to, 'Bitiş tarihi');
@@ -88,7 +88,7 @@ export class CalendarService {
     const [taskMilestones, projectMilestones, cedMilestones] = await Promise.all([
       includeTasks ? this.taskMilestones(user, from, to) : Promise.resolve([]),
       includeProjects ? this.projectMilestones(user, from, to) : Promise.resolve([]),
-      this.ced.calendarMilestones(user, from, to, includeCed, includeOpinions),
+      this.ced.calendarMilestones(user, from, to, includeCed, includeOpinions, includeCompanyMilestones),
     ]);
     return {
       range: { from, to, timeZone: 'Europe/Istanbul' },
