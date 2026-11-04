@@ -174,13 +174,16 @@ export class CedService {
       const decision = Object.hasOwn(value, 'decision') ? enumValue(value.decision, DECISIONS, 'ÇED kararı') : current.decision;
       const routeCode = String(current.route_code);
       const decisionWasSubmitted = Object.hasOwn(value, 'decision');
-      if (decisionWasSubmitted && routeCode === 'ek2_ptd' && !['pending','ced_positive','ced_report_required','withdrawn'].includes(decision)) {
-        throw invalid('Ek-2 / PTD sürecinde yalnızca ÇED Olumlu, ÇED Raporu Hazırlanmalıdır veya süreç sonlandırıldı sonucu seçilebilir.');
+      const finalEk2Decision = routeCode === 'ek2_ptd' && current.decision === 'ced_report_required'
+        && ['ced_positive','ced_negative'].includes(decision);
+      if (decisionWasSubmitted && routeCode === 'ek2_ptd'
+        && !['pending','ced_positive','ced_report_required','withdrawn'].includes(decision) && !finalEk2Decision) {
+        throw invalid('Ek-2 / PTD sürecinde ÇED Olumlu veya ÇED Raporu Hazırlanmalıdır sonucu seçilebilir. Tam ÇED süreci açıldıktan sonra ÇED Olumsuz kararı da kaydedilebilir.');
       }
       if (decisionWasSubmitted && routeCode === 'ek1_cbd' && !['pending','ced_positive','ced_negative','withdrawn'].includes(decision)) {
         throw invalid('Ek-1 / ÇBD sürecinde seçilen karar bu başvuru yoluyla uyumlu değil.');
       }
-      if (routeCode === 'ek2_ptd' && decisionWasSubmitted && decision !== current.decision) {
+      if (routeCode === 'ek2_ptd' && decisionWasSubmitted && decision !== current.decision && !finalEk2Decision) {
         const progressed = await client.query<{ count: string }>(
           `SELECT count(*)::text AS count FROM ced_case_stages
            WHERE case_id=$1 AND sort_order>45
@@ -227,13 +230,33 @@ export class CedService {
           );
         }
       }
+      if (finalEk2Decision) {
+        const incomplete = await client.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM ced_case_stages
+           WHERE case_id=$1 AND sort_order>45 AND stage_key<>'decision'
+             AND status NOT IN ('completed','not_applicable')`,
+          [caseId],
+        );
+        if (Number(incomplete.rows[0]?.count ?? 0) > 0) {
+          throw invalid('Tam ÇED kararı kaydedilmeden önce etkin süreç aşamaları tamamlanmalı veya uygulanamaz olarak işaretlenmelidir.');
+        }
+        await client.query(
+          `UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),
+           updated_by=$1,updated_at=now(),version=version+1
+           WHERE case_id=$2 AND stage_key='decision' AND status<>'completed'`,
+          [user.id,caseId],
+        );
+      }
       const fileNumber = Object.hasOwn(value, 'fileNumber') ? boundedText(value.fileNumber, 0, 120, 'Dosya numarası') : current.file_number;
       const ecedReference = Object.hasOwn(value, 'ecedReference') ? boundedText(value.ecedReference, 0, 160, 'e-ÇED referansı') : current.eced_reference;
       const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
       const hasClosedOnInput = Object.hasOwn(value, 'closedOn');
       const closedOnIsBlank = !hasClosedOnInput || value.closedOn === null || value.closedOn === '';
       const clearPtdClosure = routeCode === 'ek2_ptd' && ['pending','ced_report_required'].includes(decision) && closedOnIsBlank;
-      const closePtdTerminal = routeCode === 'ek2_ptd' && ['ced_positive','withdrawn'].includes(decision) && closedOnIsBlank;
+      const closePtdTerminal = (
+        (routeCode === 'ek2_ptd' && ['ced_positive','ced_negative','withdrawn'].includes(decision)) ||
+        (routeCode === 'ek1_cbd' && ['ced_positive','ced_negative','withdrawn'].includes(decision))
+      ) && closedOnIsBlank;
       const submittedClosedOn = hasClosedOnInput && !closedOnIsBlank ? optionalDate(value.closedOn, 'Kapanış tarihi') : null;
       const closedOn = submittedClosedOn ?? (clearPtdClosure ? null : current.closed_on);
       const notes = Object.hasOwn(value, 'notes') ? boundedText(value.notes, 0, 6000, 'Açıklama') : current.notes;

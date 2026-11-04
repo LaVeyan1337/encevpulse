@@ -30,6 +30,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
   const projectIds: string[] = [];
   let caseId = '';
   let ptdCaseId = '';
+  let finalPtdCaseId = '';
   let app: Awaited<ReturnType<typeof NestFactory.create>> | null = null;
 
   async function api(base: string, client: Client, path: string, method = 'GET', body?: unknown) {
@@ -255,6 +256,43 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(afterPositive.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='initial_review').status,'not_applicable');
     assert.equal(afterPositive.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='ptd_assessment').status,'completed');
 
+    // A second Ek-2 case proves that "ÇED Raporu Hazırlanmalıdır" opens the
+    // full process and the later final ÇED decision does not re-close PTD stages.
+    const fullCedProject = await api(base, projectManager, 'projects', 'POST', {
+      name: 'CED full PTD process test ' + suffix, status: 'active', memberIds: [userIds[1]],
+    });
+    assert.equal(fullCedProject.response.status,201,JSON.stringify(fullCedProject.data));
+    const fullCedProjectId = fullCedProject.data.project.id as string;
+    projectIds.push(fullCedProjectId);
+    const fullPtdCase = await api(base, processOwner, 'ced/projects/' + fullCedProjectId, 'POST', {
+      routeCode:'ek2_ptd',fileNumber:'PTD-FULL-'+suffix,
+    });
+    assert.equal(fullPtdCase.response.status,201,JSON.stringify(fullPtdCase.data));
+    finalPtdCaseId = fullPtdCase.data.caseId as string;
+    const fullPtdInitial = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
+    const activatedFullPtd = await api(base, processOwner, 'ced/cases/' + finalPtdCaseId, 'PATCH', {
+      version:fullPtdInitial.data.case.version,decision:'ced_report_required',
+    });
+    assert.equal(activatedFullPtd.response.status,200,JSON.stringify(activatedFullPtd.data));
+    const activeFullStages = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
+    for (const stage of (activeFullStages.data.stages as Array<{id:string;stageKey:string;sortOrder:number;status:string;version:number}>)
+      .filter(stage=>stage.sortOrder>45&&stage.stageKey!=='decision')) {
+      const completedStage = await api(base, processOwner, 'ced/stages/' + stage.id, 'PATCH', {
+        version:stage.version,status:'completed',
+      });
+      assert.equal(completedStage.response.status,200,JSON.stringify(completedStage.data));
+    }
+    const readyForDecision = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
+    const finalNegative = await api(base, processOwner, 'ced/cases/' + finalPtdCaseId, 'PATCH', {
+      version:readyForDecision.data.case.version,decision:'ced_negative',closedOn:null,
+    });
+    assert.equal(finalNegative.response.status,200,JSON.stringify(finalNegative.data));
+    const completedFullProcess = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
+    assert.equal(completedFullProcess.data.case.decision,'ced_negative');
+    assert.match(completedFullProcess.data.case.closedOn,/^\\d{4}-\\d{2}-\\d{2}$/);
+    assert.equal(completedFullProcess.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='last_final_report_upload').status,'completed');
+    assert.equal(completedFullProcess.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='decision').status,'completed');
+
     const outsiderOpinionList = await api(base, outsider, 'ced/opinions');
     assert.equal(outsiderOpinionList.response.status, 200);
     assert.equal(outsiderOpinionList.data.opinions.length, 0, 'Proje dışındaki kullanıcı görüşleri görmemeli.');
@@ -274,6 +312,12 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('DELETE FROM ced_idk_meetings WHERE case_id=$1', [caseId]);
         await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [caseId]);
         await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [caseId]);
+      }
+      if(finalPtdCaseId){
+        await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [finalPtdCaseId]);
+        await cleanup.query('DELETE FROM ced_documents WHERE case_id=$1', [finalPtdCaseId]);
+        await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [finalPtdCaseId]);
+        await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [finalPtdCaseId]);
       }
       if(ptdCaseId){
         await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [ptdCaseId]);
