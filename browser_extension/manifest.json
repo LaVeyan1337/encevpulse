@@ -3,9 +3,33 @@
   "name": "ENCEV PULSE e-ÇED İzleyici",
   "description": "Kullanıcının izin verdiği e-ÇED sekmelerinden görünür hesap etiketi ve sınırlı sekme sinyali gönderir.",
   "version": "1.0.0",
-  "permissions": ["storage", "tabs", "alarms"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "background": {"service_worker": "service-worker.js"},
-  "action": {"default_title": "ENCEV PULSE e-ÇED", "default_popup": "popup.html"},
-  "options_page": "options.html"
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "ENCEV PULSE e-ÇED",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://eced.csb.gov.tr/*",
+        "http://eced.csb.gov.tr/*"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }
