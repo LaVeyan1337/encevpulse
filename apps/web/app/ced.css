@@ -92,3 +92,22 @@
 :root[data-theme='light'] .ced-modal input,:root[data-theme='light'] .ced-modal select,:root[data-theme='light'] .ced-modal textarea{color:#28335d;background:rgba(255,255,255,.9);border-color:rgba(74,88,155,.28)}
 :root[data-theme='light'] .ced-empty,:root[data-theme='light'] .ced-empty-inline{background:rgba(255,255,255,.68)}
 @media(max-width:740px){.ced-hero{padding:19px}.ced-hero h3{font-size:20px}.ced-hero-bottom{gap:14px;flex-wrap:wrap}.ced-hero-bottom>div{min-width:calc(50% - 10px)}.ced-ghost{margin:0}.ced-progress-ring{width:74px;height:74px;flex-basis:74px}.ced-progress-ring strong{font-size:19px}.ced-section-heading{align-items:flex-start;flex-direction:column}.ced-stage-head{gap:9px}.ced-stage-head time{font-size:11px}.ced-record-list article{gap:12px}.ced-form-grid{grid-template-columns:1fr}.ced-modal{padding:17px}}
+
+
+.ced-application-date-note{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px 12px;
+  margin:0;
+  padding:12px 18px 15px;
+  border-top:1px solid var(--ced-border,rgba(155,170,210,.22));
+  color:var(--ced-muted,#aeb9d2);
+  font-size:13px;
+  line-height:1.5;
+}
+.ced-application-date-note strong{color:var(--ced-text,#f2f5ff);font-weight:650}
+.ced-application-date-note span{flex-basis:100%;color:var(--ced-muted,#aeb9d2)}
+@media(max-width:640px){
+  .ced-application-date-note{padding:11px 14px;font-size:12px}
+}
