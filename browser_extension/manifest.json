@@ -3,7 +3,7 @@
   "name": "ENCEV PULSE e-ÇED İzleyici",
   "description": "Kullanıcının izin verdiği e-ÇED sekmelerinden görünür hesap etiketi ve sınırlı sekme sinyali gönderir.",
   "version": "1.0.0",
-  "permissions": ["storage", "tabs", "alarms", "scripting"],
+  "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {"service_worker": "service-worker.js"},
   "action": {"default_title": "ENCEV PULSE e-ÇED", "default_popup": "popup.html"},
