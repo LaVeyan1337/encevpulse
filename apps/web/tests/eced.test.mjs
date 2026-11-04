@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 test('e-ÇED screen and API use explicit browser pairing and distinguish stale from logged-out signals', async () => {
-  const [component, workspace, controller, service, migration, manifest, worker, popup] = await Promise.all([
+  const [component, workspace, controller, service, migration, manifest, worker, popup, contentScript, styles] = await Promise.all([
     readFile(new URL('../app/components/eced-workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../api/src/eced/eced.controller.ts', import.meta.url), 'utf8'),
@@ -12,9 +12,18 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
     readFile(new URL('../../../browser_extension/manifest.json', import.meta.url), 'utf8'),
     readFile(new URL('../../../browser_extension/service-worker.js', import.meta.url), 'utf8'),
     readFile(new URL('../../../browser_extension/popup.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../../browser_extension/content-script.js', import.meta.url), 'utf8'),
+    readFile(new URL('../app/eced.css', import.meta.url), 'utf8'),
   ]);
   assert.match(workspace, /<EcedWorkspace/);
   assert.match(workspace, /hasModulePermission\('eced'\)/);
+  assert.match(workspace, /<EcedAccountOverview/);
+  assert.match(component, /export function EcedAccountOverview/);
+  assert.match(component, /eced-pairing-panel/);
+  assert.ok(component.indexOf('eced-pairing-panel') > component.indexOf('eced-seen-panel'), 'browser pairing must be at the bottom of the e-ÇED page');
+  assert.match(styles, /\.eced-overview-panel/);
+  assert.match(styles, /\.eced-overview-account\.tone-busy/);
+  assert.match(styles, /\.eced-overview-account\.tone-ready/);
   assert.match(component, /request\('eced\/monitor'\)/);
   assert.match(component, /Sinyal eski/);
   assert.match(component, /Oturum kapalı olarak işaretlendi/);
@@ -39,6 +48,7 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(component, /20_000/);
   assert.match(worker, /accountSource: accountName \? 'manual' : 'unknown'/);
   assert.match(worker, /credentials: 'omit'/);
+  assert.match(worker, /accountSource,/);
   assert.doesNotMatch(worker, /document\.cookie|localStorage|sessionStorage|innerHTML|outerHTML/);
   assert.doesNotMatch(popup, /document\.cookie|localStorage|sessionStorage|innerHTML|outerHTML/);
 });
