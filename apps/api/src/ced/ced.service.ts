@@ -466,8 +466,8 @@ export class CedService {
     return { ok: true, caseId };
   }
 
-  async calendarMilestones(user: AuthUser, from: string, to: string, includeCed: boolean, includeOpinions: boolean) {
-    if (!includeCed && !includeOpinions) return [];
+  async calendarMilestones(user: AuthUser, from: string, to: string, includeCed: boolean, includeOpinions: boolean, companyWide = false) {
+    if (!includeCed && !includeOpinions && !companyWide) return [];
     const rows: any[] = [];
     if (includeCed) {
       const [stages, meetings] = await Promise.all([
@@ -479,8 +479,8 @@ export class CedService {
            WHERE s.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND s.due_on >= $1::date AND s.due_on < $2::date
              AND s.status NOT IN ('completed','not_applicable')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
-          [from, to, user.id],
+             AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+          [from, to, user.id, companyWide],
         ),
         this.db.query(
           `SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
@@ -490,7 +490,7 @@ export class CedService {
            WHERE m.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND m.starts_at >= ($1::date::timestamp AT TIME ZONE 'Europe/Istanbul')
              AND m.starts_at < ($2::date::timestamp AT TIME ZONE 'Europe/Istanbul') AND m.status IN ('planned','postponed')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+             AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
           [from, to, user.id],
         ),
       ]);
@@ -505,7 +505,7 @@ export class CedService {
          WHERE o.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
            AND o.deadline_date >= $1::date AND o.deadline_date < $2::date
            AND o.status NOT IN ('responded','closed')
-           AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+           AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
         [from, to, user.id],
       );
       rows.push(...opinions.rows);
