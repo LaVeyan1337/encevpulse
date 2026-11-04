@@ -303,12 +303,24 @@ test('ÇED API: route-specific milestones, document completion and project acces
     });
     assert.equal(activatedFullPtd.response.status,200,JSON.stringify(activatedFullPtd.data));
     const activeFullStages = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
-    for (const stage of (activeFullStages.data.stages as Array<{id:string;stageKey:string;sortOrder:number;status:string;version:number}>)
+    for (const stage of (activeFullStages.data.stages as Array<{id:string;stageKey:string;sortOrder:number;status:string;version:number;requiredDocumentType:string|null}>)
       .filter(stage=>stage.sortOrder>45&&stage.stageKey!=='decision')) {
-      const completedStage = await api(base, processOwner, 'ced/stages/' + stage.id, 'PATCH', {
-        version:stage.version,status:'completed',
-      });
-      assert.equal(completedStage.response.status,200,JSON.stringify(completedStage.data));
+      if (stage.requiredDocumentType) {
+        const milestoneDocument = await api(base, processOwner, 'ced/cases/' + finalPtdCaseId + '/documents', 'POST', {
+          stageId:stage.id,
+          documentType:stage.requiredDocumentType,
+          title:'Sentetik test belgesi · ' + stage.stageKey,
+          sourceType:'eced_reference',
+          sourceReference:'CI-TEST-' + suffix + '-' + stage.stageKey,
+          versionLabel:'TEST',
+        });
+        assert.equal(milestoneDocument.response.status,201,JSON.stringify(milestoneDocument.data));
+      } else {
+        const completedStage = await api(base, processOwner, 'ced/stages/' + stage.id, 'PATCH', {
+          version:stage.version,status:'completed',
+        });
+        assert.equal(completedStage.response.status,200,JSON.stringify(completedStage.data));
+      }
     }
     const readyForDecision = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
     const finalNegative = await api(base, processOwner, 'ced/cases/' + finalPtdCaseId, 'PATCH', {
