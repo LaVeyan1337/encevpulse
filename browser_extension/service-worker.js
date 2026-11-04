@@ -32,6 +32,23 @@ async function hasOriginPermission(origin) {
   try { return await chrome.permissions.contains({ origins: [origin + '/*'] }); }
   catch { return false; }
 }
+async function clearTabLabels(tabId, keepKey = '') {
+  const stored = await chrome.storage.local.get(['accountLabels','sessionStates','sectionLabels']);
+  const suffix = '::' + String(tabId);
+  const accountLabels = stored.accountLabels && typeof stored.accountLabels === 'object' ? {...stored.accountLabels} : {};
+  const sessionStates = stored.sessionStates && typeof stored.sessionStates === 'object' ? {...stored.sessionStates} : {};
+  const sectionLabels = stored.sectionLabels && typeof stored.sectionLabels === 'object' ? {...stored.sectionLabels} : {};
+  let changed = false;
+  for (const map of [accountLabels, sessionStates, sectionLabels]) {
+    for (const key of Object.keys(map)) {
+      if (key.endsWith(suffix) && key !== keepKey) {
+        delete map[key];
+        changed = true;
+      }
+    }
+  }
+  if (changed) await chrome.storage.local.set({accountLabels,sessionStates,sectionLabels});
+}
 async function sendTabReport(tab) {
   if (!tab || !Number.isInteger(tab.id) || !tab.url) return;
   const cfg = await getConfig();
@@ -89,8 +106,14 @@ chrome.tabs.onActivated.addListener(async info => {
   try { await sendTabReport(await chrome.tabs.get(info.tabId)); } catch {}
 });
 chrome.tabs.onUpdated.addListener((tabId,changeInfo,tab) => {
+  if (changeInfo.url) {
+    let keepKey = '';
+    try { keepKey = new URL(tab.url || '').origin + '::' + String(tabId); } catch {}
+    void clearTabLabels(tabId, keepKey);
+  }
   if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') void sendTabReport(tab);
 });
+chrome.tabs.onRemoved.addListener(tabId => { void clearTabLabels(tabId); });
 chrome.storage.onChanged.addListener((changes,area) => {
   if (area === 'local' && (changes.apiBase || changes.pairingToken || changes.allowedOrigins ||
       changes.accountLabels || changes.sessionStates || changes.sectionLabels)) void reportAllTabs();
