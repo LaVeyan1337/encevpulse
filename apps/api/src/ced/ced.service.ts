@@ -224,3 +224,48 @@ export class CedService {
     try {
       await client.query('BEGIN');
       await this.loadAccessibleCase(client, caseId, user.id, true);
+      if (stageId) {
+        const stage = await client.query<{ required_document_type: string | null; status: StageStatus }>(
+          'SELECT required_document_type,status FROM ced_case_stages WHERE id=$1 AND case_id=$2 AND archived_at IS NULL FOR UPDATE', [stageId, caseId],
+        );
+        if (!stage.rowCount) throw invalid('Seçilen aşama bu ÇED kaydına ait değil.');
+        if (stage.rows[0].status === 'not_applicable') throw invalid('Uygulanmıyor olarak işaretlenmiş bir aşamaya belge bağlanamaz.');
+        if (stage.rows[0].required_document_type && stage.rows[0].required_document_type !== documentType) {
+          throw invalid('Belge türü seçilen kilometre taşıyla eşleşmiyor.');
+        }
+      }
+      if (meetingId) {
+        const meeting = await client.query('SELECT 1 FROM ced_idk_meetings WHERE id=$1 AND case_id=$2 AND archived_at IS NULL', [meetingId, caseId]);
+        if (!meeting.rowCount) throw invalid('Seçilen toplantı bu ÇED kaydına ait değil.');
+      }
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO ced_documents(case_id,stage_id,meeting_id,document_type,title,source_type,source_reference,version_label,document_date,notes,created_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [caseId, stageId, meetingId, documentType, title, sourceType, sourceReference, versionLabel, documentDate, notes, user.id],
+      );
+      const documentId = inserted.rows[0].id;
+      if (stageId) {
+        await client.query(
+          `UPDATE ced_case_stages SET status='completed',completed_at=COALESCE(completed_at,now()),updated_by=$1,updated_at=now(),version=version+1
+           WHERE id=$2 AND required_document_type IS NOT NULL`, [user.id, stageId],
+        );
+      }
+      await this.audit(client, caseId, 'document', documentId, 'registered', { documentType, title, sourceType, sourceReference, versionLabel, stageId, meetingId }, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async createOpinion(user: AuthUser, caseId: string, input: unknown) {
+    assertUuid(caseId, 'ÇED kaydı');
+    const value = objectInput(input);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    const draft = validateOpinion(value);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.loadAccessibleCase(client, caseId, user.id, true);
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO ced_institution_opinions(case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
