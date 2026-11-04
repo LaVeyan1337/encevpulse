@@ -9,8 +9,8 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 3. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
 4. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile bu klasörü seçin.
 5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını kaydedin.
-6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin.
-7. Eklenti içerik algılayıcısı yüklenmemişse portal sekmesini bir kez yenileyin.
+6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. Bu işlemden sonra algılayıcı yalnızca açık sekmeye eklenir.
+7. Tarayıcı enjeksiyonu reddederse PULSE sayfayı otomatik yenilemez; sekmeyi kendiniz yenileyip eklentiyi tekrar açın.
 8. PULSE'un e-ÇED ekranında cihaz sinyalini kontrol edin.
 
 ## Hesap tanıma
