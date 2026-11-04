@@ -2256,6 +2256,14 @@ export function Workspace({
           </div>
 
           <div className="form-group">
+            <label htmlFor="project-type">Proje türü</label>
+            <select id="project-type" name="projectType" defaultValue="other">
+              <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+              <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+            </select>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="project-desc">Açıklama</label>
             <textarea
               id="project-desc"
