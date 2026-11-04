@@ -35,3 +35,28 @@ test('calendar workspace distinguishes CED stages, institution deadlines and IDK
   assert.match(calendar, /project_idk_meeting/);
   assert.match(api, /institution_opinions/);
 });
+
+
+test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kullanır', async () => {
+  const [component, workspace, controller, service, styles, brand] = await Promise.all([
+    readFile(new URL('../app/components/institution-opinions-workspace.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../api/src/ced/ced.controller.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../../api/src/ced/ced.service.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../app/institution-opinions.css', import.meta.url), 'utf8'),
+    readFile(new URL('../app/brand.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(controller, /@Get\('opinions'\)/);
+  assert.match(controller, /institution_opinions', 'view'/);
+  assert.match(service, /async listInstitutionOpinions/);
+  assert.match(service, /project_members pm/);
+  assert.match(service, /p\.status<>'archived'/);
+  assert.match(component, /request\('ced\/opinions'\)/);
+  assert.match(component, /mevzuattaki iş günü veya resmî tatil hesabı değildir/);
+  assert.match(workspace, /hasModulePermission\('institution_opinions'\)/);
+  assert.match(workspace, /initialCedTab/);
+  assert.match(styles, /\.opinions-table/);
+  assert.match(styles, /border-strong/);
+  assert.doesNotMatch(brand, /#c88f73|#a96f56|#b97e61/i);
+  assert.match(brand, /--accent:#91a3ff/);
+});

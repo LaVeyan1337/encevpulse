@@ -4,6 +4,9 @@ import { ChatWorkspace } from './chat-workspace';
 import { PeopleDirectory } from './people-directory';
 import { CalendarWorkspace } from './calendar-workspace';
 import { CedWorkspace } from './ced-workspace';
+import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
+import { EcedWorkspace } from './eced-workspace';
+import { PetitionsWorkspace } from './petitions-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
@@ -154,7 +157,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'people' | 'chat' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'institution_opinions' | 'eced' | 'petitions' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -268,6 +271,7 @@ export function Workspace({
   const [projectError, setProjectError] = useState('');
   const [projectEditing, setProjectEditing] = useState(false);
   const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'ced'>('overview');
+  const [cedInitialTab, setCedInitialTab] = useState<'stages' | 'opinions'>('stages');
   const [projectRestoreStatus, setProjectRestoreStatus] = useState<'' | 'planning' | 'active' | 'on_hold' | 'completed'>('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -304,7 +308,7 @@ export function Workspace({
 
   useEffect(()=>{
     if(hasModulePermission(section))return;
-    const next=(['overview','tasks','projects','calendar','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
+    const next=(['overview','tasks','projects','calendar','institution_opinions','eced','petitions','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
     if(next[0])setSection(next[0]);
   },[section,hasModulePermission]);
 
@@ -677,13 +681,14 @@ export function Workspace({
     }
   }
 
-  async function openProject(projectId: string) {
+  async function openProject(projectId: string, initialCedTab: 'stages' | 'opinions' = 'stages') {
     setProjectDetailOpen(true);
     setProjectLoading(true);
     setProjectEditing(false);
     setProjectError('');
     setProjectDetail(null);
     setProjectTab('overview');
+    setCedInitialTab(initialCedTab);
     setProjectRestoreStatus('');
     try {
       const result = await request(`projects/${projectId}`);
@@ -826,7 +831,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -927,6 +932,45 @@ export function Workspace({
           >
             <Icon name="folder" />
             <span>Projeler</span>
+          </button>
+          )}
+          {hasModulePermission('institution_opinions') && (
+          <button
+            type="button"
+            className={section === 'institution_opinions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('institution_opinions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Kurum Görüşleri</span>
+          </button>
+          )}
+          {hasModulePermission('eced') && (
+          <button
+            type="button"
+            className={section === 'eced' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('eced');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="calendar-days" />
+            <span>e-ÇED Takip</span>
+          </button>
+          )}
+          {hasModulePermission('petitions') && (
+          <button
+            type="button"
+            className={section === 'petitions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('petitions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Dilekçeler</span>
           </button>
           )}
           {hasModulePermission('users') && (
@@ -1663,6 +1707,33 @@ export function Workspace({
               canViewOpinions={hasModulePermission('institution_opinions')}
               onTaskOpen={(taskId) => void openChatTask(taskId)}
               onProjectOpen={(projectId) => void openProject(projectId)}
+            />
+          )}
+
+          {section === 'institution_opinions' && hasModulePermission('institution_opinions') && (
+            <InstitutionOpinionsWorkspace
+              request={request}
+              canOpenProject={hasModulePermission('projects') && hasModulePermission('eced')}
+              onOpenProject={(projectId) => {
+                void openProject(projectId, 'opinions').then(() => setProjectTab('ced'));
+              }}
+            />
+          )}
+
+          {section === 'eced' && hasModulePermission('eced') && (
+            <EcedWorkspace
+              request={request}
+              currentUserId={user.id}
+              canCreate={hasModulePermission('eced','create')}
+              canUpdate={hasModulePermission('eced','update')}
+              canDelete={hasModulePermission('eced','delete')}
+            />
+          )}
+
+          {section === 'petitions' && hasModulePermission('petitions') && (
+            <PetitionsWorkspace
+              projects={projects.map(({id,name,status})=>({id,name,status}))}
+              canCreate={hasModulePermission('petitions','create')}
             />
           )}
 
@@ -2443,6 +2514,7 @@ export function Workspace({
                 <div className="project-tab-panel" role="tabpanel">
                   <CedWorkspace
                     projectId={projectDetail.project.id}
+                    initialTab={cedInitialTab}
                     request={request}
                     canCreate={hasModulePermission('eced','create')}
                     canUpdate={hasModulePermission('eced','update')}

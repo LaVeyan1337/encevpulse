@@ -8,6 +8,7 @@ import { TasksModule } from './tasks/tasks.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { CalendarModule } from './calendar/calendar.module.js';
 import { CedModule } from './ced/ced.module.js';
+import { EcedModule } from './eced/eced.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CedModule } from './ced/ced.module.js';
     TasksModule,
     CalendarModule,
     CedModule,
+    EcedModule,
     ChatModule,
   ],
 })

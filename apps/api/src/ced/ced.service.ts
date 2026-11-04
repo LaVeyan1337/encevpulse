@@ -59,6 +59,33 @@ export class CedService {
     return this.loadCase(found.rows[0].id, user.id, includeOpinions);
   }
 
+  async listInstitutionOpinions(user: AuthUser) {
+    const result = await this.db.query(
+      `SELECT o.id,o.case_id AS "caseId",c.project_id AS "projectId",
+        p.name AS \"projectName\",c.file_number AS \"fileNumber\",c.eced_reference AS \"ecedReference\",
+        owner.display_name AS \"projectOwnerName\",
+        o.institution_name AS \"institutionName\",o.subject,o.status,
+        o.request_date::text AS \"requestDate\",o.deadline_date::text AS \"deadlineDate\",
+        o.response_date::text AS \"responseDate\",o.outgoing_letter_no AS \"outgoingLetterNo\",
+        o.incoming_letter_no AS \"incomingLetterNo\",o.contact_person AS \"contactPerson\",
+        o.notes,o.version,o.updated_at AS \"updatedAt\"
+       FROM ced_institution_opinions o
+       JOIN ced_cases c ON c.id=o.case_id
+       JOIN projects p ON p.id=c.project_id
+       LEFT JOIN users owner ON owner.id=p.owner_user_id
+       WHERE o.archived_at IS NULL AND c.archived_at IS NULL
+         AND p.archived_at IS NULL AND p.status<>'archived'
+         AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+           SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
+         ))
+       ORDER BY CASE WHEN o.status IN ('responded','closed') THEN 1 ELSE 0 END,
+         o.deadline_date NULLS LAST,o.updated_at DESC,o.institution_name
+       LIMIT 500`,
+      [user.id],
+    );
+    return { opinions: result.rows };
+  }
+
   async createProjectCase(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
@@ -291,8 +318,9 @@ export class CedService {
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        `SELECT o.*,c.project_id FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id
-         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`, [opinionId],
+        `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
+          o.response_date::text AS response_date,c.project_id FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id
+         WHERE o.id=$1 AND o.archived_at IS NULL AND c.archived_at IS NULL FOR UPDATE OF o`, [opinionId],
       );
       if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
       const old = found.rows[0];
