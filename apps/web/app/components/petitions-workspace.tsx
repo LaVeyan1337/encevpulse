@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
 type Project = {id:string;name:string;status:string};
-type TemplateRecord = {id:string;name:string;size:number;updatedAt:string;bytes:ArrayBuffer};
-type StoredTemplateMeta = {name:string;size:number;updatedAt:string};
+type TemplateRecord = {id:string;name:string;size:number;updatedAt:string;bytes:ArrayBuffer;sha256?:string};
+type StoredTemplateMeta = {name:string;size:number;updatedAt:string;sha256:string};
 
 const DB_NAME='encev-pulse-local-petitions';
 const STORE_NAME='templates';
@@ -35,6 +35,29 @@ async function readTemplate():Promise<TemplateRecord|null>{
     });
   }finally{db.close();}
 }
+async function sha256Hex(bytes:ArrayBuffer):Promise<string>{
+  const subtle=globalThis.crypto?.subtle;
+  if(!subtle)throw new Error('Bu tarayıcı güvenli SHA-256 doğrulamasını desteklemiyor. Uygulamayı HTTPS üzerinden açın.');
+  const digest=await subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('');
+}
+async function readVerifiedTemplate():Promise<TemplateRecord|null>{
+  const record=await readTemplate();
+  if(!record)return null;
+  const actualHash=await sha256Hex(record.bytes);
+  if(record.sha256&&record.sha256!==actualHash)throw new Error('Yerel Word şablonunun SHA-256 değeri değişmiş. Güvenlik için taslak oluşturma durduruldu; doğrulanmış şablonu yeniden aktarın.');
+  if(!record.sha256){record.sha256=actualHash;await saveTemplate(record);}
+  return record;
+}
+function downloadDocx(bytes:ArrayBuffer,fileName:string):void{
+  const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');
+  anchor.href=url;anchor.download=fileName;anchor.style.display='none';
+  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),10_000);
+}
+
 async function saveTemplate(record:TemplateRecord):Promise<void>{
   const db=await openTemplateDb();
   try{
@@ -105,8 +128,8 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
 
   useEffect(()=>{
     let cancelled=false;
-    void readTemplate().then(record=>{
-      if(!cancelled)setTemplate(record?{name:record.name,size:record.size,updatedAt:record.updatedAt}:null);
+    void readVerifiedTemplate().then(record=>{
+      if(!cancelled)setTemplate(record?{name:record.name,size:record.size,updatedAt:record.updatedAt,sha256:record.sha256??''}:null);
     }).catch(cause=>{
       if(!cancelled)setError(cause instanceof Error?cause.message:'Yerel Word şablonu okunamadı.');
     }).finally(()=>{if(!cancelled)setLoading(false);});
@@ -125,9 +148,9 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
       if(file.size<4||file.size>MAX_TEMPLATE_BYTES)throw new Error('Word şablonu boş olamaz ve 20 MB sınırını aşamaz.');
       const bytes=await file.arrayBuffer();
       if(!isDocxPackage(bytes))throw new Error('Dosya geçerli bir DOCX ZIP paketi veya Word ana belge içeriği içermiyor. Word belgesini yeniden seçin.');
-      const record:TemplateRecord={id:TEMPLATE_KEY,name:file.name,size:file.size,updatedAt:new Date().toISOString(),bytes};
+      const record:TemplateRecord={id:TEMPLATE_KEY,name:file.name,size:file.size,updatedAt:new Date().toISOString(),bytes,sha256:await sha256Hex(bytes)};
       await saveTemplate(record);
-      setTemplate({name:record.name,size:record.size,updatedAt:record.updatedAt});
+      setTemplate({name:record.name,size:record.size,updatedAt:record.updatedAt,sha256:record.sha256??''});
       setNotice('Word şablonu bu tarayıcı profiline kaydedildi. Dosya sunucuya yüklenmedi.');
     }catch(cause){setError(cause instanceof Error?cause.message:'Word şablonu kaydedilemedi.');}
     finally{setBusy(false);}
@@ -141,22 +164,29 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
     finally{setBusy(false);}
   }
 
+  async function downloadTemplateBackup(){
+    setBusy(true);setError('');setNotice('');
+    try{
+      const record=await readVerifiedTemplate();
+      if(!record)throw new Error('Yedeklenecek yerel Word şablonu bulunamadı.');
+      const base=fileNameSafe(record.name.replace(/\.docx$/i,''));
+      downloadDocx(record.bytes,\`Sablon_Yedegi_\${base}.docx\`);
+      setNotice(\`Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. SHA-256: \${record.sha256}\`);
+    }catch(cause){setError(cause instanceof Error?cause.message:'Word şablonu doğrulanamadı veya yedeklenemedi.');}
+    finally{setBusy(false);}
+  }
+
   async function createDraft(){
     if(!canCreate)return;
     setBusy(true);setError('');setNotice('');
     try{
-      const record=await readTemplate();
+      const record=await readVerifiedTemplate();
       if(!record)throw new Error('Önce bir Word şablonu seçin veya örnek dilekçeyi indirip buraya aktarın.');
       const project=projects.find(item=>item.id===selectedProjectId);
       if(!project)throw new Error('Taslak için bir proje seçin.');
       const proposed=fileNameSafe('Dilekce_'+project.name+'_'+new Date().toLocaleDateString('sv-SE'))+'.docx';
       const chosen=draftName.trim()?fileNameSafe(draftName.trim()).replace(/\.docx$/i,'')+'.docx':proposed;
-      const blob=new Blob([record.bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-      const url=URL.createObjectURL(blob);
-      const anchor=document.createElement('a');
-      anchor.href=url;anchor.download=chosen;anchor.style.display='none';
-      document.body.appendChild(anchor);anchor.click();anchor.remove();
-      window.setTimeout(()=>URL.revokeObjectURL(url),1500);
+      downloadDocx(record.bytes,chosen);
       setNotice('Şablonun özgün baytları değiştirilmeden kopya olarak indirildi. Proje adı yalnızca dosya adına eklendi; belge içeriğini Word içinde düzenleyin.');
     }catch(cause){setError(cause instanceof Error?cause.message:'Word taslağı oluşturulamadı.');}
     finally{setBusy(false);}
@@ -180,8 +210,11 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
     <section className="petition-template-panel">
       <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>Mevcut dolu örneği ya da kurumunuzca onaylanmış bir DOCX belgesini seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
       {template?<div className="petition-template-current">
-        <div className="petition-template-file"><span className="petition-docx-icon">W</span><div><strong>{template.name}</strong><small>{formatSize(template.size)} · Son kaydetme {new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(template.updatedAt))}</small></div></div>
-        {canCreate&&<button type="button" className="petition-text-button" disabled={busy} onClick={()=>void clearTemplate()}>Yerel şablonu sil</button>}
+        <div className="petition-template-file"><span className="petition-docx-icon">W</span><div><strong>{template.name}</strong><small>{formatSize(template.size)} · Son kaydetme {new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(template.updatedAt))}{template.sha256?\` · SHA-256 ${template.sha256}\`:' · SHA-256 doğrulaması yok'}</small></div></div>
+        {canCreate&&<div className="petition-template-buttons">
+          <button type="button" className="petition-export-button" disabled={busy} onClick={()=>void downloadTemplateBackup()}>Yerel yedeği indir</button>
+          <button type="button" className="petition-text-button" disabled={busy} onClick={()=>void clearTemplate()}>Yerel şablonu sil</button>
+        </div>}
       </div>:<div className="petition-empty-template">{loading?'Yerel şablon aranıyor…':'Bu tarayıcı profiline henüz bir DOCX şablonu kaydetmediniz.'}</div>}
       {canCreate&&<div className="petition-template-actions">
         <label className="petition-file-picker">DOCX dosyası seç<input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={busy} onChange={event=>{void importTemplate(event.target.files?.[0]??null);event.currentTarget.value='';}}/></label>
