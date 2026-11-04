@@ -1,0 +1,69 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+
+test('Workspace usability: project categories, multi-opinion flow, calendar scopes, chat filters and drawer portal', async () => {
+  const paths = {
+    workspace: '../app/components/workspace.tsx',
+    opinions: '../app/components/institution-opinions-workspace.tsx',
+    opinionService: '../../api/src/ced/ced.service.ts',
+    opinionController: '../../api/src/ced/ced.controller.ts',
+    projectService: '../../api/src/tasks/tasks.service.ts',
+    projectMigration: '../../../drizzle/0014_project_types_and_opinion_statuses.sql',
+    projectStyles: '../app/projects.css',
+    opinionStyles: '../app/institution-opinions.css',
+    calendar: '../app/components/calendar-workspace.tsx',
+    calendarStyles: '../app/calendar.css',
+    chat: '../app/components/chat-workspace.tsx',
+    chatStyles: '../app/people-chat.css',
+    drawer: '../app/components/drawer.tsx',
+    glass: '../app/bitrix-glass.css',
+  };
+  const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => [
+    key, await readFile(new URL(path, import.meta.url), 'utf8'),
+  ] as const));
+  const source = Object.fromEntries(entries) as Record<keyof typeof paths,string>;
+
+  assert.match(source.workspace,/projectTypeLabels/);
+  assert.match(source.workspace,/id="project-type"/);
+  assert.match(source.workspace,/id="project-edit-type"/);
+  assert.match(source.workspace,/projectTab === 'opinions'/);
+  assert.doesNotMatch(source.workspace,/projectTab === 'ced'/);
+  for(const type of ['res','ges','maden','yk_ges','storage']) {
+    assert.match(source.projectMigration,new RegExp(type));
+    assert.match(source.projectStyles,new RegExp('project-kind-'+type));
+  }
+  assert.match(source.projectService,/project_type AS "projectType"/);
+  assert.match(source.projectService,/projectType/);
+
+  assert.match(source.opinions,/Yeni görüş ekle/);
+  assert.match(source.opinions,/async function saveOpinion/);
+  assert.match(source.opinions,/ced\/projects\//);
+  assert.match(source.opinions,/ced\/opinions\//);
+  for(const status of ['waiting','positive','negative','revision','other_request']) {
+    assert.match(source.opinions,new RegExp("value:'"+status+"'"));
+    assert.match(source.opinionService,new RegExp("'"+status+"'"));
+  }
+  assert.match(source.opinionController,/@Post\('projects\/:projectId\/opinions'\)/);
+  assert.match(source.opinionService,/ON CONFLICT\(project_id\) DO NOTHING/);
+  assert.match(source.opinionService,/institution_opinion_workspace/);
+  assert.match(source.opinionStyles,/\.opinions-add-button/);
+  assert.match(source.opinionStyles,/\.opinions-editor-grid/);
+
+  assert.match(source.calendar,/type CalendarScope = 'all'\|'personal'\|'corporate'/);
+  assert.match(source.calendar,/calendar-scope-switch/);
+  assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
+  assert.match(source.calendar,/scope==='corporate'\?event\.visibility!=='personal'/);
+  assert.match(source.calendarStyles,/\.calendar-scope-switch/);
+
+  assert.match(source.chat,/conversationFilter/);
+  assert.match(source.chat,/\['unread','Okunmamış'\]/);
+  assert.match(source.chat,/visibleConversations\.map/);
+  assert.match(source.chatStyles,/\.chat-message\.own \.chat-message-content/);
+  assert.match(source.chatStyles,/\.chat-list-filters/);
+
+  assert.match(source.drawer,/createPortal/);
+  assert.match(source.drawer,/document\.body/);
+  assert.match(source.glass,/select option,select optgroup/);
+  assert.match(source.glass,/:root\[data-theme='light'\] select option/);
+});
