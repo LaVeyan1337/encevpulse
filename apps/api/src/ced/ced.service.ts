@@ -286,30 +286,54 @@ export class CedService {
 
   async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
+    const value = objectInput(input);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     let caseId = '';
+    let opinionId = '';
     try {
       await client.query('BEGIN');
       await this.assertProjectAccess(client, projectId, user.id, true);
-      const existing = await client.query<{id:string;archived_at:string|null}>(
+      let existing = await client.query<{id:string;archived_at:string|null}>(
         'SELECT id,archived_at FROM ced_cases WHERE project_id=$1 FOR UPDATE',[projectId],
       );
-      if(existing.rowCount) {
-        if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
-        caseId=existing.rows[0].id;
-      } else {
+      if(!existing.rowCount) {
         const created=await client.query<{id:string}>(
           `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,created_by,updated_by)
-           VALUES($1,'custom','','',NULL,'', $2,$2) RETURNING id`,
+           VALUES($1,'custom','','',NULL,'',$2,$2)
+           ON CONFLICT(project_id) DO NOTHING RETURNING id`,
           [projectId,user.id],
         );
-        caseId=created.rows[0].id;
-        await this.audit(client,caseId,'case',caseId,'created',{source:'institution_opinion_workspace'},user.id);
+        if(created.rowCount) {
+          caseId=created.rows[0].id;
+          await this.audit(client,caseId,'case',caseId,'created',{source:'institution_opinion_workspace'},user.id);
+        } else {
+          // A second employee may have created the project's opinion container concurrently.
+          existing=await client.query<{id:string;archived_at:string|null}>(
+            'SELECT id,archived_at FROM ced_cases WHERE project_id=$1 FOR UPDATE',[projectId],
+          );
+          if(!existing.rowCount) throw new ConflictException({code:'CED_CASE_CREATE_CONFLICT',message:'Projenin kurum görüşü alanı aynı anda oluşturulamadı. Yenileyip tekrar deneyin.'});
+          if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
+          caseId=existing.rows[0].id;
+        }
+      } else {
+        if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
+        caseId=existing.rows[0].id;
       }
+      const inserted=await client.query<{id:string}>(
+        `INSERT INTO ced_institution_opinions(case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
+        [caseId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
+          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+      );
+      opinionId=inserted.rows[0].id;
+      await this.audit(client,caseId,'institution_opinion',opinionId,'created',draft,user.id);
       await client.query('COMMIT');
     } catch(error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
-    return this.createOpinion(user,caseId,input);
+    return { ok:true, caseId, opinionId };
   }
 
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
