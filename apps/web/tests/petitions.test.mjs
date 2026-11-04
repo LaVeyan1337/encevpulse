@@ -18,6 +18,15 @@ test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan
   assert.match(component, /Tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir/);
   assert.match(component, /https:\/\/raw\.githubusercontent\.com\/LaVeyan1337\/12312/);
   assert.doesNotMatch(component, /fetch\(/);
+  assert.match(component, /globalThis\.crypto\?\.subtle/);
+  assert.match(component, /digest\('SHA-256'/);
+  assert.match(component, /record\.sha256&&record\.sha256!==actualHash/);
+  assert.match(component, /async function downloadTemplateBackup/);
+  assert.match(component, /Sablon_Yedegi_/);
+  assert.match(component, /downloadDocx\(record\.bytes,chosen\)/);
+  assert.match(styles, /\.petition-export-button/);
+  assert.match(styles, /\.petition-template-buttons/);
+  assert.doesNotMatch(component, /192\.168\.1\.55|file:\/\/|fetch\(/);
   assert.match(component, /Ortak Word kilidi ve bekleme sırası web’e aktarılmadı/);
   assert.match(styles, /\.petition-template-panel/);
   assert.match(root, /import '\.\/petitions\.css';/);
