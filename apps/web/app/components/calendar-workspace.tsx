@@ -223,6 +223,8 @@ export function CalendarWorkspace({
   canDelete,
   canViewTasks,
   canViewProjects,
+  canViewCed,
+  canViewOpinions,
   onTaskOpen,
   onProjectOpen,
 }: {
@@ -235,6 +237,8 @@ export function CalendarWorkspace({
   canDelete: boolean;
   canViewTasks: boolean;
   canViewProjects: boolean;
+  canViewCed: boolean;
+  canViewOpinions: boolean;
   onTaskOpen: (taskId: string) => void;
   onProjectOpen: (projectId: string) => void;
 }) {
@@ -571,6 +575,7 @@ export function CalendarWorkspace({
             <span><i className="legend-dot event-reminder" /> Hatırlatma</span>
             <span><i className="legend-dot event-deadline" /> Teslim / son tarih</span>
             {(canViewTasks || canViewProjects) && <span><i className="legend-dot event-milestone" /> Görev / proje tarihleri</span>}
+            {(canViewCed || canViewOpinions) && <span><i className="legend-dot event-ced-milestone" /> ÇED / kurum / İDK tarihleri</span>}
           </div>
         </div>
 
