@@ -1,18 +1,17 @@
 import 'reflect-metadata';
 import { isIP } from 'node:net';
 import { NestFactory } from '@nestjs/core';
-import type { CorsOptions } from 'cors';
 import { ApplicationModule } from './application.module.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(ApplicationModule);
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
-  const extensionCors: CorsOptions = {
+  const extensionCors = {
 
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
       if (origin && /^(chrome-extension|moz-extension):\/\/[a-z0-9-]{16,}$/i.test(origin)) {
-        callback(null, origin);
+        callback(null, true);
         return;
       }
       callback(null, false);
