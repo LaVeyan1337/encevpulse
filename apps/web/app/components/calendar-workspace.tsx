@@ -3,7 +3,7 @@ import type { Person, Project } from './workspace';
 
 type CalendarView = 'month' | 'week' | 'day' | 'agenda';
 type CalendarScope = 'all'|'personal'|'corporate';
-type EventType = 'meeting' | 'event' | 'reminder' | 'deadline';
+type EventType = 'meeting' | 'event' | 'reminder' | 'deadline' | 'presentation' | 'site_visit' | 'hkt' | 'idk';
 type Visibility = 'personal' | 'shared' | 'project';
 
 interface CalendarEvent {
@@ -65,6 +65,10 @@ const eventTypeLabels: Record<EventType, string> = {
   event: 'Etkinlik',
   reminder: 'Hatırlatma',
   deadline: 'Teslim / Son tarih',
+  presentation: 'Sunum',
+  site_visit: 'Yer görme',
+  hkt: 'HKT',
+  idk: 'İDK toplantısı',
 };
 const visibilityLabels: Record<Visibility, string> = {
   personal: 'Kişisel',
