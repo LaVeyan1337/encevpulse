@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  if (location.origin !== 'https://eced.csb.gov.tr') return;
   if (window.__encevPulseAccountObserver) return;
   window.__encevPulseAccountObserver = true;
 
