@@ -45,7 +45,12 @@ export class CedController {
   @Post('cases/:caseId/documents')
   @HttpCode(HttpStatus.CREATED)
   async createDocument(@Req() request: Request, @Param('caseId') caseId: string, @Body() body: unknown) {
-    return this.ced.createDocument(await this.authorize(request, 'eced', 'create', true), caseId, body);
+    const user = await this.authorize(request, 'eced', 'create', true);
+    if (body && typeof body === 'object' && !Array.isArray(body) &&
+      (body as Record<string, unknown>).documentType === 'institution_opinion') {
+      await this.access.assertPermission(user, 'institution_opinions', 'create');
+    }
+    return this.ced.createDocument(user, caseId, body);
   }
 
   @Post('cases/:caseId/opinions')
