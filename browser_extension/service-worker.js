@@ -44,9 +44,10 @@ async function sendTabReport(tab) {
   let apiOrigin;
   try { apiOrigin = new URL(cfg.apiBase).origin; } catch { return; }
   if (!(await hasOriginPermission(apiOrigin))) return;
-  const accountName = cleanText(cfg.accountLabels[origin], 100);
-  const sectionLabel = cleanText(cfg.sectionLabels[origin], 60);
-  const selectedState = cfg.sessionStates[origin];
+  const tabKey = origin + '::' + String(tab.id);
+  const accountName = cleanText(cfg.accountLabels[tabKey], 100);
+  const sectionLabel = cleanText(cfg.sectionLabels[tabKey], 60);
+  const selectedState = cfg.sessionStates[tabKey];
   const sessionState = ['active', 'logged_out', 'unknown'].includes(selectedState) ? selectedState : 'unknown';
   const payload = {
     clientId: cfg.clientId,
