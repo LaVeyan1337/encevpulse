@@ -30,8 +30,8 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   };
   const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => [
     key, await readFile(new URL(path, import.meta.url), 'utf8'),
-  ] as const));
-  const source = Object.fromEntries(entries) as Record<keyof typeof paths,string>;
+  ]));
+  const source = Object.fromEntries(entries);
 
   assert.match(source.workspace,/projectTypeLabels/);
   assert.match(source.workspace,/id="project-type"/);
