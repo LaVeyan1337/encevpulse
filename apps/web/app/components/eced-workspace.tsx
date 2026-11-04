@@ -263,35 +263,44 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
   },[load]);
   const accounts=useMemo(()=>{
     if(!data)return [];
-    const latest=new Map<string,Report>();
-    for(const report of data.reports){
-      if(!report.normalizedAccount)continue;
-      const old=latest.get(report.normalizedAccount);
-      if(!old||Date.parse(report.lastSeen)>Date.parse(old.lastSeen))latest.set(report.normalizedAccount,report);
-    }
     return data.seenAccounts.map(account=>{
-      const report=latest.get(account.normalizedAccount);
-      const state=report?stateOf(report,data.staleAfterSeconds):null;
-      const tone=state?.fresh&&report?.sessionState==='active'?'busy'
-        :state?.fresh&&report?.sessionState==='logged_out'?'ready':'unknown';
-      const label=tone==='busy'?'Etkin portal sinyali':tone==='ready'?'Oturum kapalı işaretli':state?.tone==='stale'?'Sinyal eski':'Durum belirsiz';
-      return {...account,tone,label};
-    }).sort((a,b)=>{
-      const rank=(tone:'busy'|'ready'|'unknown')=>tone==='busy'?0:tone==='ready'?1:2;
-      return rank(a.tone)-rank(b.tone)||a.accountName.localeCompare(b.accountName,'tr');
-    });
-  },[data]);
+      const relevant=data.reports.filter(report=>report.normalizedAccount===account.normalizedAccount);
+      const fresh=relevant.filter(report=>stateOf(report,data.staleAfterSeconds).fresh);
+      const active=fresh.some(report=>report.sessionState==='active');
+      const explicitlyLoggedOut=fresh.some(report=>report.sessionState==='logged_out');
+      const uncertain=fresh.some(report=>report.sessionState==='unknown');
+      const reserved=data.claims.some(claim=>claim.normalizedAccount===account.normalizedAccount);
+      let tone:'busy'|'ready'|'unknown'='unknown';
+      let label='Durum belirsiz';
+      if(error){
+        tone='unknown';label='Bağlantı doğrulanamadı';
+      }else if(reserved||active){
+        tone='busy';label=reserved?'Kullanımda · rezerve':'Açık';
+      }else if(explicitlyLoggedOut){
+        tone='ready';label='Girişe hazır';
+      }else if(uncertain){
+        tone='unknown';label='Durum belirsiz';
+      }else if(relevant.length>0){
+        // Desktop PULSE semantics: a previously observed account with no fresh
+        // active session is available, but the stale signal is disclosed.
+        tone='ready';label='Girişe hazır · aktif sinyal yok';
+      }
+      const lastReport=relevant.reduce<Report|null>((latest,report)=>
+        !latest||Date.parse(report.lastSeen)>Date.parse(latest.lastSeen)?report:latest,null);
+      return {...account,tone,label,lastSeen:lastReport?.lastSeen??account.lastSeen};
+    }).sort((a,b)=>({busy:0,ready:1,unknown:2}[a.tone]-{busy:0,ready:1,unknown:2}[b.tone])||a.accountName.localeCompare(b.accountName,'tr'));
+  },[data,error]);
   const busyCount=accounts.filter(x=>x.tone==='busy').length;
   const readyCount=accounts.filter(x=>x.tone==='ready').length;
   return <section className="eced-overview-panel" aria-label="e-ÇED hesap durumları">
     <div className="eced-overview-heading">
-      <div><span className="eced-overview-kicker">TARAYICI GÖZLEMİ</span><h2>e-ÇED hesapları</h2>
-      <p>Durumlar tarayıcı eklentisinin son görünür portal sinyalidir; resmî e-ÇED oturum doğrulaması değildir.</p></div>
+      <div><span className="eced-overview-kicker">CANLI HESAP DURUMU</span><h2>e-ÇED hesapları</h2>
+      <p>Açık oturumlar kırmızı, girişe hazır hesaplar yeşil gösterilir.</p></div>
       <button type="button" onClick={onOpen}>Tümünü görüntüle <span aria-hidden="true">↗</span></button>
     </div>
     <div className="eced-overview-summary">
-      <span className="eced-mini-count is-busy"><i/>{busyCount} etkin sinyal</span>
-      <span className="eced-mini-count is-ready"><i/>{readyCount} kapalı işaretli</span>
+      <span className="eced-mini-count is-busy"><i/>{busyCount} açık</span>
+      <span className="eced-mini-count is-ready"><i/>{readyCount} girişe hazır</span>
       <span className="eced-overview-total">{accounts.length} kayıtlı hesap</span>
     </div>
     {error?<p className="eced-overview-state" role="status">Durum yenilenemedi. {error}</p>
