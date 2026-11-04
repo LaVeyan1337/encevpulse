@@ -57,7 +57,7 @@ async function sendTabReport(tab) {
   if (!cfg.apiBase || !cfg.pairingToken) return;
   let parsed;
   try { parsed = new URL(tab.url); } catch { return; }
-  if (!['http:', 'https:'].includes(parsed.protocol)) return;
+  if (parsed.origin !== 'https://eced.csb.gov.tr') return;
   const origin = parsed.origin;
   if (!cfg.allowedOrigins.includes(origin) || !(await hasOriginPermission(origin))) return;
   let apiOrigin;
@@ -129,7 +129,7 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
       if(!tab||!Number.isInteger(tab.id)||!tab.url||!accountName)return;
       let parsed;
       try{parsed=new URL(tab.url);}catch{return;}
-      if(!['http:','https:'].includes(parsed.protocol)||parsed.hostname.toLowerCase()!=='eced.csb.gov.tr')return;
+      if(parsed.origin!=='https://eced.csb.gov.tr')return;
       const origin=parsed.origin;
       const cfg=await getConfig();
       if(!cfg.allowedOrigins.includes(origin)||!(await hasOriginPermission(origin)))return;
