@@ -5,6 +5,7 @@ on:
     branches:
       - transfer/encev-pulse-source-20261103
       - feature/calendar-foundation-20261103
+      - feature/ced-case-management-20261103
     paths:
       - "apps/**"
       - "drizzle/**"
