@@ -7,7 +7,7 @@
     "dev": "react-router dev",
     "prebuild": "node -e \"import('node:fs').then(fs => { fs.mkdirSync('build/server/assets', { recursive: true }); fs.mkdirSync('build/client/assets', { recursive: true }); });\"",
     "build": "react-router build",
-    "test": "tsx --test tests/theme.test.ts tests/user-copy.test.mjs tests/health-client.test.mjs tests/workspace.test.mjs tests/ced.test.mjs",
+    "test": "tsx --test tests/theme.test.ts tests/user-copy.test.mjs tests/health-client.test.mjs tests/workspace.test.mjs tests/ced.test.mjs tests/eced.test.mjs tests/petitions.test.mjs",
     "typecheck": "react-router typegen && tsc --noEmit"
   },
   "dependencies": {
