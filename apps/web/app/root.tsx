@@ -8,6 +8,7 @@ import './brand.css';
 import './people-chat.css';
 import './calendar.css';
 import './ced.css';
+import './institution-opinions.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
