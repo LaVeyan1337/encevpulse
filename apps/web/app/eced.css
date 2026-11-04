@@ -88,3 +88,30 @@
 :root[data-theme='light'] .eced-pairing-secret{background:rgba(99,119,225,.065)}
 @media(max-width:900px){.eced-monitor-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.eced-monitor-intro{align-items:flex-start;flex-direction:column}.eced-refresh-button{align-self:flex-start}.eced-pairing-create{align-items:stretch;flex-direction:column}.eced-pairing-create button{align-self:flex-start}.eced-monitor-metrics{gap:8px}.eced-monitor-metrics article{min-height:95px;padding:12px}.eced-monitor-metrics article>span{font-size:11px}.eced-monitor-metrics strong{font-size:23px}.eced-pairing-panel,.eced-reports-panel,.eced-seen-panel{padding:13px}.eced-panel-heading{align-items:flex-start;flex-direction:column}.eced-device-list article{align-items:flex-start;flex-wrap:wrap}.eced-device-revoke{margin-left:48px}.eced-claim-device{width:100%;align-items:flex-start;flex-direction:column}.eced-claim-device select{width:100%}}
+
+
+/* Compact e-ÇED account summary on the overview page */
+.eced-overview-panel{display:grid;gap:13px;min-width:0;padding:17px 19px;background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;box-shadow:var(--shadow-sm);backdrop-filter:blur(22px) saturate(135%)}
+.eced-overview-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.eced-overview-kicker{display:block;color:var(--accent);font-size:10px;font-weight:850;letter-spacing:.12em}
+.eced-overview-heading h2{margin:4px 0;color:var(--text);font-size:17px;font-weight:820}
+.eced-overview-heading p{margin:0;color:var(--text-secondary);font-size:12px;line-height:1.5}
+.eced-overview-heading>button{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;min-height:34px;padding:0 11px;color:var(--accent-hover);background:var(--accent-subtle);border:1px solid var(--border-strong);border-radius:9px;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.eced-overview-heading>button:hover{background:var(--accent-subtle-hover);border-color:var(--accent)}
+.eced-overview-summary{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding-bottom:11px;border-bottom:1px solid var(--border)}
+.eced-mini-count{display:inline-flex;align-items:center;gap:7px;min-height:27px;padding:0 9px;border:1px solid currentColor;border-radius:8px;font-size:11px;font-weight:800}
+.eced-mini-count i,.eced-overview-account>i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:currentColor}
+.eced-mini-count.is-busy{color:#ff7d8e;background:rgba(240,83,104,.09);border-color:rgba(240,83,104,.28)}
+.eced-mini-count.is-ready{color:#4bc99a;background:rgba(61,189,139,.09);border-color:rgba(61,189,139,.28)}
+.eced-overview-total{margin-left:auto;color:var(--text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.eced-overview-accounts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.eced-overview-account{display:flex;align-items:center;gap:9px;min-width:0;min-height:39px;padding:8px 10px;background:var(--surface-raised);border:1px solid var(--border);border-radius:9px}
+.eced-overview-account strong{overflow:hidden;min-width:0;flex:1;color:var(--text);font-size:12px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}
+.eced-overview-account span{flex:0 0 auto;font-size:10px;font-weight:800;white-space:nowrap}
+.eced-overview-account.tone-busy{border-color:rgba(240,83,104,.3);background:rgba(240,83,104,.055);color:#ff7d8e}
+.eced-overview-account.tone-ready{border-color:rgba(61,189,139,.3);background:rgba(61,189,139,.055);color:#4bc99a}
+.eced-overview-account.tone-unknown{color:var(--text-muted)}
+.eced-overview-account.tone-unknown>i{background:currentColor}
+.eced-overview-state{margin:0;padding:14px;color:var(--text-muted);background:var(--surface-raised);border:1px dashed var(--border-strong);border-radius:10px;font-size:12px;line-height:1.55}
+:root[data-theme='light'] .eced-overview-panel{background:rgba(255,255,255,.78)}
+@media(max-width:650px){.eced-overview-panel{padding:14px}.eced-overview-heading{align-items:flex-start;flex-direction:column}.eced-overview-heading>button{align-self:flex-start}.eced-overview-accounts{grid-template-columns:1fr}.eced-overview-total{margin-left:0}}
