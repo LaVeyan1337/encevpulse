@@ -124,6 +124,13 @@ test('ÇED API: route-specific milestones, document completion and project acces
       applicationSubmittedOn: '2026-02-30',
     });
     assert.equal(invalidApplicationDate.response.status, 400);
+    const updateWithoutApplicationDate = await api(base, processOwner, 'ced/cases/' + caseId, 'PATCH', {
+      version: afterApplicationDate.data.case.version,
+      notes: 'Resmî başvuru tarihi diğer alanlar düzenlenirken korunmalı.',
+    });
+    assert.equal(updateWithoutApplicationDate.response.status, 200, JSON.stringify(updateWithoutApplicationDate.data));
+    const preservedApplicationDate = await api(base, processOwner, 'ced/projects/' + projectId);
+    assert.equal(preservedApplicationDate.data.case.applicationSubmittedOn, '2026-03-06');
     const stages = initial.data.stages as Array<{id:string;stageKey:string;status:string;version:number}>;
     const cbd = stages.find((stage) => stage.stageKey === 'cbd_upload')!;
     const ptd = stages.find((stage) => stage.stageKey === 'ptd_upload')!;
