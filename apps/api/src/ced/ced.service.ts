@@ -61,7 +61,7 @@ export class CedService {
 
   async listInstitutionOpinions(user: AuthUser) {
     const result = await this.db.query(
-      "SELECT o.id,o.case_id AS \"caseId\",c.project_id AS \"projectId\",
+      `SELECT o.id,o.case_id AS "caseId",c.project_id AS "projectId",
         p.name AS \"projectName\",c.file_number AS \"fileNumber\",c.eced_reference AS \"ecedReference\",
         owner.display_name AS \"projectOwnerName\",
         o.institution_name AS \"institutionName\",o.subject,o.status,
@@ -80,7 +80,7 @@ export class CedService {
          ))
        ORDER BY CASE WHEN o.status IN ('responded','closed') THEN 1 ELSE 0 END,
          o.deadline_date NULLS LAST,o.updated_at DESC,o.institution_name
-       LIMIT 500",
+       LIMIT 500`,
       [user.id],
     );
     return { opinions: result.rows };
