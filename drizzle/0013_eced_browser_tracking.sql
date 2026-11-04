@@ -1,6 +1,6 @@
 -- Browser-based e-ÇED observation and account reservation.
 -- The extension only sends explicitly selected visible account labels and sanitized tab metadata.
-UPDATE app_modules SET is_enabled = true WHERE module_key = 'eced';
+UPDATE app_modules SET is_enabled = true WHERE module_key IN ('eced','petitions');
 
 CREATE TABLE eced_browser_devices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
