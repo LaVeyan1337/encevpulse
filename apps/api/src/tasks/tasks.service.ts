@@ -5,6 +5,7 @@ import type { AuthUser } from '../auth/auth.service.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'] as const;
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+const PROJECT_TYPES = ['res','ges','maden','yk_ges','storage','other'] as const;
 type TaskStatus = typeof STATUSES[number];
 type Priority = typeof PRIORITIES[number];
 
@@ -416,7 +417,7 @@ export class TasksService {
     await this.assertProjectWorkflowMigration();
     if (!['active', 'archived', 'all'].includes(view)) throw invalid('Proje görünümü geçersiz.');
     const result = await this.db.query(
-      `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",p.owner_user_id AS "ownerId",
+      `SELECT p.id,p.name,p.description,p.status,p.project_type AS "projectType",p.created_by AS "createdBy",p.owner_user_id AS "ownerId",
               owner.display_name AS "ownerName",p.starts_on::text AS "startsOn",p.target_on::text AS "targetOn",
               p.version,p.archived_at AS "archivedAt",p.created_at AS "createdAt",
               COUNT(DISTINCT t.id)::int AS "taskCount",
@@ -441,7 +442,7 @@ export class TasksService {
     await this.assertProjectWorkflowMigration();
     assertUuid(id);
     const projectResult=await this.db.query(
-      `SELECT p.id,p.name,p.description,p.status,p.created_by AS "createdBy",creator.display_name AS "creatorName",
+      `SELECT p.id,p.name,p.description,p.status,p.project_type AS "projectType",p.created_by AS "createdBy",creator.display_name AS "creatorName",
               p.owner_user_id AS "ownerId",owner.display_name AS "ownerName",p.starts_on::text AS "startsOn",
               p.target_on::text AS "targetOn",p.version,p.archived_at AS "archivedAt",
               p.status_before_archive AS "statusBeforeArchive",p.created_at AS "createdAt",
@@ -486,10 +487,12 @@ export class TasksService {
   async createProject(user: AuthUser, input: unknown) {
     await this.assertProjectWorkflowMigration();
     const value=objectInput(input);
-    const allowed=new Set(['name','description','memberIds','status','startsOn','targetOn']);
+    const allowed=new Set(['name','description','memberIds','status','startsOn','targetOn','projectType']);
     if(Object.keys(value).some((key)=>!allowed.has(key))) throw invalid('Proje alanlarını kontrol edin.');
     const name=boundedText(value.name,1,160,'Proje adı');
     const description=boundedText(value.description??'',0,4000,'Açıklama');
+    const projectType=String(value.projectType??'other');
+    if(!PROJECT_TYPES.includes(projectType as typeof PROJECT_TYPES[number])) throw invalid('Proje türü geçersiz.');
     const status=value.status===undefined?'planning':value.status;
     if(!['planning','active','on_hold','completed'].includes(String(status))) throw invalid('Proje durumu geçersiz.');
     const startsOn=value.startsOn===undefined?null:projectDateInput(value.startsOn,'Başlangıç tarihi');
@@ -506,11 +509,11 @@ export class TasksService {
         if(active.rowCount!==memberIds.length) throw invalid('Etkin olmayan bir kullanıcı proje üyesi olamaz.');
       }
       const inserted=await client.query(
-        `INSERT INTO projects(name,description,status,created_by,owner_user_id,starts_on,target_on)
-         VALUES($1,$2,$3,$4,$4,$5,$6)
-         RETURNING id,name,description,status,created_by AS "createdBy",owner_user_id AS "ownerId",
+        `INSERT INTO projects(name,description,status,project_type,created_by,owner_user_id,starts_on,target_on)
+         VALUES($1,$2,$3,$4,$5,$5,$6,$7)
+         RETURNING id,name,description,status,project_type AS "projectType",created_by AS "createdBy",owner_user_id AS "ownerId",
            starts_on::text AS "startsOn",target_on::text AS "targetOn",version,created_at AS "createdAt"`,
-        [name,description,status,user.id,startsOn,targetOn],
+        [name,description,status,projectType,user.id,startsOn,targetOn],
       );
       const project=inserted.rows[0];
       await client.query(
@@ -520,7 +523,7 @@ export class TasksService {
       );
       await client.query(
         `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'created',$3)`,[project.id,user.id,{fields:['name','description','status','startsOn','targetOn','memberIds']}],
+         VALUES($1,$2,'created',$3)`,[project.id,user.id,{fields:['name','description','status','projectType','startsOn','targetOn','memberIds']}],
       );
       await client.query('COMMIT');
       return {project};
@@ -532,7 +535,7 @@ export class TasksService {
     await this.assertProjectWorkflowMigration();
     assertUuid(id);
     const value=objectInput(input);
-    const allowed=new Set(['version','name','description','status','ownerId','startsOn','targetOn','memberIds']);
+    const allowed=new Set(['version','name','description','status','ownerId','startsOn','targetOn','memberIds','projectType']);
     if(Object.keys(value).some((key)=>!allowed.has(key))) throw invalid('Proje alanlarını kontrol edin.');
     if(!Number.isInteger(value.version)||Number(value.version)<1) throw invalid('Proje sürümü geçersiz; yenileyip tekrar deneyin.');
     if(Object.keys(value).length===1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
@@ -541,7 +544,7 @@ export class TasksService {
     try {
       await client.query('BEGIN');
       const found=await client.query(
-        `SELECT p.id,p.name,p.description,p.status,p.created_by,p.owner_user_id,p.starts_on::text AS starts_on,
+        `SELECT p.id,p.name,p.description,p.status,p.project_type,p.created_by,p.owner_user_id,p.starts_on::text AS starts_on,
                 p.target_on::text AS target_on,p.version,p.archived_at
          FROM projects p WHERE p.id=$1 AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS (
            SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
@@ -554,6 +557,8 @@ export class TasksService {
       if(old.created_by!==user.id&&old.owner_user_id!==user.id&&!user.roles.includes('system_admin')) throw new ForbiddenException({code:'PROJECT_MANAGE_DENIED',message:'Bu projeyi düzenleme yetkiniz yok.'});
       const name=Object.hasOwn(value,'name')?boundedText(value.name,1,160,'Proje adı'):old.name;
       const description=Object.hasOwn(value,'description')?boundedText(value.description,0,4000,'Açıklama'):old.description;
+      const projectType=Object.hasOwn(value,'projectType')?String(value.projectType):old.project_type;
+      if(!PROJECT_TYPES.includes(projectType as typeof PROJECT_TYPES[number])) throw invalid('Proje türü geçersiz.');
       const status=Object.hasOwn(value,'status')?value.status:old.status;
       if(!['planning','active','on_hold','completed'].includes(String(status))) throw invalid('Proje durumu geçersiz.');
       const ownerId=Object.hasOwn(value,'ownerId')?value.ownerId:old.owner_user_id;
@@ -569,9 +574,9 @@ export class TasksService {
       const active=await client.query(`SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'`,[members]);
       if(active.rowCount!==members.length) throw invalid('Etkin olmayan bir kullanıcı proje üyesi olamaz.');
       const updated=await client.query(
-        `UPDATE projects SET name=$1,description=$2,status=$3,owner_user_id=$4,starts_on=$5,target_on=$6,
-           updated_at=now(),version=version+1 WHERE id=$7 AND version=$8 AND archived_at IS NULL RETURNING id`,
-        [name,description,status,ownerId,startsOn,targetOn,id,Number(value.version)],
+        `UPDATE projects SET name=$1,description=$2,status=$3,project_type=$4,owner_user_id=$5,starts_on=$6,target_on=$7,
+           updated_at=now(),version=version+1 WHERE id=$8 AND version=$9 AND archived_at IS NULL RETURNING id`,
+        [name,description,status,projectType,ownerId,startsOn,targetOn,id,Number(value.version)],
       );
       if(!updated.rowCount) throw new ConflictException({code:'PROJECT_CHANGED',message:'Proje başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
       const removed=current.filter((memberId)=>!members.includes(memberId));
