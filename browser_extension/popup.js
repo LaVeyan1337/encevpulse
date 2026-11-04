@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 let currentOrigin = '';
 let currentTabKey = '';
 let currentTabId = null;
+const PORTAL_ORIGIN = 'https://eced.csb.gov.tr';
 async function init() {
   const tabs = await chrome.tabs.query({active:true,lastFocusedWindow:true});
   const tab = tabs[0];
@@ -18,6 +19,11 @@ async function init() {
   if (!['http:','https:'].includes(parsed.protocol)) {
     $('pageTitle').textContent = 'Bu sekme izlenemez';
     $('pageOrigin').textContent = 'Yalnızca HTTP(S) portal sekmeleri desteklenir.';
+    $('enableSite').disabled = true; $('save').disabled = true; return;
+  }
+  if (parsed.origin !== PORTAL_ORIGIN) {
+    $('pageTitle').textContent = 'Desteklenmeyen portal adresi';
+    $('pageOrigin').textContent = 'Güvenlik nedeniyle yalnızca https://eced.csb.gov.tr izlenebilir.';
     $('enableSite').disabled = true; $('save').disabled = true; return;
   }
   currentOrigin = parsed.origin;
