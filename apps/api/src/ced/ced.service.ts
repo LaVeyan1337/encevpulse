@@ -500,3 +500,97 @@ export class CedService {
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
   }
+    return result.rows[0];
+  }
+
+  private async assertProjectAccess(client: PoolClient, projectId: string, userId: string, lock = false) {
+    const result = await client.query(
+      \`SELECT p.id FROM projects p WHERE p.id=$1 AND p.archived_at IS NULL AND p.status<>'archived'
+       AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2))
+       \${lock ? 'FOR UPDATE OF p' : ''}\`,
+      [projectId, userId],
+    );
+    if (!result.rowCount) throw new NotFoundException({ code: 'PROJECT_NOT_FOUND', message: 'Proje bulunamadı.' });
+  }
+
+  private async audit(client: PoolClient, caseId: string, entityType: string, entityId: string, action: string, details: unknown, actorId: string) {
+    await client.query(
+      \`INSERT INTO ced_audit_events(case_id,entity_type,entity_id,action,details,actor_user_id) VALUES($1,$2,$3,$4,$5,$6)\`,
+      [caseId, entityType, entityId, action, details, actorId],
+    );
+  }
+}
+
+function objectInput(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid('Gönderilen veri geçersiz.');
+  return input as Record<string, unknown>;
+}
+function assertKeys(value: Record<string, unknown>, allowed: string[]) {
+  const set = new Set(allowed);
+  if (Object.keys(value).some((key) => !set.has(key))) throw invalid('Gönderilen alanları kontrol edin.');
+}
+function assertUuid(value: unknown, label: string) {
+  if (typeof value !== 'string' || !UUID.test(value)) throw invalid(\`\${label} kimliği geçersiz.\`);
+}
+function optionalUuid(value: unknown, label: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  assertUuid(value, label);
+  return value as string;
+}
+function assertVersion(value: unknown) {
+  if (!Number.isInteger(value) || Number(value) < 1) throw invalid('Kayıt sürümü geçersiz; yenileyip tekrar deneyin.');
+}
+function boundedText(value: unknown, min: number, max: number, label: string): string {
+  if (typeof value !== 'string') throw invalid(\`\${label} geçersiz.\`);
+  const text = value.trim();
+  if (text.length < min || text.length > max) throw invalid(\`\${label} \${min > 0 ? \`\${min}–\` : ''}\${max} karakter arasında olmalıdır.\`);
+  return text;
+}
+function enumValue<T extends readonly string[]>(value: unknown, values: T, label: string): T[number] {
+  if (typeof value !== 'string' || !values.includes(value)) throw invalid(\`\${label} geçersiz.\`);
+  return value as T[number];
+}
+function optionalDate(value: unknown, label: string): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !DATE.test(value)) throw invalid(\`\${label} YYYY-AA-GG biçiminde olmalıdır.\`);
+  const date = new Date(\`\${value}T00:00:00.000Z\`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw invalid(\`\${label} geçerli bir tarih olmalıdır.\`);
+  return value;
+}
+function validateOpinion(value: Record<string, unknown>) {
+  const draft = {
+    institutionName: boundedText(value.institutionName, 2, 180, 'Kurum adı'),
+    subject: boundedText(value.subject, 2, 240, 'Görüş konusu'),
+    status: enumValue(value.status ?? 'draft', OPINION_STATUSES, 'Kurum görüşü durumu') as OpinionStatus,
+    requestDate: optionalDate(value.requestDate, 'Talep tarihi'),
+    deadlineDate: optionalDate(value.deadlineDate, 'Son tarih'),
+    responseDate: optionalDate(value.responseDate, 'Yanıt tarihi'),
+    outgoingLetterNo: boundedText(value.outgoingLetterNo ?? '', 0, 100, 'Giden yazı numarası'),
+    incomingLetterNo: boundedText(value.incomingLetterNo ?? '', 0, 100, 'Gelen yazı numarası'),
+    contactPerson: boundedText(value.contactPerson ?? '', 0, 160, 'İletişim kişisi'),
+    notes: boundedText(value.notes ?? '', 0, 4000, 'Açıklama'),
+  };
+  if (draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
+  if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
+  return draft;
+}
+function validateMeeting(value: Record<string, unknown>) {
+  const meetingType = enumValue(value.meetingType ?? 'idk', MEETING_TYPES, 'Toplantı türü');
+  const title = boundedText(value.title, 2, 180, 'Toplantı adı');
+  const startsAt = validInstant(value.startsAt, 'Başlangıç zamanı');
+  const endsAt = value.endsAt === undefined || value.endsAt === null || value.endsAt === '' ? null : validInstant(value.endsAt, 'Bitiş zamanı');
+  if (endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) throw invalid('Toplantı bitişi başlangıçtan sonra olmalıdır.');
+  return {
+    meetingType, title, startsAt, endsAt,
+    location: boundedText(value.location ?? '', 0, 240, 'Konum'),
+    status: enumValue(value.status ?? 'planned', MEETING_STATUSES, 'Toplantı durumu') as MeetingStatus,
+    agenda: boundedText(value.agenda ?? '', 0, 5000, 'Gündem'),
+    decisions: boundedText(value.decisions ?? '', 0, 5000, 'Kararlar'),
+  };
+}
+function validInstant(value: unknown, label: string): string {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
+  if (typeof value !== 'string' || !/(Z|[+-]\d{2}:?\d{2})$/i.test(value) || !Number.isFinite(Date.parse(value))) throw invalid(\`\${label} saat dilimi içeren geçerli bir tarih olmalıdır.\`);
+  return new Date(value).toISOString();
+}
+function invalid(message: string) { return new BadRequestException({ code: 'INVALID_CED_INPUT', message }); }
