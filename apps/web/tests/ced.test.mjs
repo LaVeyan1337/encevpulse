@@ -22,6 +22,9 @@ test('ÇED workspace exposes the five required document milestones, project entr
   assert.match(component, /05\.03\.2026 öncesi başvurular için geçiş hükümleri ayrıca incelenmelidir/);
   assert.match(component, /rotasını otomatik değiştirmez/);
   assert.match(service, /application_submitted_on/);
+  assert.match(service, /function applicationSubmissionDate/);
+  assert.match(service, /timeZone: 'Europe\\/Istanbul'/);
+  assert.match(service, /Resmî başvuru tarihi gelecekte olamaz/);
   assert.match(transitionMigration, /ADD COLUMN application_submitted_on date/);
   assert.doesNotMatch(transitionMigration, /UPDATE ced_cases|SET application_submitted_on/);
   for (const feature of ['Ara adım ekle', 'Kurum görüşleri', 'İDK toplantıları ve kararlar', 'sourceReference']) {
