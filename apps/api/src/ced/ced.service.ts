@@ -253,7 +253,7 @@ export class CedService {
       const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
       const applicationSubmittedOn = Object.hasOwn(value, 'applicationSubmittedOn')
         ? optionalDate(value.applicationSubmittedOn, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi')
-        : (current.application_submitted_on ? String(current.application_submitted_on).slice(0, 10) : null);
+        : (current.application_submitted_on_text ? String(current.application_submitted_on_text).slice(0, 10) : null);
       const hasClosedOnInput = Object.hasOwn(value, 'closedOn');
       const closedOnIsBlank = !hasClosedOnInput || value.closedOn === null || value.closedOn === '';
       const clearPtdClosure = routeCode === 'ek2_ptd' && ['pending','ced_report_required'].includes(decision) && closedOnIsBlank;
@@ -684,7 +684,7 @@ export class CedService {
 
   private async loadAccessibleCase(client: PoolClient, caseId: string, userId: string, lock = false) {
     const result = await client.query<any>(
-      `SELECT c.* FROM ced_cases c JOIN projects p ON p.id=c.project_id
+      `SELECT c.*,c.application_submitted_on::text AS application_submitted_on_text FROM ced_cases c JOIN projects p ON p.id=c.project_id
        WHERE c.id=$1 AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
        AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2))
        ${lock ? 'FOR UPDATE OF c' : ''}`,
