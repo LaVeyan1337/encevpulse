@@ -18,9 +18,9 @@ test('web dilekçeler akışı NAS ve SMB erişiminden bağımsız kalır', asyn
   assert.match(design, /fiziksel olarak kilitlendiğini garanti etmez/);
   assert.match(design, /yardımcı servis kurulmaz, başlatılmaz veya paketlenmez/);
 
-  assert.match(component, /indexedDB\\.open/);
-  assert.match(component, /downloadDocx\\(record\\.bytes,chosen\\)/);
+  assert.match(component, /indexedDB\.open/);
+  assert.match(component, /downloadDocx\(record\.bytes,chosen\)/);
   assert.match(component, /Sunucuya veya şirket NAS'ına aktarılmaz/);
-  assert.doesNotMatch(component, /192\\.168\\.1\\.55|smb:\\/\\/|file:\\/\\/|child_process|openfiles\\.exe|NetFileEnum/i);
+  assert.doesNotMatch(component, /192\.168\.1\.55|smb:\/\/|file:\/\/|child_process|openfiles\.exe|NetFileEnum/i);
   assert.doesNotMatch(webPackage, /smb2|node-smb|child_process/);
 });
