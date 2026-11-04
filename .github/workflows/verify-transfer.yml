@@ -8,6 +8,7 @@ on:
       - feature/ced-case-management-20261103
       - feature/institution-opinions-and-visual-clarity-20261104
       - feature/workspace-usability-chat-calendar-20261104
+      - feature/ced-project-flow-opinions-20261104
     paths:
       - "apps/**"
       - "drizzle/**"
