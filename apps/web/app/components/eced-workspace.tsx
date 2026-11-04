@@ -267,8 +267,7 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
       const relevant=data.reports.filter(report=>report.normalizedAccount===account.normalizedAccount);
       const fresh=relevant.filter(report=>stateOf(report,data.staleAfterSeconds).fresh);
       const active=fresh.some(report=>report.sessionState==='active');
-      const explicitlyLoggedOut=fresh.some(report=>report.sessionState==='logged_out');
-      const uncertain=fresh.some(report=>report.sessionState==='unknown');
+      const allFreshLoggedOut=fresh.length>0&&fresh.every(report=>report.sessionState==='logged_out');
       const reserved=data.claims.some(claim=>claim.normalizedAccount===account.normalizedAccount);
       let tone:'busy'|'ready'|'unknown'='unknown';
       let label='Durum belirsiz';
@@ -276,14 +275,11 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
         tone='unknown';label='Bağlantı doğrulanamadı';
       }else if(reserved||active){
         tone='busy';label=reserved?'Kullanımda · rezerve':'Açık';
-      }else if(explicitlyLoggedOut){
+      }else if(allFreshLoggedOut){
         tone='ready';label='Girişe hazır';
-      }else if(uncertain){
-        tone='unknown';label='Durum belirsiz';
       }else if(relevant.length>0){
-        // Desktop PULSE semantics: a previously observed account with no fresh
-        // active session is available, but the stale signal is disclosed.
-        tone='ready';label='Girişe hazır · aktif sinyal yok';
+        tone='unknown';
+        label=fresh.length>0?'Durum belirsiz':'Sinyal eski · durum belirsiz';
       }
       const lastReport=relevant.reduce<Report|null>((latest,report)=>
         !latest||Date.parse(report.lastSeen)>Date.parse(latest.lastSeen)?report:latest,null);
