@@ -46,12 +46,12 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(migration, /CREATE TABLE eced_browser_reports/);
   assert.match(migration, /CREATE TABLE eced_account_claims/);
   assert.match(manifest, /optional_host_permissions/);
-  assert.match(manifest, /"https:\\/\\/eced\\.csb\\.gov\\.tr\\/\\*"/);
-  assert.doesNotMatch(manifest, /http:\\/\\/\\*\\/\\*|https:\\/\\/\\*\\/\\*/);
-  assert.match(popup, /const PORTAL_ORIGIN = 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
-  assert.match(popup, /parsed\\.origin !== PORTAL_ORIGIN/);
-  assert.match(worker, /parsed\\.origin !== 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
-  assert.match(contentScript, /location\\.origin !== 'https:\\/\\/eced\\.csb\\.gov\\.tr'/);
+  assert.deepEqual(JSON.parse(manifest).optional_host_permissions, ["https://eced.csb.gov.tr/*"]);
+  assert.ok(!manifest.includes('"http://*/*"') && !manifest.includes('"https://*/*"'));
+  assert.ok(popup.includes("const PORTAL_ORIGIN = 'https://eced.csb.gov.tr'"));
+  assert.ok(popup.includes("parsed.origin !== PORTAL_ORIGIN"));
+  assert.ok(worker.includes("parsed.origin !== 'https://eced.csb.gov.tr'"));
+  assert.ok(contentScript.includes("location.origin !== 'https://eced.csb.gov.tr'"));
   assert.match(worker, /X-Pulse-Token/);
   assert.match(worker, /origin \+ '::' \+ String\(tab\.id\)/);
   assert.match(worker, /clearTabLabels/);
