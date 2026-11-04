@@ -11,7 +11,7 @@ const DECISIONS = ['pending', 'ced_positive', 'ced_report_required', 'ced_negati
 const STAGE_STATUSES = ['pending', 'in_progress', 'waiting', 'completed', 'not_applicable', 'revision_requested'] as const;
 const DOCUMENT_TYPES = ['cbd', 'ptd', 'ced_report', 'final_report', 'last_final_report', 'institution_opinion', 'idk_minutes', 'other'] as const;
 const SOURCE_TYPES = ['network_path', 'external_url', 'eced_reference', 'other'] as const;
-const OPINION_STATUSES = ['draft', 'requested', 'waiting', 'responded', 'revision_requested', 'closed'] as const;
+const OPINION_STATUSES = ['draft', 'requested', 'waiting', 'responded', 'revision_requested', 'closed', 'positive', 'negative', 'revision', 'other_request'] as const;
 const MEETING_TYPES = ['idk', 'preliminary', 'other'] as const;
 const MEETING_STATUSES = ['planned', 'held', 'postponed', 'cancelled'] as const;
 
@@ -284,6 +284,58 @@ export class CedService {
     return { ok: true, caseId };
   }
 
+  async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
+    assertUuid(projectId, 'Proje');
+    const value = objectInput(input);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    const draft = validateOpinion(value);
+    const client = await this.db.pool.connect();
+    let caseId = '';
+    let opinionId = '';
+    try {
+      await client.query('BEGIN');
+      await this.assertProjectAccess(client, projectId, user.id, true);
+      let existing = await client.query<{id:string;archived_at:string|null}>(
+        'SELECT id,archived_at FROM ced_cases WHERE project_id=$1 FOR UPDATE',[projectId],
+      );
+      if(!existing.rowCount) {
+        const created=await client.query<{id:string}>(
+          `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,created_by,updated_by)
+           VALUES($1,'custom','','',NULL,'',$2,$2)
+           ON CONFLICT(project_id) DO NOTHING RETURNING id`,
+          [projectId,user.id],
+        );
+        if(created.rowCount) {
+          caseId=created.rows[0].id;
+          await this.audit(client,caseId,'case',caseId,'created',{source:'institution_opinion_workspace'},user.id);
+        } else {
+          // A second employee may have created the project's opinion container concurrently.
+          existing=await client.query<{id:string;archived_at:string|null}>(
+            'SELECT id,archived_at FROM ced_cases WHERE project_id=$1 FOR UPDATE',[projectId],
+          );
+          if(!existing.rowCount) throw new ConflictException({code:'CED_CASE_CREATE_CONFLICT',message:'Projenin kurum görüşü alanı aynı anda oluşturulamadı. Yenileyip tekrar deneyin.'});
+          if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
+          caseId=existing.rows[0].id;
+        }
+      } else {
+        if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
+        caseId=existing.rows[0].id;
+      }
+      const inserted=await client.query<{id:string}>(
+        `INSERT INTO ced_institution_opinions(case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
+        [caseId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
+          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+      );
+      opinionId=inserted.rows[0].id;
+      await this.audit(client,caseId,'institution_opinion',opinionId,'created',draft,user.id);
+      await client.query('COMMIT');
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok:true, caseId, opinionId };
+  }
+
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
@@ -414,10 +466,10 @@ export class CedService {
     return { ok: true, caseId };
   }
 
-  async calendarMilestones(user: AuthUser, from: string, to: string, includeCed: boolean, includeOpinions: boolean) {
-    if (!includeCed && !includeOpinions) return [];
+  async calendarMilestones(user: AuthUser, from: string, to: string, includeCed: boolean, includeOpinions: boolean, companyWide = false) {
+    if (!includeCed && !includeOpinions && !companyWide) return [];
     const rows: any[] = [];
-    if (includeCed) {
+    if (includeCed || companyWide) {
       const [stages, meetings] = await Promise.all([
         this.db.query(
           `SELECT 'ced-stage:'||s.id::text AS id,'project_ced_stage_due' AS kind,s.id AS "entityId",
@@ -427,8 +479,8 @@ export class CedService {
            WHERE s.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND s.due_on >= $1::date AND s.due_on < $2::date
              AND s.status NOT IN ('completed','not_applicable')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
-          [from, to, user.id],
+             AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+          [from, to, user.id, companyWide],
         ),
         this.db.query(
           `SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
@@ -438,13 +490,13 @@ export class CedService {
            WHERE m.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND m.starts_at >= ($1::date::timestamp AT TIME ZONE 'Europe/Istanbul')
              AND m.starts_at < ($2::date::timestamp AT TIME ZONE 'Europe/Istanbul') AND m.status IN ('planned','postponed')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
-          [from, to, user.id],
+             AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+          [from, to, user.id, companyWide],
         ),
       ]);
       rows.push(...stages.rows, ...meetings.rows);
     }
-    if (includeOpinions) {
+    if (includeOpinions || companyWide) {
       const opinions = await this.db.query(
         `SELECT 'opinion:'||o.id::text AS id,'project_institution_opinion_due' AS kind,o.id AS "entityId",
          (o.institution_name||' · '||o.subject) AS title,o.deadline_date::text AS date,c.project_id AS "projectId",p.name AS "projectName",
@@ -453,8 +505,8 @@ export class CedService {
          WHERE o.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
            AND o.deadline_date >= $1::date AND o.deadline_date < $2::date
            AND o.status NOT IN ('responded','closed')
-           AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
-        [from, to, user.id],
+           AND ($4::boolean OR p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
+        [from, to, user.id, companyWide],
       );
       rows.push(...opinions.rows);
     }

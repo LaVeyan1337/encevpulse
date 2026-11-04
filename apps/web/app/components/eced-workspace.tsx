@@ -190,27 +190,6 @@ export function EcedWorkspace({
       <article className={stats.conflicts?'metric-conflict':''}><span>Çoklu cihaz uyarısı</span><strong>{stats.conflicts}</strong><small>Aynı etiket birden fazla cihazda</small></article>
     </div>
 
-    <section className="eced-pairing-panel">
-      <div className="eced-panel-heading"><div><h3>Tarayıcı eşleştirmeleri</h3><p>Her Windows bilgisayarı ve kullanılan tarayıcı profili için ayrı eşleştirme yapın.</p></div>
-        <span>{devices.length} etkin cihaz</span></div>
-      {canCreate&&<form className="eced-pairing-create" onSubmit={event=>{event.preventDefault();void createPairing();}}>
-        <label><span>Bilgisayar / profil adı</span><input value={deviceName} onChange={event=>setDeviceName(event.target.value)} maxLength={80} minLength={2} placeholder="Örn. Ofis PC · Edge" required /></label>
-        <button type="submit" disabled={busy||deviceName.trim().length<2}>{busy?'İşleniyor…':'Eşleştirme anahtarı oluştur'}</button>
-      </form>}
-      {pairing&&showToken&&<div className="eced-pairing-secret">
-        <div><strong>{pairing.deviceName} için yeni anahtar</strong><p>Bu anahtar yalnızca bu ekranda gösterilir. Eklentiye güvenli şekilde kaydedin; daha sonra yeniden görüntülenemez.</p></div>
-        <label><span>API adresi</span><input readOnly value={pairing.apiBase} onFocus={event=>event.currentTarget.select()}/></label>
-        <label><span>Tek seferlik eşleştirme anahtarı</span><input readOnly type="text" value={pairing.token} onFocus={event=>event.currentTarget.select()} /></label>
-        <div className="eced-secret-actions"><button type="button" onClick={()=>void copyToken()}>Anahtarı kopyala</button><button type="button" className="subtle" onClick={()=>{setPairing(null);setShowToken(false);}}>Gizle</button></div>
-      </div>}
-      {devices.length===0?<div className="eced-monitor-empty compact">Henüz tarayıcı eşleştirilmedi. Eşleştirme oluşturduktan sonra Chrome / Edge eklentisini yükleyin.</div>
-      :<div className="eced-device-list">{devices.map(device=><article key={device.id}>
-        <div className="eced-device-icon">◎</div><div className="eced-device-copy"><strong>{device.deviceName}</strong><span>Oluşturuldu: {dateText(device.createdAt)}</span><small>Son sinyal: {dateText(device.lastSeenAt)}</small></div>
-        {canDelete&&<button type="button" className="eced-device-revoke" disabled={busy} onClick={()=>void revokeDevice(device)}>Eşleştirmeyi iptal et</button>}
-      </article>)}</div>}
-      <p className="eced-security-note">Eklenti yalnızca izin verilen portal sekmesinin adresini, başlığını, sekme etkinliğini ve sizin seçtiğiniz görünür hesap etiketini gönderir. Parola, çerez, form alanı, localStorage / sessionStorage veya sayfa HTML içeriği okunmaz. Bu gözlem, e-ÇED sunucusundan doğrulanmış kimlik kanıtı değildir.</p>
-    </section>
-
     <section className="eced-reports-panel">
       <div className="eced-panel-heading"><div><h3>Canlı tarayıcı raporları</h3><p>Son sinyali eskiyen cihazlar çevrimdışı / oturum kapalı diye yorumlanmaz.</p></div><span>{filtered.length} / {reports.length} rapor</span></div>
       <div className="eced-report-toolbar">
@@ -245,5 +224,91 @@ export function EcedWorkspace({
     <section className="eced-seen-panel"><div className="eced-panel-heading"><div><h3>Gözlenmiş hesaplar</h3><p>En az bir kez tarayıcı eklentisinden görünür etiket olarak alınan hesaplar.</p></div><span>{data?.seenAccounts.length??0} kayıt</span></div>
       <div className="eced-seen-chips">{(data?.seenAccounts??[]).slice(0,30).map(account=><span key={account.normalizedAccount}><strong>{account.accountName}</strong><small>{account.lastDeviceName} · {ageText(account.lastSeen)}</small></span>)}</div>
     </section>
+
+    <section className="eced-pairing-panel">
+      <div className="eced-panel-heading"><div><h3>Tarayıcı eşleştirmeleri</h3><p>Her Windows bilgisayarı ve kullanılan tarayıcı profili için ayrı eşleştirme yapın.</p></div>
+        <span>{devices.length} etkin cihaz</span></div>
+      {canCreate&&<form className="eced-pairing-create" onSubmit={event=>{event.preventDefault();void createPairing();}}>
+        <label><span>Bilgisayar / profil adı</span><input value={deviceName} onChange={event=>setDeviceName(event.target.value)} maxLength={80} minLength={2} placeholder="Örn. Ofis PC · Edge" required /></label>
+        <button type="submit" disabled={busy||deviceName.trim().length<2}>{busy?'İşleniyor…':'Eşleştirme anahtarı oluştur'}</button>
+      </form>}
+      {pairing&&showToken&&<div className="eced-pairing-secret">
+        <div><strong>{pairing.deviceName} için yeni anahtar</strong><p>Bu anahtar yalnızca bu ekranda gösterilir. Eklentiye güvenli şekilde kaydedin; daha sonra yeniden görüntülenemez.</p></div>
+        <label><span>API adresi</span><input readOnly value={pairing.apiBase} onFocus={event=>event.currentTarget.select()}/></label>
+        <label><span>Tek seferlik eşleştirme anahtarı</span><input readOnly type="text" value={pairing.token} onFocus={event=>event.currentTarget.select()} /></label>
+        <div className="eced-secret-actions"><button type="button" onClick={()=>void copyToken()}>Anahtarı kopyala</button><button type="button" className="subtle" onClick={()=>{setPairing(null);setShowToken(false);}}>Gizle</button></div>
+      </div>}
+      {devices.length===0?<div className="eced-monitor-empty compact">Henüz tarayıcı eşleştirilmedi. Eşleştirme oluşturduktan sonra Chrome / Edge eklentisini yükleyin.</div>
+      :<div className="eced-device-list">{devices.map(device=><article key={device.id}>
+        <div className="eced-device-icon">◎</div><div className="eced-device-copy"><strong>{device.deviceName}</strong><span>Oluşturuldu: {dateText(device.createdAt)}</span><small>Son sinyal: {dateText(device.lastSeenAt)}</small></div>
+        {canDelete&&<button type="button" className="eced-device-revoke" disabled={busy} onClick={()=>void revokeDevice(device)}>Eşleştirmeyi iptal et</button>}
+      </article>)}</div>}
+      <p className="eced-security-note">Eklenti yalnızca izin verilen portal sekmesinin adresini, başlığını, sekme etkinliğini ve sizin seçtiğiniz görünür hesap etiketini gönderir. Parola, çerez, form alanı, localStorage / sessionStorage veya sayfa HTML içeriği okunmaz. Bu gözlem, e-ÇED sunucusundan doğrulanmış kimlik kanıtı değildir.</p>
+    </section>
+  </section>;
+}
+
+
+export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=>void}) {
+  const [data,setData]=useState<MonitorData|null>(null);
+  const [error,setError]=useState('');
+  const load=useCallback(async()=>{
+    try{setData(await request('eced/monitor') as MonitorData);setError('');}
+    catch(cause){setError(cause instanceof Error?cause.message:'e-ÇED hesap durumu alınamadı.');}
+  },[request]);
+  useEffect(()=>{
+    void load();
+    const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void load();},20_000);
+    return ()=>window.clearInterval(timer);
+  },[load]);
+  const accounts=useMemo(()=>{
+    if(!data)return [];
+    return data.seenAccounts.map(account=>{
+      const relevant=data.reports.filter(report=>report.normalizedAccount===account.normalizedAccount);
+      const fresh=relevant.filter(report=>stateOf(report,data.staleAfterSeconds).fresh);
+      const active=fresh.some(report=>report.sessionState==='active');
+      const explicitlyLoggedOut=fresh.some(report=>report.sessionState==='logged_out');
+      const uncertain=fresh.some(report=>report.sessionState==='unknown');
+      const reserved=data.claims.some(claim=>claim.normalizedAccount===account.normalizedAccount);
+      let tone:'busy'|'ready'|'unknown'='unknown';
+      let label='Durum belirsiz';
+      if(error){
+        tone='unknown';label='Bağlantı doğrulanamadı';
+      }else if(reserved||active){
+        tone='busy';label=reserved?'Kullanımda · rezerve':'Açık';
+      }else if(explicitlyLoggedOut){
+        tone='ready';label='Girişe hazır';
+      }else if(uncertain){
+        tone='unknown';label='Durum belirsiz';
+      }else if(relevant.length>0){
+        // Desktop PULSE semantics: a previously observed account with no fresh
+        // active session is available, but the stale signal is disclosed.
+        tone='ready';label='Girişe hazır · aktif sinyal yok';
+      }
+      const lastReport=relevant.reduce<Report|null>((latest,report)=>
+        !latest||Date.parse(report.lastSeen)>Date.parse(latest.lastSeen)?report:latest,null);
+      return {...account,tone,label,lastSeen:lastReport?.lastSeen??account.lastSeen};
+    }).sort((a,b)=>({busy:0,ready:1,unknown:2}[a.tone]-{busy:0,ready:1,unknown:2}[b.tone])||a.accountName.localeCompare(b.accountName,'tr'));
+  },[data,error]);
+  const busyCount=accounts.filter(x=>x.tone==='busy').length;
+  const readyCount=accounts.filter(x=>x.tone==='ready').length;
+  return <section className="eced-overview-panel" aria-label="e-ÇED hesap durumları">
+    <div className="eced-overview-heading">
+      <div><span className="eced-overview-kicker">CANLI HESAP DURUMU</span><h2>e-ÇED hesapları</h2>
+      <p>Açık oturumlar kırmızı, girişe hazır hesaplar yeşil gösterilir.</p></div>
+      <button type="button" onClick={onOpen}>Tümünü görüntüle <span aria-hidden="true">↗</span></button>
+    </div>
+    <div className="eced-overview-summary">
+      <span className="eced-mini-count is-busy"><i/>{busyCount} açık</span>
+      <span className="eced-mini-count is-ready"><i/>{readyCount} girişe hazır</span>
+      <span className="eced-overview-total">{accounts.length} kayıtlı hesap</span>
+    </div>
+    {error?<p className="eced-overview-state" role="status">Durum yenilenemedi. {error}</p>
+      :!data?<p className="eced-overview-state">Hesap durumları yükleniyor…</p>
+      :accounts.length===0?<p className="eced-overview-state">Henüz gözlenmiş hesap yok. İlk portal sinyali geldiğinde hesap otomatik olarak bu listeye eklenir.</p>
+      :<div className="eced-overview-accounts">{accounts.slice(0,8).map(account=>
+        <div className={'eced-overview-account tone-'+account.tone} key={account.normalizedAccount}>
+          <i aria-hidden="true"/><strong>{account.accountName}</strong><span>{account.label}</span>
+        </div>)}</div>}
   </section>;
 }

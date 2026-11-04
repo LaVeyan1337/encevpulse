@@ -16,7 +16,9 @@ test('ÇED workspace exposes the five required document milestones and workflow 
   for (const feature of ['Ara adım ekle', 'Kurum görüşleri', 'İDK toplantıları ve kararlar', 'sourceReference']) {
     assert.ok(component.includes(feature), 'Missing workflow feature: ' + feature);
   }
-  assert.match(workspace, /<CedWorkspace/);
+  assert.doesNotMatch(workspace, /<CedWorkspace/);
+  assert.match(workspace, /projectTab === 'opinions'/);
+  assert.match(workspace, /<InstitutionOpinionsWorkspace/);
   assert.match(workspace, /hasModulePermission\('eced'\)/);
   assert.match(styles, /\.ced-timeline/);
   assert.match(styles, /data-theme='light'/);
@@ -54,7 +56,8 @@ test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kull
   assert.match(component, /request\('ced\/opinions'\)/);
   assert.match(component, /mevzuattaki iş günü veya resmî tatil hesabı değildir/);
   assert.match(workspace, /hasModulePermission\('institution_opinions'\)/);
-  assert.match(workspace, /initialCedTab/);
+  assert.match(workspace, /projectTab === 'opinions'/);
+  assert.doesNotMatch(workspace, /projectTab === 'ced'/);
   assert.match(styles, /\.opinions-table/);
   assert.match(styles, /border-strong/);
   assert.doesNotMatch(brand, /#c88f73|#a96f56|#b97e61/i);

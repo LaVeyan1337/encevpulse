@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface DrawerProps {
   isOpen: boolean;
@@ -32,15 +33,18 @@ export function Drawer({
   children,
   ariaLabelledBy = 'drawer-title',
 }: DrawerProps) {
+  const [portalTarget,setPortalTarget]=useState<HTMLElement|null>(null);
   const panelRef = useRef<HTMLElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
+
+  useEffect(()=>{setPortalTarget(document.body);},[]);
 
   // Keep the latest callback without restarting the scroll/focus lifecycle on every parent render.
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !portalTarget) return;
 
     const panel = panelRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -63,6 +67,11 @@ export function Drawer({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
+      // Only the visually top-most drawer owns keyboard interaction.
+      const layers = Array.from(document.querySelectorAll<HTMLElement>('.drawer-backdrop'));
+      const topLayer = layers[layers.length - 1];
+      if (topLayer && panel && !topLayer.contains(panel)) return;
+
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -110,18 +119,22 @@ export function Drawer({
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
 
-      // Do not steal focus from a second drawer opened during a detail-to-edit transition.
-      if (opener?.isConnected && !document.querySelector('.drawer-backdrop')) {
+      // Return focus to the element that opened this drawer, including a control
+      // inside a still-open parent drawer.
+      if (opener?.isConnected) {
         window.requestAnimationFrame(() => {
-          if (opener.isConnected && !document.querySelector('.drawer-backdrop')) opener.focus();
+          if (!opener.isConnected) return;
+          const layers = Array.from(document.querySelectorAll<HTMLElement>('.drawer-backdrop'));
+          const topLayer = layers[layers.length - 1];
+          if (!topLayer || topLayer.contains(opener)) opener.focus();
         });
       }
     };
-  }, [isOpen]);
+  }, [isOpen,portalTarget]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalTarget) return null;
 
-  return (
+  return createPortal((
     <div
       className="drawer-backdrop"
       role="presentation"
@@ -178,5 +191,5 @@ export function Drawer({
         {footer && <div className="drawer-footer">{footer}</div>}
       </aside>
     </div>
-  );
+  ),portalTarget);
 }

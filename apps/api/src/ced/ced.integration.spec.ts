@@ -29,6 +29,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
   const userIds: string[] = [];
   const projectIds: string[] = [];
   let caseId = '';
+  let directCaseId = '';
   let app: Awaited<ReturnType<typeof NestFactory.create>> | null = null;
 
   async function api(base: string, client: Client, path: string, method = 'GET', body?: unknown) {
@@ -157,6 +158,35 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const refreshedOpinion = refreshedOpinions.data.opinions.find((item: { id: string }) => item.id === listedOpinion.id);
     assert.equal(refreshedOpinion.status, 'responded');
 
+    // A second project starts without a ÇED case. Two simultaneous project-level opinion
+    // requests must create one case container and preserve both opinion records.
+    const opinionOnlyProject = await api(base, projectManager, 'projects', 'POST', {
+      name: 'CED opinion-only test ' + suffix, status: 'active', memberIds: [userIds[1]],
+    });
+    assert.equal(opinionOnlyProject.response.status, 201, JSON.stringify(opinionOnlyProject.data));
+    const opinionOnlyProjectId = opinionOnlyProject.data.project.id as string;
+    projectIds.push(opinionOnlyProjectId);
+
+    const [directOpinionA,directOpinionB] = await Promise.all([
+      api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId + '/opinions', 'POST', {
+        institutionName: 'Ankara İl Müdürlüğü', subject: 'Format görüşü', status: 'positive',
+        requestDate: '2026-11-04', responseDate: '2026-11-05', incomingLetterNo: 'FORMAT-' + suffix,
+      }),
+      api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId + '/opinions', 'POST', {
+        institutionName: 'DKMP', subject: 'İDK görüşü', status: 'revision',
+        requestDate: '2026-11-04', deadlineDate: '2026-11-20', outgoingLetterNo: 'IDK-' + suffix,
+      }),
+    ]);
+    assert.equal(directOpinionA.response.status, 201, JSON.stringify(directOpinionA.data));
+    assert.equal(directOpinionB.response.status, 201, JSON.stringify(directOpinionB.data));
+    directCaseId = directOpinionA.data.caseId as string;
+    assert.equal(directOpinionB.data.caseId, directCaseId, 'Concurrent project opinion creation must reuse one case container.');
+    assert.ok(directOpinionA.data.opinionId && directOpinionB.data.opinionId);
+    const directOpinions = await api(base, processOwner, 'ced/opinions');
+    const projectOpinions = directOpinions.data.opinions.filter((item: {projectId:string})=>item.projectId===opinionOnlyProjectId);
+    assert.equal(projectOpinions.length,2,'Bir projede birden fazla kurum görüşü tutulabilmeli.');
+    assert.deepEqual(new Set(projectOpinions.map((item: {status:string})=>item.status)),new Set(['positive','revision']));
+
     const outsiderOpinionList = await api(base, outsider, 'ced/opinions');
     assert.equal(outsiderOpinionList.response.status, 200);
     assert.equal(outsiderOpinionList.data.opinions.length, 0, 'Proje dışındaki kullanıcı görüşleri görmemeli.');
@@ -176,6 +206,12 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('DELETE FROM ced_idk_meetings WHERE case_id=$1', [caseId]);
         await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [caseId]);
         await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [caseId]);
+      }
+      if(directCaseId&&directCaseId!==caseId){
+        await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [directCaseId]);
+        await cleanup.query('DELETE FROM ced_institution_opinions WHERE case_id=$1', [directCaseId]);
+        await cleanup.query('DELETE FROM ced_case_stages WHERE case_id=$1', [directCaseId]);
+        await cleanup.query('DELETE FROM ced_cases WHERE id=$1', [directCaseId]);
       }
       await cleanup.query('ALTER TABLE ced_audit_events ENABLE TRIGGER ced_audit_events_append_only');
       if (projectIds.length) {
