@@ -170,8 +170,8 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
       const record=await readVerifiedTemplate();
       if(!record)throw new Error('Yedeklenecek yerel Word şablonu bulunamadı.');
       const base=fileNameSafe(record.name.replace(/\.docx$/i,''));
-      downloadDocx(record.bytes,\`Sablon_Yedegi_\${base}.docx\`);
-      setNotice(\`Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. SHA-256: \${record.sha256}\`);
+      downloadDocx(record.bytes,`Sablon_Yedegi_${base}.docx`);
+      setNotice(`Yerel şablon, içeriği değiştirilmeden yedek olarak indirildi. SHA-256: ${record.sha256}`);
     }catch(cause){setError(cause instanceof Error?cause.message:'Word şablonu doğrulanamadı veya yedeklenemedi.');}
     finally{setBusy(false);}
   }
@@ -210,7 +210,7 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
     <section className="petition-template-panel">
       <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>Mevcut dolu örneği ya da kurumunuzca onaylanmış bir DOCX belgesini seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
       {template?<div className="petition-template-current">
-        <div className="petition-template-file"><span className="petition-docx-icon">W</span><div><strong>{template.name}</strong><small>{formatSize(template.size)} · Son kaydetme {new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(template.updatedAt))}{template.sha256?\` · SHA-256 ${template.sha256}\`:' · SHA-256 doğrulaması yok'}</small></div></div>
+        <div className="petition-template-file"><span className="petition-docx-icon">W</span><div><strong>{template.name}</strong><small>{formatSize(template.size)} · Son kaydetme {new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(template.updatedAt))}{template.sha256?` · SHA-256 ${template.sha256}`:' · SHA-256 doğrulaması yok'}</small></div></div>
         {canCreate&&<div className="petition-template-buttons">
           <button type="button" className="petition-export-button" disabled={busy} onClick={()=>void downloadTemplateBackup()}>Yerel yedeği indir</button>
           <button type="button" className="petition-text-button" disabled={busy} onClick={()=>void clearTemplate()}>Yerel şablonu sil</button>
