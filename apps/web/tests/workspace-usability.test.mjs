@@ -80,8 +80,9 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.calendar,/idk: 'İDK Toplantısı'/);
   assert.match(source.calendar,/calendar-scope-switch/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
-  assert.match(source.calendar,/scope==='corporate'\?event\.visibility!=='personal'/);
+  assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal':event\.visibility==='shared'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
+  for(const kind of ['presentation','site_visit','hkt','idk']) assert.match(source.calendarStyles,new RegExp('calendar-entry-'+kind));
   assert.match(source.calendarApiService,/includeCompanyMilestones: boolean/);
   for(const eventType of ['presentation','site_visit','hkt','idk']) {
     assert.match(source.calendarApiService,new RegExp("'"+eventType+"'"));
