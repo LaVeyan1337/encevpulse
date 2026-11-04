@@ -26,6 +26,12 @@ export class CedController {
     return this.ced.getProjectCase(user, projectId, includeOpinions);
   }
 
+  @Post('projects/:projectId/opinions')
+  @HttpCode(HttpStatus.CREATED)
+  async createOpinionForProject(@Req() request: Request, @Param('projectId') projectId: string, @Body() body: unknown) {
+    return this.ced.createOpinionForProject(await this.authorize(request, 'institution_opinions', 'create', true), projectId, body);
+  }
+
   @Post('projects/:projectId')
   @HttpCode(HttpStatus.CREATED)
   async createProjectCase(@Req() request: Request, @Param('projectId') projectId: string, @Body() body: unknown) {
