@@ -252,7 +252,7 @@ export class CedService {
       const ecedReference = Object.hasOwn(value, 'ecedReference') ? boundedText(value.ecedReference, 0, 160, 'e-ÇED referansı') : current.eced_reference;
       const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
       const applicationSubmittedOn = Object.hasOwn(value, 'applicationSubmittedOn')
-        ? optionalDate(value.applicationSubmittedOn, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi')
+        ? applicationSubmissionDate(value.applicationSubmittedOn)
         : (current.application_submitted_on_text ? String(current.application_submitted_on_text).slice(0, 10) : null);
       const hasClosedOnInput = Object.hasOwn(value, 'closedOn');
       const closedOnIsBlank = !hasClosedOnInput || value.closedOn === null || value.closedOn === '';
