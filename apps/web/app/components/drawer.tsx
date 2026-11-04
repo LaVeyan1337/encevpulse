@@ -67,6 +67,11 @@ export function Drawer({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
+      // Only the visually top-most drawer owns keyboard interaction.
+      const layers = Array.from(document.querySelectorAll<HTMLElement>('.drawer-backdrop'));
+      const topLayer = layers[layers.length - 1];
+      if (topLayer && panel && !topLayer.contains(panel)) return;
+
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -114,10 +119,14 @@ export function Drawer({
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
 
-      // Do not steal focus from a second drawer opened during a detail-to-edit transition.
-      if (opener?.isConnected && !document.querySelector('.drawer-backdrop')) {
+      // Return focus to the element that opened this drawer, including a control
+      // inside a still-open parent drawer.
+      if (opener?.isConnected) {
         window.requestAnimationFrame(() => {
-          if (opener.isConnected && !document.querySelector('.drawer-backdrop')) opener.focus();
+          if (!opener.isConnected) return;
+          const layers = Array.from(document.querySelectorAll<HTMLElement>('.drawer-backdrop'));
+          const topLayer = layers[layers.length - 1];
+          if (!topLayer || topLayer.contains(opener)) opener.focus();
         });
       }
     };
