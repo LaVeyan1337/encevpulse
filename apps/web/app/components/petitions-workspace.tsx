@@ -62,6 +62,33 @@ async function removeTemplate():Promise<void>{
 function fileNameSafe(value:string):string{
   return value.normalize('NFKC').replace(/[<>:"/\\|?*\x00-\x1f]/g,' ').replace(/\s+/g,' ').trim().replace(/[. ]+$/,'').slice(0,90)||'Proje';
 }
+function isDocxPackage(bytes:ArrayBuffer):boolean{
+  if(bytes.byteLength<22)return false;
+  const view=new DataView(bytes);
+  const minimum=Math.max(0,bytes.byteLength-65_557);
+  let endRecord=-1;
+  for(let offset=bytes.byteLength-22;offset>=minimum;offset--){
+    if(view.getUint32(offset,true)===0x06054b50){endRecord=offset;break;}
+  }
+  if(endRecord<0)return false;
+  const entryCount=view.getUint16(endRecord+10,true);
+  let offset=view.getUint32(endRecord+16,true);
+  if(entryCount===0xffff||offset===0xffffffff||offset>=bytes.byteLength)return false;
+  const names=new Set<string>();
+  for(let index=0;index<entryCount;index++){
+    if(offset+46>bytes.byteLength||view.getUint32(offset,true)!==0x02014b50)return false;
+    const nameLength=view.getUint16(offset+28,true);
+    const extraLength=view.getUint16(offset+30,true);
+    const commentLength=view.getUint16(offset+32,true);
+    const next=offset+46+nameLength+extraLength+commentLength;
+    if(next>bytes.byteLength||nameLength===0)return false;
+    const nameBytes=new Uint8Array(bytes,offset+46,nameLength);
+    names.add(new TextDecoder().decode(nameBytes));
+    offset=next;
+  }
+  return names.has('[Content_Types].xml')&&names.has('word/document.xml');
+}
+
 function formatSize(bytes:number):string{
   if(bytes<1024*1024)return Math.max(1,Math.round(bytes/1024))+' KB';
   return (bytes/(1024*1024)).toFixed(2)+' MB';
@@ -97,8 +124,7 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
       if(!file.name.toLocaleLowerCase('tr-TR').endsWith('.docx'))throw new Error('Yalnızca .docx Word dosyası seçilebilir.');
       if(file.size<4||file.size>MAX_TEMPLATE_BYTES)throw new Error('Word şablonu boş olamaz ve 20 MB sınırını aşamaz.');
       const bytes=await file.arrayBuffer();
-      const signature=new Uint8Array(bytes,0,4);
-      if(signature[0]!==0x50||signature[1]!==0x4b)throw new Error('Dosya DOCX / ZIP paketi başlangıcı içermiyor. Word belgesini yeniden seçin.');
+      if(!isDocxPackage(bytes))throw new Error('Dosya geçerli bir DOCX ZIP paketi veya Word ana belge içeriği içermiyor. Word belgesini yeniden seçin.');
       const record:TemplateRecord={id:TEMPLATE_KEY,name:file.name,size:file.size,updatedAt:new Date().toISOString(),bytes};
       await saveTemplate(record);
       setTemplate({name:record.name,size:record.size,updatedAt:record.updatedAt});
