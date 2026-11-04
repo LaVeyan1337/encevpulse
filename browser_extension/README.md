@@ -19,7 +19,8 @@ Bu eklenti, kullanıcının açıkça izin verdiği portal origin'lerinde sekme/
 - API eşleştirme anahtarı uzantı profilinin chrome.storage.local alanında tutulur; sunucuda yalnız SHA-256 özeti saklanır.
 - Portal erişimi isteğe bağlı host permission olarak sorulur; kullanıcı izin vermediği origin'ler izlenmez.
 - URL query string ve fragment rapora eklenmez; yalnız origin ve pathname gönderilir.
-- Hesap etiketi ve oturum durumu kullanıcı tarafından açıkça seçilir. Eklenti portal sunucusunun oturumunu doğrulayamaz. unknown veya eski sinyal “oturum kapalı” anlamına gelmez.
+- Hesap etiketi ve oturum durumu kullanıcı tarafından açıkça seçilir ve portal + sekme kimliği bazında saklanır. Sekme kapatıldığında veya başka origin'e yönlendiğinde o sekmenin eski etiketi temizlenir.
+- Eklenti portal sunucusunun oturumunu doğrulayamaz. unknown veya eski sinyal “oturum kapalı” anlamına gelmez.
 - Rapor şemasında parola, çerez, form girdisi, depolama anahtarı, sayfa metni veya HTML alanı yoktur.
 - Eşleştirme iptal edildiğinde sunucu token'ı reddeder. Eklenti içindeki token ayrıca tarayıcı eklenti ayarlarından temizlenebilir.
 
