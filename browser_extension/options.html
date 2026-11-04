@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ENCEV PULSE e-ÇED ayarları</title><link rel="stylesheet" href="options.css"></head>
+<body><main class="settings">
+  <header><span class="mark">P</span><div><strong>Tarayıcı bağlantısı</strong><p>e-ÇED canlı izleme eşleştirmesi</p></div></header>
+  <section class="panel">
+    <label>API adresi<input id="apiBase" placeholder="https://pulse.sirketiniz.com/api"></label>
+    <label>Tek seferlik eşleştirme anahtarı<input id="pairingToken" type="password" autocomplete="off" placeholder="PULSE web ekranındaki anahtar"></label>
+    <div class="actions"><button id="save" class="primary">Ayarları kaydet ve izin iste</button><button id="test" class="secondary">Bağlantıyı test et</button></div>
+    <p id="status" role="status">Önce PULSE web uygulamasında e-ÇED > Tarayıcı eşleştirmeleri bölümünden anahtar oluşturun.</p>
+  </section>
+  <section class="panel note">
+    <h2>Gizlilik sınırı</h2>
+    <p>Bu eklenti yalnızca sizin izin verdiğiniz portal origin'lerinde çalışır. Hesap adı ve oturum durumu sizin elle seçtiğiniz görünür etiketlerdir. Parola, çerez, form alanları, localStorage/sessionStorage veya sayfa HTML içeriği okunmaz.</p>
+    <p>Tarayıcı verileri bu profilde yerel olarak saklanır. Eşleştirme anahtarı yalnızca SHA-256 hash olarak PULSE sunucusunda tutulur; eklenti içindeki anahtarı silmek için Chrome/Edge eklenti verilerini temizleyebilir veya PULSE'tan eşleştirmeyi iptal edebilirsiniz.</p>
+  </section>
+</main><script src="options.js"></script></body></html>
