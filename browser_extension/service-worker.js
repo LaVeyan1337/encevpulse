@@ -142,7 +142,7 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
       if(accountSources[tabKey]==='manual'&&cleanText(accountLabels[tabKey],100))return;
       accountLabels[tabKey]=accountName;
       accountSources[tabKey]='portal';
-      if(!['logged_out','unknown'].includes(sessionStates[tabKey]))sessionStates[tabKey]='active';
+      if(sessionStates[tabKey]!=='logged_out')sessionStates[tabKey]='active';
       await chrome.storage.local.set({accountLabels,accountSources,sessionStates});
       await sendTabReport(tab);
     })().then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false}));
