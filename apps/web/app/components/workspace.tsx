@@ -5,7 +5,7 @@ import { PeopleDirectory } from './people-directory';
 import { CalendarWorkspace } from './calendar-workspace';
 import { CedWorkspace } from './ced-workspace';
 import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
-import { EcedWorkspace } from './eced-workspace';
+import { EcedWorkspace, EcedAccountOverview } from './eced-workspace';
 import { PetitionsWorkspace } from './petitions-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
@@ -1293,6 +1293,8 @@ export function Workspace({
                   <strong>{summary.completed}</strong>
                 </button>
               </div>
+
+              {hasModulePermission('eced') && <EcedAccountOverview request={request} onOpen={() => setSection('eced')} />}
 
               <div className="overview-dual-grid">
                 {/* Upcoming tasks */}
