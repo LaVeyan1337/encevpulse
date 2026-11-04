@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 let currentOrigin = '';
+let currentTabKey = '';
 async function init() {
   const tabs = await chrome.tabs.query({active:true,lastFocusedWindow:true});
   const tab = tabs[0];
@@ -19,15 +20,16 @@ async function init() {
     $('enableSite').disabled = true; $('save').disabled = true; return;
   }
   currentOrigin = parsed.origin;
+  currentTabKey = currentOrigin + '::' + String(tab.id);
   $('pageTitle').textContent = tab.title || 'Portal sekmesi';
   $('pageOrigin').textContent = currentOrigin + parsed.pathname;
   const saved = await chrome.storage.local.get(['allowedOrigins','accountLabels','sessionStates','sectionLabels','apiBase','pairingToken']);
   const allowed = Array.isArray(saved.allowedOrigins) && saved.allowedOrigins.includes(currentOrigin);
   $('enableSite').textContent = allowed ? 'Portal izni açık' : 'Bu portalı izlemeye aç';
   $('enableSite').classList.toggle('enabled',allowed);
-  $('accountName').value = (saved.accountLabels || {})[currentOrigin] || '';
-  $('sessionState').value = (saved.sessionStates || {})[currentOrigin] || 'unknown';
-  $('sectionLabel').value = (saved.sectionLabels || {})[currentOrigin] || '';
+  $('accountName').value = (saved.accountLabels || {})[currentTabKey] || '';
+  $('sessionState').value = (saved.sessionStates || {})[currentTabKey] || 'unknown';
+  $('sectionLabel').value = (saved.sectionLabels || {})[currentTabKey] || '';
   $('connection').textContent = saved.apiBase && saved.pairingToken ? 'Eşleştirme ayarlı' : 'Bağlantı gerekli';
 }
 $('enableSite').addEventListener('click',async()=>{
@@ -47,9 +49,9 @@ $('save').addEventListener('click',async()=>{
   if (!permission) { $('status').textContent='Önce “Bu portalı izlemeye aç” düğmesiyle site iznini verin.'; return; }
   const values = await chrome.storage.local.get(['accountLabels','sessionStates','sectionLabels']);
   const accountLabels=values.accountLabels||{},sessionStates=values.sessionStates||{},sectionLabels=values.sectionLabels||{};
-  accountLabels[currentOrigin]=$('accountName').value.trim().slice(0,100);
-  sessionStates[currentOrigin]=accountLabels[currentOrigin] ? $('sessionState').value : 'unknown';
-  sectionLabels[currentOrigin]=$('sectionLabel').value.trim().slice(0,60);
+  accountLabels[currentTabKey]=$('accountName').value.trim().slice(0,100);
+  sessionStates[currentTabKey]=accountLabels[currentTabKey] ? $('sessionState').value : 'unknown';
+  sectionLabels[currentTabKey]=$('sectionLabel').value.trim().slice(0,60);
   await chrome.storage.local.set({accountLabels,sessionStates,sectionLabels});
   $('status').textContent='Seçimler kaydedildi. Parola, çerez veya web sayfasının depolama alanı okunmadı.';
   chrome.runtime.sendMessage({type:'report-active-tab'});
