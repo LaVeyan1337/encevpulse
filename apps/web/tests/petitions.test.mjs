@@ -13,7 +13,7 @@ test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan
   assert.match(workspace, /hasModulePermission\('petitions'\)/);
   assert.match(component, /indexedDB\.open/);
   assert.match(component, /MAX_TEMPLATE_BYTES/);
-  assert.match(component, /new Blob\(\[record\.bytes\]/);
+  assert.match(component, /new Blob\(\[bytes\]/);
   assert.match(component, /Şablonun özgün baytları değiştirilmeden kopya olarak indirildi/);
   assert.match(component, /Tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir/);
   assert.match(component, /https:\/\/raw\.githubusercontent\.com\/LaVeyan1337\/12312/);
