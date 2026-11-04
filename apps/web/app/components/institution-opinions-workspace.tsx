@@ -74,6 +74,33 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
   const openCount=visibleRows.filter(row=>!terminal.has(row.status)).length;
   const lateCount=visibleRows.filter(row=>!terminal.has(row.status)&&(remaining(row.deadlineDate)??0)<0&&row.deadlineDate).length;
   const answered=visibleRows.filter(row=>['responded','positive','negative'].includes(row.status)).length;
+
+  function openCreate(){
+    const firstProject=projectId??projects.find(item=>item.status!=='archived')?.id??'';
+    setEditing(null);setDraft(emptyDraft());setSelectedProjectId(firstProject);setFormError('');setEditorOpen(true);
+  }
+  function openEdit(row:Row){
+    setEditing(row);setSelectedProjectId(row.projectId);setFormError('');
+    setDraft({institutionName:row.institutionName,subject:row.subject,status:row.status,requestDate:row.requestDate??'',deadlineDate:row.deadlineDate??'',responseDate:row.responseDate??'',outgoingLetterNo:row.outgoingLetterNo??'',incomingLetterNo:row.incomingLetterNo??'',contactPerson:row.contactPerson??'',notes:row.notes??''});
+    setEditorOpen(true);
+  }
+  async function saveOpinion(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!canCreate&&!editing)return;
+    if(editing&&!canUpdate)return;
+    const targetProject=projectId??selectedProjectId;
+    if(!targetProject){setFormError('Önce bir proje seçin.');return;}
+    if(draft.institutionName.trim().length<2||draft.subject.trim().length<2){setFormError('Kurum adı ve görüş konusu en az 2 karakter olmalıdır.');return;}
+    setSaving(true);setFormError('');
+    const payload={...draft,institutionName:draft.institutionName.trim(),subject:draft.subject.trim(),requestDate:draft.requestDate||null,deadlineDate:draft.deadlineDate||null,responseDate:draft.responseDate||null};
+    try{
+      if(editing)await request('ced/opinions/'+editing.id,'PATCH',{...payload,version:editing.version});
+      else await request('ced/projects/'+targetProject+'/opinions','POST',payload);
+      setEditorOpen(false);setEditing(null);await load();
+    }catch(cause){setFormError(cause instanceof Error?cause.message:'Kurum görüşü kaydedilemedi.');}
+    finally{setSaving(false);}
+  }
+
   return <section className="institution-opinions-workspace" aria-label="Kurum görüşleri">
     <header className="opinions-page-intro">
       <div><span className="opinions-eyebrow">PROJE YAZIŞMALARI</span><h2>Kurum Görüşleri</h2>
