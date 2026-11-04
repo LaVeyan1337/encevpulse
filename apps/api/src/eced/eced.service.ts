@@ -160,7 +160,12 @@ export class EcedMonitorService {
         );
       }
       await client.query('UPDATE eced_browser_devices SET last_seen_at=now() WHERE id=$1', [device.id]);
-      await client.query("UPDATE eced_account_claims SET last_seen=now(),expires_at=now()+interval '3 minutes' WHERE device_id=$1", [device.id]);
+      if (normalizedAccount && sessionState === 'active') {
+        await client.query(
+          "UPDATE eced_account_claims SET last_seen=now(),expires_at=now()+interval '3 minutes' WHERE device_id=$1 AND normalized_account=$2",
+          [device.id, normalizedAccount],
+        );
+      }
       await client.query('COMMIT');
       return { queued: true };
     } catch (error) {
