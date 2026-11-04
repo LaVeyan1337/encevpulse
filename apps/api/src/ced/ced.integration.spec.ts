@@ -118,6 +118,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(changedApplicationDate.response.status, 200, JSON.stringify(changedApplicationDate.data));
     const afterApplicationDate = await api(base, processOwner, 'ced/projects/' + projectId);
     assert.equal(afterApplicationDate.data.case.applicationSubmittedOn, '2026-03-06');
+    assert.equal(afterApplicationDate.data.case.routeCode, 'ek1_cbd', 'Başvuru tarihi değişimi mevcut Ek-1 rotasını otomatik değiştirmemeli.');
     const invalidApplicationDate = await api(base, processOwner, 'ced/cases/' + caseId, 'PATCH', {
       version: afterApplicationDate.data.case.version,
       applicationSubmittedOn: '2026-02-30',
