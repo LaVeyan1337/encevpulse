@@ -25,6 +25,23 @@ Yeni süreçlerde yalnızca iki başlangıç yolu seçilebilir:
 
 Yeni kayıtlarda karma/özel rota seçeneği sunulmaz. Eski kayıtların karma/özel rota değerleri veri kaybı oluşturmamak için okunabilir bırakılmıştır; yeni süreç oluşturma API'si bunları kabul etmez. Rota seçimi yetkili süreç sorumlusunun kararıdır; uygulama resmî mevzuat kapsam tespiti yapmaz.
 
+## 2026 değişikliği ve geçiş hükmü için başvuru tarihi
+
+5 Mart 2026 tarihli ve 33187 sayılı Resmî Gazete'de ÇED Yönetmeliği değişikliği yayımlanmıştır. Bakanlık, 18 Mart 2026 tarihli 2026/4 sayılı Genelge ile Ek-1, Ek-2 ve Yönetmelik kapsamında Bakanlık / İl Müdürlüğünden talep edilen görüşler için uygulama açıklamalarını yayımlamıştır.
+
+Bu nedenle ÇED dosyasında iki ayrı tarih tutulur:
+
+- **İç süreç başlangıç tarihi:** EnÇev'in kendi iş takibinde dosyanın fiilen başlatıldığı tarih.
+- **Bakanlık / İl Müdürlüğü başvuru tarihi:** İlgili resmî başvurunun yapıldığı tarihtir. İç süreç başlangıç tarihiyle aynı olduğu varsayılmaz.
+
+Başvuru tarihinin 05.03.2026 öncesinde olması, bazı dosyalarda geçiş hükümlerinin uzman tarafından incelenmesini gerektirebilir. PULSE yalnızca bu tarihi kaydeder ve bu tarihe göre otomatik Ek-1 / Ek-2 sınıflandırması, kapsam kararı veya mevzuat uygunluğu üretmez. Rota ve geçiş hükmü değerlendirmesi, dosyanın somut geçmişi ve resmî belgeleri incelenerek süreç sorumlusu tarafından yapılmalıdır.
+
+Eski kayıtlarda resmî başvuru tarihi bilinmiyorsa alan boş bırakılır; iç süreç başlangıç tarihinden geriye dönük tarih türetilmez.
+
+Resmî kaynaklar:
+- [05.03.2026 tarihli ve 33187 sayılı Resmî Gazete](https://resmigazete.gov.tr/05.03.2026)
+- [Bakanlık: 18.03.2026 tarihli 2026/4 sayılı Genelge duyurusu](https://ced.csb.gov.tr/haberler/ced-yonetmeligi-uygulamalarina-dair-genelge-304302)
+
 ## Belge kayıtları ve depolama
 
 Belge kaydı başlık, tür, sürüm/revizyon, belge tarihi, açıklama ve kaynak referansını tutar. Kaynak türleri şirket ağ yolu (UNC), dış bağlantı, e-ÇED referansı veya diğer kaynaktır.
