@@ -99,7 +99,7 @@ export class CedService {
       await client.query('ROLLBACK');
       throw error;
     }
-    } finally { client.release(); }
+    finally { client.release(); }
     return { ok: true, caseId };
   }
 
@@ -250,7 +250,7 @@ export class CedService {
            WHERE id=$2 AND required_document_type IS NOT NULL`, [user.id, stageId],
         );
       }
-      await this.audit(client, caseId, 'document', documentId, 'registered', { documentType, title, sourceType, sourceReference, versionLabel, stageId, meetingId }, user.id);
+      await this.audit(client, caseId, documentType === 'institution_opinion' ? 'institution_opinion' : 'document', documentId, 'registered', { documentType, title, sourceType, sourceReference, versionLabel, stageId, meetingId }, user.id);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
