@@ -13,6 +13,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "docs/**"
+      - "browser_extension/**"
       - ".github/workflows/verify-transfer.yml"
   workflow_dispatch:
 
