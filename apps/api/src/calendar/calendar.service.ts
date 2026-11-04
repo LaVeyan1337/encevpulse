@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
+import { CedService } from '../ced/ced.service.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -27,9 +28,15 @@ interface EventDraft {
 
 @Injectable()
 export class CalendarService {
-  constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly db: DatabaseService,
+    @Inject(CedService) private readonly ced: CedService,
+  ) {}
 
-  async list(user: AuthUser, query: Record<string, string | undefined>, includeTasks: boolean, includeProjects: boolean) {
+  async list(
+    user: AuthUser, query: Record<string, string | undefined>, includeTasks: boolean, includeProjects: boolean,
+    includeCed: boolean, includeOpinions: boolean,
+  ) {
     const from = validDate(query.from, 'Başlangıç tarihi');
     const to = validDate(query.to, 'Bitiş tarihi');
     if (to <= from) throw invalid('Takvim tarih aralığı geçersiz.');
@@ -78,9 +85,10 @@ export class CalendarService {
       [user.id, from, to],
     );
 
-    const [taskMilestones, projectMilestones] = await Promise.all([
+    const [taskMilestones, projectMilestones, cedMilestones] = await Promise.all([
       includeTasks ? this.taskMilestones(user, from, to) : Promise.resolve([]),
       includeProjects ? this.projectMilestones(user, from, to) : Promise.resolve([]),
+      this.ced.calendarMilestones(user, from, to, includeCed, includeOpinions),
     ]);
     return {
       range: { from, to, timeZone: 'Europe/Istanbul' },
@@ -89,7 +97,7 @@ export class CalendarService {
         startsAt: isoInstant(event.startsAt),
         endsAt: isoInstant(event.endsAt),
       })),
-      milestones: [...taskMilestones, ...projectMilestones].sort((a, b) =>
+      milestones: [...taskMilestones, ...projectMilestones, ...cedMilestones].sort((a, b) =>
         String(a.date).localeCompare(String(b.date)) || String(a.title).localeCompare(String(b.title), 'tr'),
       ),
     };
