@@ -107,7 +107,7 @@ export class CedService {
     const fileNumber = boundedText(value.fileNumber ?? '', 0, 120, 'Dosya numarası');
     const ecedReference = boundedText(value.ecedReference ?? '', 0, 160, 'e-ÇED referansı');
     const startedOn = optionalDate(value.startedOn, 'Başlangıç tarihi');
-    const applicationSubmittedOn = optionalDate(value.applicationSubmittedOn, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi');
+    const applicationSubmittedOn = applicationSubmissionDate(value.applicationSubmittedOn);
     const notes = boundedText(value.notes ?? '', 0, 6000, 'Açıklama');
     const client = await this.db.pool.connect();
     let caseId = '';
@@ -151,7 +151,7 @@ export class CedService {
         );
       }
       await this.audit(client, caseId, 'case', caseId, promoted ? 'promoted_to_process' : 'created',
-        { routeCode, stagesCreated: BASE_STAGES.length, promotedFromOpinionWorkspace: promoted }, user.id);
+        { routeCode, applicationSubmittedOn, stagesCreated: BASE_STAGES.length, promotedFromOpinionWorkspace: promoted }, user.id);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -755,6 +755,14 @@ function optionalDate(value: unknown, label: string): string | null {
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw invalid(`${label} geçerli bir tarih olmalıdır.`);
   return value;
+}
+function applicationSubmissionDate(value: unknown): string | null {
+  const date = optionalDate(value, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi');
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  if (date && date > today) throw invalid('Resmî başvuru tarihi gelecekte olamaz.');
+  return date;
 }
 function validateOpinion(value: Record<string, unknown>) {
   const draft = {
