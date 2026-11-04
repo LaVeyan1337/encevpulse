@@ -276,7 +276,10 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
         :state?.fresh&&report?.sessionState==='logged_out'?'ready':'unknown';
       const label=tone==='busy'?'Etkin portal sinyali':tone==='ready'?'Oturum kapalı işaretli':state?.tone==='stale'?'Sinyal eski':'Durum belirsiz';
       return {...account,tone,label};
-    }).sort((a,b)=>({busy:0,ready:1,unknown:2}[a.tone]-{busy:0,ready:1,unknown:2}[b.tone])||a.accountName.localeCompare(b.accountName,'tr'));
+    }).sort((a,b)=>{
+      const rank=(tone:'busy'|'ready'|'unknown')=>tone==='busy'?0:tone==='ready'?1:2;
+      return rank(a.tone)-rank(b.tone)||a.accountName.localeCompare(b.accountName,'tr');
+    });
   },[data]);
   const busyCount=accounts.filter(x=>x.tone==='busy').length;
   const readyCount=accounts.filter(x=>x.tone==='ready').length;
