@@ -17,19 +17,20 @@ const localDateTime = (value:string) => { const d=new Date(value); const p=new I
 const today = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const late = (v:string|null) => Boolean(v && v<today());
 
-export function CedWorkspace({projectId,request,canCreate,canUpdate,canViewOpinions,canCreateOpinions,canUpdateOpinions}:{projectId:string;request:Request;canCreate:boolean;canUpdate:boolean;canViewOpinions:boolean;canCreateOpinions:boolean;canUpdateOpinions:boolean}) {
+export function CedWorkspace({projectId,request,canCreate,canUpdate,canViewOpinions,canCreateOpinions,canUpdateOpinions,initialTab='stages'}:{projectId:string;request:Request;canCreate:boolean;canUpdate:boolean;canViewOpinions:boolean;canCreateOpinions:boolean;canUpdateOpinions:boolean;initialTab?:'stages'|'opinions'}) {
   const [data,setData]=useState<CedData|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
-  const [tab,setTab]=useState<'stages'|'opinions'|'idk'|'documents'|'history'>('stages');
+  const [tab,setTab]=useState<'stages'|'opinions'|'idk'|'documents'|'history'>(initialTab);
   const [form,setForm]=useState<'case'|'stage'|'customStage'|'document'|'opinion'|'meeting'|''>('');
   const [selectedStage,setSelectedStage]=useState<Stage|null>(null);
   const [selectedOpinion,setSelectedOpinion]=useState<Opinion|null>(null);
   const [selectedMeeting,setSelectedMeeting]=useState<Meeting|null>(null);
   const load=useCallback(async()=>{setLoading(true);setError('');try{setData(await request('ced/projects/'+projectId) as CedData);}catch(e){setError(e instanceof Error?e.message:'ÇED süreci yüklenemedi.');}finally{setLoading(false);}},[projectId,request]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{setTab(initialTab);},[projectId,initialTab]);
   const stages=useMemo(()=>[...(data?.stages??[])].sort((a,b)=>a.sortOrder-b.sortOrder),[data]);
   const active=stages.filter(x=>x.status!=='not_applicable');
   const done=active.filter(x=>x.status==='completed').length;
