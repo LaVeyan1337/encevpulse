@@ -1716,10 +1716,11 @@ export function Workspace({
           {section === 'institution_opinions' && hasModulePermission('institution_opinions') && (
             <InstitutionOpinionsWorkspace
               request={request}
-              canOpenProject={hasModulePermission('projects') && hasModulePermission('eced')}
-              onOpenProject={(projectId) => {
-                void openProject(projectId, 'opinions');
-              }}
+              projects={projects}
+              canCreate={hasModulePermission('institution_opinions','create')}
+              canUpdate={hasModulePermission('institution_opinions','update')}
+              canOpenProject={hasModulePermission('projects')}
+              onOpenProject={(projectId) => { void openProject(projectId, 'opinions'); }}
             />
           )}
 
