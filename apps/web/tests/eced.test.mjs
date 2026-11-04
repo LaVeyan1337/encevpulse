@@ -32,6 +32,8 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(manifest, /optional_host_permissions/);
   assert.match(worker, /X-Pulse-Token/);
   assert.match(worker, /origin \+ '::' \+ String\(tab\.id\)/);
+  assert.match(worker, /clearTabLabels/);
+  assert.match(worker, /chrome\\.tabs\\.onRemoved/);
   assert.match(popup, /currentTabKey/);
   assert.match(component, /window\.setInterval/);
   assert.match(component, /20_000/);
