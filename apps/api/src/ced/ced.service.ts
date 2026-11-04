@@ -334,8 +334,8 @@ export class CedService {
       await client.query('BEGIN');
       await this.loadAccessibleCase(client, caseId, user.id, true);
       const inserted = await client.query<{ id: string }>(
-        \`INSERT INTO ced_idk_meetings(case_id,meeting_type,title,starts_at,ends_at,location,status,agenda,decisions,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING id\`,
+        `INSERT INTO ced_idk_meetings(case_id,meeting_type,title,starts_at,ends_at,location,status,agenda,decisions,created_by,updated_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING id`,
         [caseId, draft.meetingType, draft.title, draft.startsAt, draft.endsAt, draft.location, draft.status, draft.agenda, draft.decisions, user.id],
       );
       await this.audit(client, caseId, 'idk_meeting', inserted.rows[0].id, 'created', draft, user.id);
@@ -356,8 +356,8 @@ export class CedService {
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        \`SELECT m.*,c.project_id FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id
-         WHERE m.id=$1 AND m.archived_at IS NULL FOR UPDATE OF m\`, [meetingId],
+        `SELECT m.*,c.project_id FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id
+         WHERE m.id=$1 AND m.archived_at IS NULL FOR UPDATE OF m`, [meetingId],
       );
       if (!found.rowCount) throw new NotFoundException({ code: 'CED_MEETING_NOT_FOUND', message: 'İDK toplantısı bulunamadı.' });
       const old = found.rows[0];
@@ -375,8 +375,8 @@ export class CedService {
         decisions: Object.hasOwn(value, 'decisions') ? value.decisions : old.decisions,
       });
       await client.query(
-        \`UPDATE ced_idk_meetings SET meeting_type=$1,title=$2,starts_at=$3,ends_at=$4,location=$5,status=$6,agenda=$7,decisions=$8,
-         updated_by=$9,updated_at=now(),version=version+1 WHERE id=$10\`,
+        `UPDATE ced_idk_meetings SET meeting_type=$1,title=$2,starts_at=$3,ends_at=$4,location=$5,status=$6,agenda=$7,decisions=$8,
+         updated_by=$9,updated_at=now(),version=version+1 WHERE id=$10`,
         [merged.meetingType, merged.title, merged.startsAt, merged.endsAt, merged.location, merged.status, merged.agenda, merged.decisions, user.id, meetingId],
       );
       await this.audit(client, caseId, 'idk_meeting', meetingId, 'updated', merged, user.id);
@@ -392,25 +392,25 @@ export class CedService {
     if (includeCed) {
       const [stages, meetings] = await Promise.all([
         this.db.query(
-          \`SELECT 'ced-stage:'||s.id::text AS id,'project_ced_stage_due' AS kind,s.id AS "entityId",
+          `SELECT 'ced-stage:'||s.id::text AS id,'project_ced_stage_due' AS kind,s.id AS "entityId",
            s.title AS title,s.due_on::text AS date,c.project_id AS "projectId",p.name AS "projectName",
            s.status AS status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
            FROM ced_case_stages s JOIN ced_cases c ON c.id=s.case_id JOIN projects p ON p.id=c.project_id
            WHERE s.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND s.due_on >= $1::date AND s.due_on < $2::date
              AND s.status NOT IN ('completed','not_applicable')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
           [from, to, user.id],
         ),
         this.db.query(
-          \`SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
+          `SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
            m.title,(m.starts_at AT TIME ZONE 'Europe/Istanbul')::date::text AS date,c.project_id AS "projectId",p.name AS "projectName",
            m.status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
            FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id JOIN projects p ON p.id=c.project_id
            WHERE m.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
              AND m.starts_at >= ($1::date::timestamp AT TIME ZONE 'Europe/Istanbul')
              AND m.starts_at < ($2::date::timestamp AT TIME ZONE 'Europe/Istanbul') AND m.status IN ('planned','postponed')
-             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
           [from, to, user.id],
         ),
       ]);
@@ -418,14 +418,14 @@ export class CedService {
     }
     if (includeOpinions) {
       const opinions = await this.db.query(
-        \`SELECT 'opinion:'||o.id::text AS id,'project_institution_opinion_due' AS kind,o.id AS "entityId",
+        `SELECT 'opinion:'||o.id::text AS id,'project_institution_opinion_due' AS kind,o.id AS "entityId",
          (o.institution_name||' · '||o.subject) AS title,o.deadline_date::text AS date,c.project_id AS "projectId",p.name AS "projectName",
          o.status AS status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
          FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id JOIN projects p ON p.id=c.project_id
          WHERE o.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
            AND o.deadline_date >= $1::date AND o.deadline_date < $2::date
            AND o.status NOT IN ('responded','closed')
-           AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+           AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))`,
         [from, to, user.id],
       );
       rows.push(...opinions.rows);
@@ -435,52 +435,52 @@ export class CedService {
 
   private async loadCase(caseId: string, userId: string, includeOpinions: boolean) {
     const accessible = await this.db.query(
-      \`SELECT c.id FROM ced_cases c JOIN projects p ON p.id=c.project_id
+      `SELECT c.id FROM ced_cases c JOIN projects p ON p.id=c.project_id
        WHERE c.id=$1 AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
          AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(
            SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
-         ))\`,
+         ))`,
       [caseId, userId],
     );
     if (!accessible.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
     const [caseResult, stages, documents, opinions, meetings, activity] = await Promise.all([
       this.db.query(
-        \`SELECT c.id,c.project_id AS "projectId",c.route_code AS "routeCode",c.decision,c.file_number AS "fileNumber",
+        `SELECT c.id,c.project_id AS "projectId",c.route_code AS "routeCode",c.decision,c.file_number AS "fileNumber",
          c.eced_reference AS "ecedReference",c.started_on::text AS "startedOn",c.closed_on::text AS "closedOn",c.notes,c.version,
          c.created_by AS "createdBy",creator.display_name AS "creatorName",c.updated_by AS "updatedBy",updater.display_name AS "updaterName",
          c.created_at AS "createdAt",c.updated_at AS "updatedAt"
-         FROM ced_cases c JOIN users creator ON creator.id=c.created_by JOIN users updater ON updater.id=c.updated_by WHERE c.id=$1\`, [caseId],
+         FROM ced_cases c JOIN users creator ON creator.id=c.created_by JOIN users updater ON updater.id=c.updated_by WHERE c.id=$1`, [caseId],
       ),
       this.db.query(
-        \`SELECT id,stage_key AS "stageKey",title,sort_order AS "sortOrder",status,required_document_type AS "requiredDocumentType",
+        `SELECT id,stage_key AS "stageKey",title,sort_order AS "sortOrder",status,required_document_type AS "requiredDocumentType",
          is_milestone AS "isMilestone",is_custom AS "isCustom",due_on::text AS "dueOn",completed_at AS "completedAt",notes,version
-         FROM ced_case_stages WHERE case_id=$1 AND archived_at IS NULL ORDER BY sort_order,created_at,id\`, [caseId],
+         FROM ced_case_stages WHERE case_id=$1 AND archived_at IS NULL ORDER BY sort_order,created_at,id`, [caseId],
       ),
       this.db.query(
-        \`SELECT d.id,d.stage_id AS "stageId",d.meeting_id AS "meetingId",d.document_type AS "documentType",d.title,
+        `SELECT d.id,d.stage_id AS "stageId",d.meeting_id AS "meetingId",d.document_type AS "documentType",d.title,
          d.source_type AS "sourceType",d.source_reference AS "sourceReference",d.version_label AS "versionLabel",
          d.document_date::text AS "documentDate",d.notes,d.created_by AS "createdBy",u.display_name AS "creatorName",d.created_at AS "createdAt"
-         FROM ced_documents d JOIN users u ON u.id=d.created_by WHERE d.case_id=$1 AND d.archived_at IS NULL ORDER BY d.created_at DESC,d.id DESC\`, [caseId],
+         FROM ced_documents d JOIN users u ON u.id=d.created_by WHERE d.case_id=$1 AND d.archived_at IS NULL AND ($2::boolean OR d.document_type<>'institution_opinion') ORDER BY d.created_at DESC,d.id DESC`, [caseId, includeOpinions],
       ),
       includeOpinions ? this.db.query(
-        \`SELECT o.id,o.institution_name AS "institutionName",o.subject,o.status,o.request_date::text AS "requestDate",
+        `SELECT o.id,o.institution_name AS "institutionName",o.subject,o.status,o.request_date::text AS "requestDate",
          o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",o.outgoing_letter_no AS "outgoingLetterNo",
          o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",o.notes,o.version,
          o.created_by AS "createdBy",creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
-         WHERE o.case_id=$1 AND o.archived_at IS NULL ORDER BY CASE WHEN o.deadline_date IS NULL THEN 1 ELSE 0 END,o.deadline_date,o.institution_name\`, [caseId],
+         WHERE o.case_id=$1 AND o.archived_at IS NULL ORDER BY CASE WHEN o.deadline_date IS NULL THEN 1 ELSE 0 END,o.deadline_date,o.institution_name`, [caseId],
       ) : Promise.resolve({ rows: [] } as any),
       this.db.query(
-        \`SELECT m.id,m.meeting_type AS "meetingType",m.title,m.starts_at AS "startsAt",m.ends_at AS "endsAt",m.location,m.status,
+        `SELECT m.id,m.meeting_type AS "meetingType",m.title,m.starts_at AS "startsAt",m.ends_at AS "endsAt",m.location,m.status,
          m.agenda,m.decisions,m.version,m.created_by AS "createdBy",creator.display_name AS "creatorName"
          FROM ced_idk_meetings m JOIN users creator ON creator.id=m.created_by
-         WHERE m.case_id=$1 AND m.archived_at IS NULL ORDER BY m.starts_at DESC\`, [caseId],
+         WHERE m.case_id=$1 AND m.archived_at IS NULL ORDER BY m.starts_at DESC`, [caseId],
       ),
       this.db.query(
-        \`SELECT a.id,a.entity_type AS "entityType",a.entity_id AS "entityId",a.action,a.details,a.occurred_at AS "occurredAt",
+        `SELECT a.id,a.entity_type AS "entityType",a.entity_id AS "entityId",a.action,a.details,a.occurred_at AS "occurredAt",
          u.display_name AS "actorName" FROM ced_audit_events a LEFT JOIN users u ON u.id=a.actor_user_id
          WHERE a.case_id=$1 AND ($2::boolean OR a.entity_type<>'institution_opinion')
-         ORDER BY a.occurred_at DESC,a.id DESC LIMIT 80\`, [caseId, includeOpinions],
+         ORDER BY a.occurred_at DESC,a.id DESC LIMIT 80`, [caseId, includeOpinions],
       ),
     ]);
     return {
@@ -492,10 +492,10 @@ export class CedService {
 
   private async loadAccessibleCase(client: PoolClient, caseId: string, userId: string, lock = false) {
     const result = await client.query<any>(
-      \`SELECT c.* FROM ced_cases c JOIN projects p ON p.id=c.project_id
+      `SELECT c.* FROM ced_cases c JOIN projects p ON p.id=c.project_id
        WHERE c.id=$1 AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
        AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2))
-       \${lock ? 'FOR UPDATE OF c' : ''}\`,
+       ${lock ? 'FOR UPDATE OF c' : ''}`,
       [caseId, userId],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
@@ -505,9 +505,9 @@ export class CedService {
 
   private async assertProjectAccess(client: PoolClient, projectId: string, userId: string, lock = false) {
     const result = await client.query(
-      \`SELECT p.id FROM projects p WHERE p.id=$1 AND p.archived_at IS NULL AND p.status<>'archived'
+      `SELECT p.id FROM projects p WHERE p.id=$1 AND p.archived_at IS NULL AND p.status<>'archived'
        AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2))
-       \${lock ? 'FOR UPDATE OF p' : ''}\`,
+       ${lock ? 'FOR UPDATE OF p' : ''}`,
       [projectId, userId],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'PROJECT_NOT_FOUND', message: 'Proje bulunamadı.' });
@@ -515,7 +515,7 @@ export class CedService {
 
   private async audit(client: PoolClient, caseId: string, entityType: string, entityId: string, action: string, details: unknown, actorId: string) {
     await client.query(
-      \`INSERT INTO ced_audit_events(case_id,entity_type,entity_id,action,details,actor_user_id) VALUES($1,$2,$3,$4,$5,$6)\`,
+      `INSERT INTO ced_audit_events(case_id,entity_type,entity_id,action,details,actor_user_id) VALUES($1,$2,$3,$4,$5,$6)`,
       [caseId, entityType, entityId, action, details, actorId],
     );
   }
@@ -530,7 +530,7 @@ function assertKeys(value: Record<string, unknown>, allowed: string[]) {
   if (Object.keys(value).some((key) => !set.has(key))) throw invalid('Gönderilen alanları kontrol edin.');
 }
 function assertUuid(value: unknown, label: string) {
-  if (typeof value !== 'string' || !UUID.test(value)) throw invalid(\`\${label} kimliği geçersiz.\`);
+  if (typeof value !== 'string' || !UUID.test(value)) throw invalid(`${label} kimliği geçersiz.`);
 }
 function optionalUuid(value: unknown, label: string): string | null {
   if (value === undefined || value === null || value === '') return null;
@@ -541,20 +541,20 @@ function assertVersion(value: unknown) {
   if (!Number.isInteger(value) || Number(value) < 1) throw invalid('Kayıt sürümü geçersiz; yenileyip tekrar deneyin.');
 }
 function boundedText(value: unknown, min: number, max: number, label: string): string {
-  if (typeof value !== 'string') throw invalid(\`\${label} geçersiz.\`);
+  if (typeof value !== 'string') throw invalid(`${label} geçersiz.`);
   const text = value.trim();
-  if (text.length < min || text.length > max) throw invalid(\`\${label} \${min > 0 ? \`\${min}–\` : ''}\${max} karakter arasında olmalıdır.\`);
+  if (text.length < min || text.length > max) throw invalid(`${label} ${min > 0 ? `${min}–` : ''}${max} karakter arasında olmalıdır.`);
   return text;
 }
 function enumValue<T extends readonly string[]>(value: unknown, values: T, label: string): T[number] {
-  if (typeof value !== 'string' || !values.includes(value)) throw invalid(\`\${label} geçersiz.\`);
+  if (typeof value !== 'string' || !values.includes(value)) throw invalid(`${label} geçersiz.`);
   return value as T[number];
 }
 function optionalDate(value: unknown, label: string): string | null {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || !DATE.test(value)) throw invalid(\`\${label} YYYY-AA-GG biçiminde olmalıdır.\`);
-  const date = new Date(\`\${value}T00:00:00.000Z\`);
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw invalid(\`\${label} geçerli bir tarih olmalıdır.\`);
+  if (typeof value !== 'string' || !DATE.test(value)) throw invalid(`${label} YYYY-AA-GG biçiminde olmalıdır.`);
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw invalid(`${label} geçerli bir tarih olmalıdır.`);
   return value;
 }
 function validateOpinion(value: Record<string, unknown>) {
@@ -590,7 +590,7 @@ function validateMeeting(value: Record<string, unknown>) {
 }
 function validInstant(value: unknown, label: string): string {
   if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
-  if (typeof value !== 'string' || !/(Z|[+-]\d{2}:?\d{2})$/i.test(value) || !Number.isFinite(Date.parse(value))) throw invalid(\`\${label} saat dilimi içeren geçerli bir tarih olmalıdır.\`);
+  if (typeof value !== 'string' || !/(Z|[+-]\d{2}:?\d{2})$/i.test(value) || !Number.isFinite(Date.parse(value))) throw invalid(`${label} saat dilimi içeren geçerli bir tarih olmalıdır.`);
   return new Date(value).toISOString();
 }
 function invalid(message: string) { return new BadRequestException({ code: 'INVALID_CED_INPUT', message }); }
