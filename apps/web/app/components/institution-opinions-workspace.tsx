@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Drawer } from './drawer';
 
 type Request = (path: string, method?: string, data?: unknown) => Promise<Record<string, any>>;
-type Status = 'draft' | 'requested' | 'waiting' | 'responded' | 'revision_requested' | 'closed';
+type Status = 'draft' | 'requested' | 'waiting' | 'responded' | 'revision_requested' | 'closed' | 'positive' | 'negative' | 'revision' | 'other_request';
+type ProjectOption={id:string;name:string;status:string};
+type Draft={institutionName:string;subject:string;status:Status;requestDate:string;deadlineDate:string;responseDate:string;outgoingLetterNo:string;incomingLetterNo:string;contactPerson:string;notes:string};
+const emptyDraft=():Draft=>({institutionName:'',subject:'',status:'waiting',requestDate:'',deadlineDate:'',responseDate:'',outgoingLetterNo:'',incomingLetterNo:'',contactPerson:'',notes:''});
 type Row = {
   id: string; caseId: string; projectId: string; projectName: string; fileNumber: string;
   ecedReference: string; projectOwnerName: string | null; institutionName: string; subject: string;
@@ -10,10 +14,15 @@ type Row = {
   version: number; updatedAt: string;
 };
 const labels: Record<Status,string> = {
-  draft:'Taslak', requested:'Gönderildi', waiting:'Yanıt bekleniyor',
-  responded:'Yanıt geldi', revision_requested:'Ek bilgi / revizyon', closed:'Kapandı',
+  waiting:'Görüş bekleniyor',positive:'Olumlu',negative:'Olumsuz',revision:'Revize',other_request:'Farklı talep var',
+  draft:'Taslak (eski kayıt)',requested:'Gönderildi (eski kayıt)',responded:'Yanıt geldi (eski kayıt)',revision_requested:'Revize (eski kayıt)',closed:'Kapandı',
 };
-const terminal = new Set<Status>(['responded','closed']);
+const statusOptions:Array<{value:Status;label:string}>=[
+  {value:'waiting',label:'Görüş bekleniyor'},{value:'positive',label:'Olumlu'},
+  {value:'negative',label:'Olumsuz'},{value:'revision',label:'Revize'},
+  {value:'other_request',label:'Farklı talep var'},
+];
+const terminal = new Set<Status>(['responded','closed','positive','negative']);
 function dateText(value:string|null):string {
   if(!value)return '—';
   return new Intl.DateTimeFormat('tr-TR',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'})
@@ -25,19 +34,25 @@ function remaining(value:string|null):number|null {
   return Math.round((Date.parse(value.slice(0,10)+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000);
 }
 function due(row:Row):{label:string;tone:string}{
-  if(terminal.has(row.status))return {label:row.status==='responded'?'Yanıtlandı':'Kapandı',tone:'done'};
+  if(terminal.has(row.status))return {label:row.status==='positive'?'Olumlu':row.status==='negative'?'Olumsuz':row.status==='responded'?'Yanıtlandı':'Kapandı',tone:'done'};
   const days=remaining(row.deadlineDate);
   if(days===null)return {label:'Tarih girilmedi',tone:'neutral'};
   if(days<0)return {label:Math.abs(days)+' gün gecikti',tone:'late'};
   if(days===0)return {label:'Bugün son gün',tone:'today'};
   return {label:days+' gün kaldı',tone:days<=7?'soon':'normal'};
 }
-export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProject}:{request:Request;canOpenProject:boolean;onOpenProject:(id:string)=>void}){
+export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProject,projects=[],projectId,canCreate=false,canUpdate=false}:{request:Request;canOpenProject:boolean;onOpenProject:(id:string)=>void;projects?:ProjectOption[];projectId?:string;canCreate?:boolean;canUpdate?:boolean}){
   const [rows,setRows]=useState<Row[]>([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState<'all'|Status>('all');
+  const [editorOpen,setEditorOpen]=useState(false);
+  const [editing,setEditing]=useState<Row|null>(null);
+  const [draft,setDraft]=useState<Draft>(()=>emptyDraft());
+  const [selectedProjectId,setSelectedProjectId]=useState(projectId??'');
+  const [saving,setSaving]=useState(false);
+  const [formError,setFormError]=useState('');
   const load=useCallback(async()=>{
     setLoading(true);setError('');
     try{const result=await request('ced/opinions');setRows(Array.isArray(result.opinions)?result.opinions as Row[]:[]);}
@@ -45,18 +60,20 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
     finally{setLoading(false);}
   },[request]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{if(projectId)setSelectedProjectId(projectId);},[projectId]);
+  const visibleRows=useMemo(()=>projectId?rows.filter(row=>row.projectId===projectId):rows,[rows,projectId]);
   const filtered=useMemo(()=>{
     const needle=query.trim().toLocaleLowerCase('tr-TR');
-    return rows.filter(row=>{
+    return visibleRows.filter(row=>{
       if(filter!=='all'&&row.status!==filter)return false;
       if(!needle)return true;
       return [row.projectName,row.fileNumber,row.ecedReference,row.institutionName,row.subject,row.outgoingLetterNo,row.incomingLetterNo,row.projectOwnerName??'']
         .join(' ').toLocaleLowerCase('tr-TR').includes(needle);
     });
-  },[rows,query,filter]);
-  const openCount=rows.filter(row=>!terminal.has(row.status)).length;
-  const lateCount=rows.filter(row=>!terminal.has(row.status)&&(remaining(row.deadlineDate)??0)<0&&row.deadlineDate).length;
-  const answered=rows.filter(row=>row.status==='responded').length;
+  },[visibleRows,query,filter]);
+  const openCount=visibleRows.filter(row=>!terminal.has(row.status)).length;
+  const lateCount=visibleRows.filter(row=>!terminal.has(row.status)&&(remaining(row.deadlineDate)??0)<0&&row.deadlineDate).length;
+  const answered=visibleRows.filter(row=>['responded','positive','negative'].includes(row.status)).length;
   return <section className="institution-opinions-workspace" aria-label="Kurum görüşleri">
     <header className="opinions-page-intro">
       <div><span className="opinions-eyebrow">PROJE YAZIŞMALARI</span><h2>Kurum Görüşleri</h2>
