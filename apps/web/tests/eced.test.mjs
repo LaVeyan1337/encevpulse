@@ -31,6 +31,10 @@ test('e-ÇED screen and API use explicit browser pairing and distinguish stale f
   assert.match(migration, /CREATE TABLE eced_account_claims/);
   assert.match(manifest, /optional_host_permissions/);
   assert.match(worker, /X-Pulse-Token/);
+  assert.match(worker, /origin \+ '::' \+ String\(tab\.id\)/);
+  assert.match(popup, /currentTabKey/);
+  assert.match(component, /window\.setInterval/);
+  assert.match(component, /20_000/);
   assert.match(worker, /accountSource: accountName \? 'manual' : 'unknown'/);
   assert.match(worker, /credentials: 'omit'/);
   assert.doesNotMatch(worker, /document\.cookie|localStorage|sessionStorage|innerHTML|outerHTML/);
