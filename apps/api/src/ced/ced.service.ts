@@ -269,3 +269,48 @@ export class CedService {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO ced_institution_opinions(case_id,institution_name,subject,status,request_date,deadline_date,response_date,
          outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
+        [caseId, draft.institutionName, draft.subject, draft.status, draft.requestDate, draft.deadlineDate, draft.responseDate,
+          draft.outgoingLetterNo, draft.incomingLetterNo, draft.contactPerson, draft.notes, user.id],
+      );
+      await this.audit(client, caseId, 'institution_opinion', inserted.rows[0].id, 'created', draft, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async updateOpinion(user: AuthUser, opinionId: string, input: unknown) {
+    assertUuid(opinionId, 'Kurum görüşü');
+    const value = objectInput(input);
+    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    assertVersion(value.version);
+    if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
+    const client = await this.db.pool.connect();
+    let caseId = '';
+    try {
+      await client.query('BEGIN');
+      const found = await client.query<any>(
+        `SELECT o.*,c.project_id FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id
+         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`, [opinionId],
+      );
+      if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
+      const old = found.rows[0];
+      caseId = old.case_id;
+      await this.assertProjectAccess(client, old.project_id, user.id);
+      if (old.version !== Number(value.version)) throw new ConflictException({ code: 'CED_OPINION_CHANGED', message: 'Kurum görüşü başka bir işlemde güncellendi.' });
+      const merged = validateOpinion({
+        institutionName: Object.hasOwn(value, 'institutionName') ? value.institutionName : old.institution_name,
+        subject: Object.hasOwn(value, 'subject') ? value.subject : old.subject,
+        status: Object.hasOwn(value, 'status') ? value.status : old.status,
+        requestDate: Object.hasOwn(value, 'requestDate') ? value.requestDate : old.request_date,
+        deadlineDate: Object.hasOwn(value, 'deadlineDate') ? value.deadlineDate : old.deadline_date,
+        responseDate: Object.hasOwn(value, 'responseDate') ? value.responseDate : old.response_date,
+        outgoingLetterNo: Object.hasOwn(value, 'outgoingLetterNo') ? value.outgoingLetterNo : old.outgoing_letter_no,
+        incomingLetterNo: Object.hasOwn(value, 'incomingLetterNo') ? value.incomingLetterNo : old.incoming_letter_no,
+        contactPerson: Object.hasOwn(value, 'contactPerson') ? value.contactPerson : old.contact_person,
+        notes: Object.hasOwn(value, 'notes') ? value.notes : old.notes,
+      });
+      await client.query(
+        `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
+         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,notes=$10,updated_by=$11,updated_at=now(),version=version+1 WHERE id=$12`,
