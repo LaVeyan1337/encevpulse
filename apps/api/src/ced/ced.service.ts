@@ -359,3 +359,48 @@ export class CedService {
         \`SELECT m.*,c.project_id FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id
          WHERE m.id=$1 AND m.archived_at IS NULL FOR UPDATE OF m\`, [meetingId],
       );
+      if (!found.rowCount) throw new NotFoundException({ code: 'CED_MEETING_NOT_FOUND', message: 'İDK toplantısı bulunamadı.' });
+      const old = found.rows[0];
+      caseId = old.case_id;
+      await this.assertProjectAccess(client, old.project_id, user.id);
+      if (old.version !== Number(value.version)) throw new ConflictException({ code: 'CED_MEETING_CHANGED', message: 'Toplantı başka bir işlemde güncellendi.' });
+      const merged = validateMeeting({
+        meetingType: Object.hasOwn(value, 'meetingType') ? value.meetingType : old.meeting_type,
+        title: Object.hasOwn(value, 'title') ? value.title : old.title,
+        startsAt: Object.hasOwn(value, 'startsAt') ? value.startsAt : old.starts_at,
+        endsAt: Object.hasOwn(value, 'endsAt') ? value.endsAt : old.ends_at,
+        location: Object.hasOwn(value, 'location') ? value.location : old.location,
+        status: Object.hasOwn(value, 'status') ? value.status : old.status,
+        agenda: Object.hasOwn(value, 'agenda') ? value.agenda : old.agenda,
+        decisions: Object.hasOwn(value, 'decisions') ? value.decisions : old.decisions,
+      });
+      await client.query(
+        \`UPDATE ced_idk_meetings SET meeting_type=$1,title=$2,starts_at=$3,ends_at=$4,location=$5,status=$6,agenda=$7,decisions=$8,
+         updated_by=$9,updated_at=now(),version=version+1 WHERE id=$10\`,
+        [merged.meetingType, merged.title, merged.startsAt, merged.endsAt, merged.location, merged.status, merged.agenda, merged.decisions, user.id, meetingId],
+      );
+      await this.audit(client, caseId, 'idk_meeting', meetingId, 'updated', merged, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async calendarMilestones(user: AuthUser, from: string, to: string, includeCed: boolean, includeOpinions: boolean) {
+    if (!includeCed && !includeOpinions) return [];
+    const rows: any[] = [];
+    if (includeCed) {
+      const [stages, meetings] = await Promise.all([
+        this.db.query(
+          \`SELECT 'ced-stage:'||s.id::text AS id,'project_ced_stage_due' AS kind,s.id AS "entityId",
+           s.title AS title,s.due_on::text AS date,c.project_id AS "projectId",p.name AS "projectName",
+           s.status AS status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
+           FROM ced_case_stages s JOIN ced_cases c ON c.id=s.case_id JOIN projects p ON p.id=c.project_id
+           WHERE s.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
+             AND s.due_on >= $1::date AND s.due_on < $2::date
+             AND s.status NOT IN ('completed','not_applicable')
+             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+          [from, to, user.id],
+        ),
+        this.db.query(
+          \`SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
