@@ -103,9 +103,12 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
 
   return <section className="institution-opinions-workspace" aria-label="Kurum görüşleri">
     <header className="opinions-page-intro">
-      <div><span className="opinions-eyebrow">PROJE YAZIŞMALARI</span><h2>Kurum Görüşleri</h2>
-        <p>Görüş taleplerini, gelen yanıtları ve proje bazındaki son tarihleri takip edin.</p></div>
-      <button type="button" className="opinions-refresh-button" onClick={()=>void load()} disabled={loading}>↻ <span>{loading?'Yükleniyor…':'Yenile'}</span></button>
+      <div><span className="opinions-eyebrow">{projectId?'PROJE YAZIŞMALARI':'KURUMSAL SÜREÇ TAKİBİ'}</span><h2>Kurum Görüşleri</h2>
+        <p>{projectId?'Bu projeye ait tüm kurum yazışmalarını ve farklı görüş turlarını takip edin.':'Projeler arasındaki tüm kurum görüşlerini tek listeden yönetin.'}</p></div>
+      <div className="opinions-header-actions">
+        {canCreate&&<button type="button" className="opinions-add-button" onClick={openCreate}>＋ <span>Yeni görüş ekle</span></button>}
+        <button type="button" className="opinions-refresh-button" onClick={()=>void load()} disabled={loading}>↻ <span>{loading?'Yükleniyor…':'Yenile'}</span></button>
+      </div>
     </header>
     <div className="opinions-metrics" aria-label="Kurum görüşü özeti">
       <article><span>Açık kayıt</span><strong>{openCount}</strong></article>
@@ -126,7 +129,8 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
     </div>
     {loading&&rows.length===0?<div className="opinions-empty">Kurum görüşleri yükleniyor…</div>
     :filtered.length===0?<div className="opinions-empty"><strong>{rows.length===0?'Henüz kurum görüşü kaydı yok':'Aramayla eşleşen kayıt bulunamadı'}</strong>
-      <span>{rows.length===0?'Kurum görüşleri, ilgili projenin ÇED Süreci bölümünden eklenir.':'Arama metnini veya durum filtresini değiştirin.'}</span></div>
+      <span>{rows.length===0?'Yeni bir görüş ekleyerek bu projenin yazışma geçmişini başlatabilirsiniz.':'Arama metnini veya durum filtresini değiştirin.'}</span>
+      {rows.length===0&&canCreate&&<button type="button" className="opinions-add-button" onClick={openCreate}>＋ Yeni görüş ekle</button>}</div>
     :<div className="opinions-table-wrap"><table className="opinions-table"><thead><tr>
       <th>Proje / Dosya</th><th>Kurum ve görüş konusu</th><th>Durum</th><th>Talep tarihi</th><th>Son tarih</th><th>Süre</th><th>Yanıt tarihi</th><th aria-label="İşlem"/>
     </tr></thead><tbody>{filtered.map(row=>{
@@ -139,9 +143,52 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
         <td><span className={'opinions-status status-'+row.status}>{labels[row.status]??row.status}</span></td>
         <td>{dateText(row.requestDate)}</td><td>{dateText(row.deadlineDate)}</td>
         <td><span className={'opinions-deadline deadline-'+deadline.tone}>{deadline.label}</span></td><td>{dateText(row.responseDate)}</td>
-        <td>{canOpenProject?<button type="button" className="opinions-open-button" onClick={()=>onOpenProject(row.projectId)}>Projeyi aç</button>:<span className="opinions-no-action">—</span>}</td>
+        <td className="opinions-row-actions">
+          {canUpdate&&<button type="button" className="opinions-edit-button" onClick={()=>openEdit(row)}>Düzenle</button>}
+          {canOpenProject&&<button type="button" className="opinions-open-button" onClick={()=>onOpenProject(row.projectId)}>Projeyi aç</button>}
+          {!canUpdate&&!canOpenProject&&<span className="opinions-no-action">—</span>}
+        </td>
       </tr>;
     })}</tbody></table></div>}
     <p className="opinions-footnote">Süre göstergesi yalnızca kayda girilmiş son tarihe göre hesaplanır; mevzuattaki iş günü veya resmî tatil hesabı değildir. Liste, erişim izniniz bulunan aktif projelerdeki en fazla 500 kaydı gösterir.</p>
+    <Drawer
+      isOpen={editorOpen}
+      onClose={()=>{setEditorOpen(false);setEditing(null);setFormError('');}}
+      size="lg"
+      title={editing?'Kurum görüşünü düzenle':'Yeni kurum görüşü'}
+      subtitle={editing?'Bu yazışmanın durumunu ve tarihlerini güncelleyin.':'Aynı proje için gerektiği kadar ayrı görüş ve yazışma kaydı oluşturabilirsiniz.'}
+      ariaLabelledBy="institution-opinion-editor-title"
+      footer={<>
+        <button type="button" className="secondary-button" onClick={()=>{setEditorOpen(false);setEditing(null);}} disabled={saving}>Vazgeç</button>
+        <button type="submit" form="institution-opinion-form" className="primary-button" disabled={saving}>{saving?'Kaydediliyor…':editing?'Değişiklikleri kaydet':'Görüşü kaydet'}</button>
+      </>}
+    >
+      <form id="institution-opinion-form" className="drawer-form opinions-editor-form" onSubmit={saveOpinion}>
+        {!projectId&&<div className="form-group">
+          <label htmlFor="opinion-project">İlgili proje</label>
+          <select id="opinion-project" value={selectedProjectId} onChange={event=>setSelectedProjectId(event.target.value)} required>
+            <option value="">Proje seçin</option>
+            {projects.filter(item=>item.status!=='archived').map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </div>}
+        {projectId&&<div className="opinions-fixed-project"><span>İlgili proje</span><strong>{projects.find(item=>item.id===projectId)?.name??rows.find(item=>item.projectId===projectId)?.projectName??'Seçili proje'}</strong></div>}
+        <div className="opinions-editor-grid">
+          <div className="form-group"><label htmlFor="opinion-institution">Kurum adı</label><input id="opinion-institution" value={draft.institutionName} maxLength={180} onChange={event=>setDraft(current=>({...current,institutionName:event.target.value}))} required/></div>
+          <div className="form-group"><label htmlFor="opinion-subject">Görüş / yazışma konusu</label><input id="opinion-subject" value={draft.subject} maxLength={240} onChange={event=>setDraft(current=>({...current,subject:event.target.value}))} required/></div>
+          <div className="form-group"><label htmlFor="opinion-status">Durum</label><select id="opinion-status" value={draft.status} onChange={event=>setDraft(current=>({...current,status:event.target.value as Status}))}>
+            {statusOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
+            {editing&&!statusOptions.some(option=>option.value===editing.status)&&<option value={editing.status}>{labels[editing.status]??editing.status}</option>}
+          </select></div>
+          <div className="form-group"><label htmlFor="opinion-contact">İlgili kişi (isteğe bağlı)</label><input id="opinion-contact" value={draft.contactPerson} maxLength={160} onChange={event=>setDraft(current=>({...current,contactPerson:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-request-date">Talep / gönderim tarihi</label><input id="opinion-request-date" type="date" value={draft.requestDate} onChange={event=>setDraft(current=>({...current,requestDate:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-deadline">Yanıt için son tarih</label><input id="opinion-deadline" type="date" value={draft.deadlineDate} onChange={event=>setDraft(current=>({...current,deadlineDate:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-response-date">Yanıt tarihi</label><input id="opinion-response-date" type="date" value={draft.responseDate} onChange={event=>setDraft(current=>({...current,responseDate:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-outgoing">Giden yazı numarası</label><input id="opinion-outgoing" value={draft.outgoingLetterNo} maxLength={100} onChange={event=>setDraft(current=>({...current,outgoingLetterNo:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-incoming">Gelen yazı numarası</label><input id="opinion-incoming" value={draft.incomingLetterNo} maxLength={100} onChange={event=>setDraft(current=>({...current,incomingLetterNo:event.target.value}))}/></div>
+        </div>
+        <div className="form-group"><label htmlFor="opinion-notes">Açıklama / yazışma notu</label><textarea id="opinion-notes" rows={4} maxLength={4000} value={draft.notes} onChange={event=>setDraft(current=>({...current,notes:event.target.value}))}/></div>
+        {formError&&<p className="auth-error" role="alert">{formError}</p>}
+      </form>
+    </Drawer>
   </section>;
 }
