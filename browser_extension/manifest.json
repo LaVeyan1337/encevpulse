@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "tabs",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "optional_host_permissions": [
     "http://*/*",
@@ -19,17 +20,5 @@
     "default_title": "ENCEV PULSE e-ÇED",
     "default_popup": "popup.html"
   },
-  "options_page": "options.html",
-  "content_scripts": [
-    {
-      "matches": [
-        "https://eced.csb.gov.tr/*",
-        "http://eced.csb.gov.tr/*"
-      ],
-      "js": [
-        "content-script.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ]
+  "options_page": "options.html"
 }
