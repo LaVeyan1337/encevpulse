@@ -13,6 +13,12 @@ export class CedController {
     @Inject(CedService) private readonly ced: CedService,
   ) {}
 
+  @Get('opinions')
+  async listInstitutionOpinions(@Req() request: Request) {
+    const user = await this.authorize(request, 'institution_opinions', 'view');
+    return this.ced.listInstitutionOpinions(user);
+  }
+
   @Get('projects/:projectId')
   async getProjectCase(@Req() request: Request, @Param('projectId') projectId: string) {
     const user = await this.authorize(request, 'eced', 'view');
