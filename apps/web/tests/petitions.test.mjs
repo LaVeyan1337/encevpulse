@@ -20,7 +20,7 @@ test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan
   assert.doesNotMatch(component, /fetch\(/);
   assert.match(component, /globalThis\.crypto\?\.subtle/);
   assert.match(component, /digest\('SHA-256'/);
-  assert.match(component, /record\.sha256&&record\.sha256!==actualHash/);
+  assert.match(component, /record\.sha256&&actualHash&&record\.sha256!==actualHash/);
   assert.match(component, /async function downloadTemplateBackup/);
   assert.match(component, /Sablon_Yedegi_/);
   assert.match(component, /downloadDocx\(record\.bytes,chosen\)/);
