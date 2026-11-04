@@ -73,6 +73,11 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.opinionStyles,/\.opinions-editor-grid/);
 
   assert.match(source.calendar,/type CalendarScope = 'all'\|'personal'\|'corporate'/);
+  assert.match(source.calendar,/type EventType = .*'presentation'.*'site_visit'.*'hkt'.*'idk'/);
+  assert.match(source.calendar,/presentation: 'Sunum'/);
+  assert.match(source.calendar,/site_visit: 'Yer Görme'/);
+  assert.match(source.calendar,/hkt: 'Halkın Katılım Toplantısı \\(HKT\\)'/);
+  assert.match(source.calendar,/idk: 'İDK Toplantısı'/);
   assert.match(source.calendar,/calendar-scope-switch/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
   assert.match(source.calendar,/scope==='corporate'\?event\.visibility!=='personal'/);
