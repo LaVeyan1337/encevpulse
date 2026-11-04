@@ -14,6 +14,9 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     opinionStyles: '../app/institution-opinions.css',
     calendar: '../app/components/calendar-workspace.tsx',
     calendarStyles: '../app/calendar.css',
+    calendarApiService: '../../api/src/calendar/calendar.service.ts',
+    calendarController: '../../api/src/calendar/calendar.controller.ts',
+    cedService: '../../api/src/ced/ced.service.ts',
     chat: '../app/components/chat-workspace.tsx',
     chatStyles: '../app/people-chat.css',
     drawer: '../app/components/drawer.tsx',
@@ -55,6 +58,13 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
   assert.match(source.calendar,/scope==='corporate'\?event\.visibility!=='personal'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
+  assert.match(source.calendarApiService,/includeCompanyMilestones: boolean/);
+  assert.match(source.calendarApiService,/includeCompanyMilestones\),/);
+  assert.match(source.calendarController,/includeOpinions, true/);
+  assert.match(source.cedService,/companyWide = false/);
+  assert.match(source.cedService,/if \(includeCed \|\| companyWide\)/);
+  assert.match(source.cedService,/if \(includeOpinions \|\| companyWide\)/);
+  assert.match(source.cedService,/\$4::boolean OR p\.created_by=\$3/);
 
   assert.match(source.chat,/conversationFilter/);
   assert.match(source.chat,/\['unread','Okunmamış'\]/);
