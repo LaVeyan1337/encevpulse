@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { Person, Project } from './workspace';
 
 type CalendarView = 'month' | 'week' | 'day' | 'agenda';
+type CalendarScope = 'all'|'personal'|'corporate';
 type EventType = 'meeting' | 'event' | 'reminder' | 'deadline';
 type Visibility = 'personal' | 'shared' | 'project';
 
@@ -67,7 +68,7 @@ const eventTypeLabels: Record<EventType, string> = {
 };
 const visibilityLabels: Record<Visibility, string> = {
   personal: 'Kişisel',
-  shared: 'Ortak',
+  shared: 'Kurumsal',
   project: 'Proje',
 };
 
@@ -244,6 +245,7 @@ export function CalendarWorkspace({
 }) {
   const today = useMemo(() => istanbulToday(), []);
   const [view, setView] = useState<CalendarView>('month');
+  const [scope,setScope]=useState<CalendarScope>('all');
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -295,9 +297,12 @@ export function CalendarWorkspace({
     return Array.from({ length: count }, (_, index) => addDays(range.from, index));
   }, [view, range.from]);
 
+  const scopedEvents=useMemo(()=>events.filter(event=>scope==='all'||(scope==='personal'?event.visibility==='personal':event.visibility!=='personal')),[events,scope]);
+  const scopedMilestones=useMemo(()=>scope==='personal'?[]:milestones,[milestones,scope]);
+
   const allEntries = useMemo(() => {
     const rows: Array<{ key: string; date: string; event?: CalendarEvent; milestone?: Milestone }> = [];
-    for (const event of events) {
+    for (const event of scopedEvents) {
       for (let i = 0; i < 32; i += 1) {
         const day = event.allDay
           ? addDays(event.startsOn ?? range.from, i)
@@ -309,7 +314,7 @@ export function CalendarWorkspace({
         if (!event.allDay && event.endsAt && instantDateKey(event.endsAt) <= day) break;
       }
     }
-    for (const milestone of milestones) {
+    for (const milestone of scopedMilestones) {
       if (milestone.date >= range.from && milestone.date < range.to) {
         rows.push({ key: milestone.id, date: milestone.date, milestone });
       }
@@ -318,7 +323,7 @@ export function CalendarWorkspace({
       (a.event?.allDay === b.event?.allDay ? 0 : a.event?.allDay ? -1 : 1) ||
       (a.event?.startsAt ?? '').localeCompare(b.event?.startsAt ?? '') ||
       (a.event?.title ?? a.milestone?.title ?? '').localeCompare(b.event?.title ?? b.milestone?.title ?? '', 'tr'));
-  }, [events, milestones, range.from, range.to]);
+  }, [scopedEvents, scopedMilestones, range.from, range.to]);
 
   const entriesForDay = (day: string) => allEntries.filter((entry) => entry.date === day);
   const visibleProjects = projects.filter((project) => project.status !== 'archived' && !project.archivedAt);
@@ -514,6 +519,15 @@ export function CalendarWorkspace({
         </div>
       </header>
 
+      <div className="calendar-scope-switch" role="group" aria-label="Takvim kapsamı">
+        <span>Takvimler</span>
+        {([
+          ['all','Tümü'],
+          ['personal','Kişisel'],
+          ['corporate','Kurumsal'],
+        ] as const).map(([value,label])=><button key={value} type="button" aria-pressed={scope===value} onClick={()=>setScope(value)}>{label}</button>)}
+      </div>
+
       {error && <p className="calendar-error" role="alert">{error}</p>}
       {notice && <p className="calendar-notice" role="status">{notice}</p>}
 
@@ -613,7 +627,7 @@ export function CalendarWorkspace({
                     attendeeIds: event.target.value === 'personal' ? [] : current.attendeeIds,
                   }))}>
                     <option value="personal">Kişisel</option>
-                    <option value="shared">Ortak</option>
+                    <option value="shared">Kurumsal takvim</option>
                     <option value="project">Projeye bağlı</option>
                   </select>
                 </label>
