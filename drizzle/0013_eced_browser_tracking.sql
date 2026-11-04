@@ -81,3 +81,11 @@ FOR EACH ROW EXECUTE FUNCTION prevent_eced_audit_mutation();
 INSERT INTO role_module_permissions(role_id,module_key,permission_key)
 SELECT id,'eced','delete' FROM roles WHERE code='process_owner'
 ON CONFLICT DO NOTHING;
+
+-- System administrators manage both newly enabled workspace modules.
+INSERT INTO role_module_permissions(role_id,module_key,permission_key)
+SELECT r.id,m.module_key,'manage'
+FROM roles r
+CROSS JOIN (VALUES('eced'),('petitions')) AS m(module_key)
+WHERE r.code='system_admin'
+ON CONFLICT DO NOTHING;
