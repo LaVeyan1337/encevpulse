@@ -24,7 +24,8 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 
 ## Güvenlik ve doğruluk
 
-- Eklenti yalnızca kullanıcının açıkça izin verdiği portal origin'lerini raporlar.
+- Eklenti, kullanıcı popup içindeki portal iznini açıkça verdiğinde içerik algılayıcısını yalnızca o anki sekmeye enjekte eder. Manifest'te otomatik çalışan statik portal içerik betiği yoktur.
+- Site izni ve betik enjeksiyonu kullanıcı tıklamasıyla başlatılır; eklenti sekmeyi otomatik yenilemez veya başka sayfaya yönlendirmez.
 - Otomatik algılayıcı sadece görünür, allowlist içindeki profil öğelerini okur. Form, input, textarea, select, parola alanı, çerez, tarayıcı depolaması, sayfa genelindeki metin ve HTML dökümü okunmaz.
 - URL query string ve fragment rapora eklenmez; yalnızca origin ve pathname gönderilir.
 - Raporlarda parola veya oturum çerezi bulunmaz. Sunucuya yalnızca hesap etiketi, sekme metaverisi ve kullanıcının seçtiği/algılayıcının çıkarabildiği oturum durumu gönderilir.
