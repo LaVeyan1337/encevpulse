@@ -54,7 +54,7 @@ WITH adjusted AS (
   WHERE s.case_id=c.id
     AND c.route_code='ek2_ptd'
     AND c.decision<>'ced_report_required'
-    AND (s.sort_order>45 OR s.is_custom=true)
+    AND s.sort_order>45
     AND s.status='pending'
   RETURNING s.case_id,s.stage_key
 ), grouped AS (

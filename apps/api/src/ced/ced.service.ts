@@ -183,7 +183,7 @@ export class CedService {
       if (routeCode === 'ek2_ptd' && decisionWasSubmitted && decision !== current.decision) {
         const progressed = await client.query<{ count: string }>(
           `SELECT count(*)::text AS count FROM ced_case_stages
-           WHERE case_id=$1 AND (sort_order>45 OR is_custom=true)
+           WHERE case_id=$1 AND sort_order>45
              AND status NOT IN ('not_applicable','pending')`,
           [caseId],
         );
@@ -202,7 +202,7 @@ export class CedService {
           );
           await client.query(
             `UPDATE ced_case_stages SET status='pending',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
-             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status='not_applicable'`,
+             WHERE case_id=$2 AND sort_order>45 AND status='not_applicable'`,
             [user.id,caseId],
           );
         } else if (decision === 'ced_positive' || decision === 'pending' || decision === 'withdrawn') {
@@ -222,7 +222,7 @@ export class CedService {
           }
           await client.query(
             `UPDATE ced_case_stages SET status='not_applicable',completed_at=NULL,updated_by=$1,updated_at=now(),version=version+1
-             WHERE case_id=$2 AND (sort_order>45 OR is_custom=true) AND status<>'not_applicable'`,
+             WHERE case_id=$2 AND sort_order>45 AND status<>'not_applicable'`,
             [user.id,caseId],
           );
         }
@@ -265,7 +265,7 @@ export class CedService {
       const routeState = await client.query<{ route_code: string; decision: string }>(
         'SELECT route_code,decision FROM ced_cases WHERE id=$1', [caseId],
       );
-      const ptdLocked = routeState.rows[0]?.route_code === 'ek2_ptd' && routeState.rows[0]?.decision !== 'ced_report_required';
+      const ptdLocked = routeState.rows[0]?.route_code === 'ek2_ptd' && routeState.rows[0]?.decision !== 'ced_report_required' && sortOrder > 45;
       const initialStatus: StageStatus = ptdLocked ? 'not_applicable' : 'pending';
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO ced_case_stages(case_id,stage_key,title,sort_order,status,is_custom,due_on,notes,created_by,updated_by)
@@ -299,7 +299,7 @@ export class CedService {
       caseId = stage.case_id;
       await this.assertProjectAccess(client, stage.project_id, user.id);
       const stageLockedByPtd = stage.route_code === 'ek2_ptd' && stage.decision !== 'ced_report_required'
-        && (Number(stage.sort_order) > 45 || stage.is_custom);
+        && Number(stage.sort_order) > 45;
       if (stageLockedByPtd && Object.hasOwn(value, 'status') && value.status !== 'not_applicable') {
         throw invalid('PTD kararı verilmeden sonraki ÇED aşamaları etkinleştirilemez.');
       }
@@ -358,7 +358,7 @@ export class CedService {
         );
         if (!stage.rowCount) throw invalid('Seçilen aşama bu ÇED kaydına ait değil.');
         const ptdLocked = stage.rows[0].route_code === 'ek2_ptd' && stage.rows[0].decision !== 'ced_report_required'
-          && (Number(stage.rows[0].sort_order) > 45 || stage.rows[0].is_custom);
+          && Number(stage.rows[0].sort_order) > 45;
         if (ptdLocked || stage.rows[0].status === 'not_applicable') throw invalid('PTD kararı verilmeden veya uygulanamaz durumdayken bu aşamaya belge bağlanamaz.');
         if (stage.rows[0].required_document_type && stage.rows[0].required_document_type !== documentType) {
           throw invalid('Belge türü seçilen kilometre taşıyla eşleşmiyor.');

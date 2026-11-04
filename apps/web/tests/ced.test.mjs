@@ -14,6 +14,8 @@ test('ÇED workspace exposes the five required document milestones, project entr
   for (const milestone of ['ÇBD YÜKLENDİ', 'PTD YÜKLENDİ', 'ÇED RAPORU YÜKLENDİ', 'NİHAİ RAPOR YÜKLENDİ', 'SON NİHAİ RAPOR YÜKLENDİ']) {
     assert.ok(component.includes(milestone), 'Missing milestone: ' + milestone);
   }
+  assert.match(component, /name="routeCode" required/);
+  assert.match(component, /option value="">Başvuru yolunu seçin/);
   for (const feature of ['Ara adım ekle', 'Kurum görüşleri', 'İDK toplantıları ve kararlar', 'sourceReference']) {
     assert.ok(component.includes(feature), 'Missing workflow feature: ' + feature);
   }
