@@ -53,6 +53,7 @@ export interface Person {
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
+const projectTypeLabels:Record<string,string>={res:'RES',ges:'GES',maden:'Maden',yk_ges:'YK GES',storage:'Depolama',other:'Diğer'};
 
 export interface Project {
   id: string;
@@ -1810,7 +1811,10 @@ export function Workspace({
                         aria-label={`${project.name} projesini aç`}
                       >
                         <div className="project-card-top">
-                          <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                          <div className="project-card-tags">
+                            <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                            <span className={`project-kind-tag project-kind-${project.projectType||'other'}`}>{projectTypeLabels[project.projectType]??'Diğer'}</span>
+                          </div>
                           <span className="project-card-code">#{project.id.slice(0, 6).toUpperCase()}</span>
                         </div>
                         <h2>{project.name}</h2>
