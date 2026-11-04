@@ -2363,6 +2363,13 @@ export function Workspace({
                 <label htmlFor="project-edit-description">Proje amacı ve kapsamı</label>
                 <textarea id="project-edit-description" name="description" defaultValue={projectDetail.project.description} maxLength={4000} rows={4} />
               </div>
+              <div className="form-group">
+                <label htmlFor="project-edit-type">Proje türü</label>
+                <select id="project-edit-type" name="projectType" defaultValue={projectDetail.project.projectType ?? 'other'}>
+                  <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+                  <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+                </select>
+              </div>
               <div className="form-pair">
                 <div className="form-group">
                   <label htmlFor="project-edit-status">Proje durumu</label>
@@ -2413,6 +2420,7 @@ export function Workspace({
                   <span className={'project-status-badge project-status-' + projectDetail.project.status}>
                     {projectStatusLabel(projectDetail.project.status)}
                   </span>
+                  <span className={`project-kind-tag project-kind-${projectDetail.project.projectType||'other'}`}>{projectTypeLabels[projectDetail.project.projectType]??'Diğer'}</span>
                   {projectDetail.project.archivedAt && <span className="project-archived-tag">Arşivlenmiş</span>}
                   <h3>{projectDetail.project.name}</h3>
                   <p>{projectDetail.project.description || 'Bu proje için açıklama eklenmemiş.'}</p>
