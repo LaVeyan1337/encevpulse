@@ -25,7 +25,7 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     application_name:'encev-pulse-eced-integration',
   });
   const suffix=randomBytes(5).toString('hex');
-  const names=['eo'+suffix,'et'+suffix,'ee'+suffix];
+  const names=['eo'+suffix,'et'+suffix,'ee'+suffix,'ea'+suffix];
   const hasher=new PasswordHasher();
   const passwordHash=await hasher.hash(PASSWORD);
   const userIds:string[]=[];
@@ -74,11 +74,11 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
 
   try{
     const roles=await pool.query<{id:string;code:string}>(
-      "SELECT id,code FROM roles WHERE code=ANY($1::text[])",[['process_owner','employee']],
+      "SELECT id,code FROM roles WHERE code=ANY($1::text[])",[['process_owner','employee','system_admin']],
     );
     const roleIds=new Map(roles.rows.map(row=>[row.code,row.id]));
-    assert.equal(roleIds.size,2,'Process-owner and employee roles must exist after migrations.');
-    const roleCodes=['process_owner','process_owner','employee'];
+    assert.equal(roleIds.size,3,'Process-owner, employee and system-admin roles must exist after migrations.');
+    const roleCodes=['process_owner','process_owner','employee','system_admin'];
     for(let i=0;i<names.length;i++){
       const inserted=await pool.query<{id:string}>(
         'INSERT INTO users(username,email,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id',
@@ -94,10 +94,19 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     app.setGlobalPrefix('api');
     await app.listen(0,'127.0.0.1');
     const base='http://127.0.0.1:'+(app.getHttpServer().address() as AddressInfo).port;
-    const [ownerA,ownerB,employee]=await Promise.all(names.map(name=>signIn(base,name)));
+    const [ownerA,ownerB,employee,admin]=await Promise.all(names.map(name=>signIn(base,name)));
 
     const denied=await api(base,employee,'eced/monitor');
     assert.equal(denied.response.status,403);
+    const adminMonitor=await api(base,admin,'eced/monitor');
+    assert.equal(adminMonitor.response.status,200,JSON.stringify(adminMonitor.data));
+    const adminPermissions=await api(base,admin,'auth/permissions/me');
+    assert.equal(adminPermissions.response.status,200);
+    for(const moduleKey of ['eced','petitions']){
+      const module=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey===moduleKey);
+      assert.ok(module?.enabled,`System administrator should see ${moduleKey}.`);
+      assert.ok(module.actions.includes('manage'),`System administrator should manage ${moduleKey}.`);
+    }
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
