@@ -102,11 +102,12 @@ export class CedService {
   async createProjectCase(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
-    assertKeys(value, ['routeCode', 'fileNumber', 'ecedReference', 'startedOn', 'notes']);
+    assertKeys(value, ['routeCode', 'fileNumber', 'ecedReference', 'startedOn', 'applicationSubmittedOn', 'notes']);
     const routeCode = enumValue(value.routeCode, ROUTES, 'ÇED başvuru yolu') as Route;
     const fileNumber = boundedText(value.fileNumber ?? '', 0, 120, 'Dosya numarası');
     const ecedReference = boundedText(value.ecedReference ?? '', 0, 160, 'e-ÇED referansı');
     const startedOn = optionalDate(value.startedOn, 'Başlangıç tarihi');
+    const applicationSubmittedOn = optionalDate(value.applicationSubmittedOn, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi');
     const notes = boundedText(value.notes ?? '', 0, 6000, 'Açıklama');
     const client = await this.db.pool.connect();
     let caseId = '';
@@ -124,15 +125,15 @@ export class CedService {
         caseId = row.id;
         promoted = true;
         await client.query(
-          `UPDATE ced_cases SET route_code=$1,file_number=$2,eced_reference=$3,started_on=$4,notes=$5,
-           case_origin='process',decision='pending',updated_by=$6,updated_at=now(),version=version+1 WHERE id=$7`,
-          [routeCode,fileNumber,ecedReference,startedOn,notes,user.id,caseId],
+          `UPDATE ced_cases SET route_code=$1,file_number=$2,eced_reference=$3,started_on=$4,application_submitted_on=$5,notes=$6,
+           case_origin='process',decision='pending',updated_by=$7,updated_at=now(),version=version+1 WHERE id=$8`,
+          [routeCode,fileNumber,ecedReference,startedOn,applicationSubmittedOn,notes,user.id,caseId],
         );
       } else {
         const inserted = await client.query<{ id: string }>(
-          `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,case_origin,created_by,updated_by)
-           VALUES($1,$2,$3,$4,$5,$6,'process',$7,$7) RETURNING id`,
-          [projectId, routeCode, fileNumber, ecedReference, startedOn, notes, user.id],
+          `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,application_submitted_on,notes,case_origin,created_by,updated_by)
+           VALUES($1,$2,$3,$4,$5,$6,$7,'process',$8,$8) RETURNING id`,
+          [projectId, routeCode, fileNumber, ecedReference, startedOn, applicationSubmittedOn, notes, user.id],
         );
         caseId = inserted.rows[0].id;
       }
@@ -163,7 +164,7 @@ export class CedService {
   async updateCase(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
-    assertKeys(value, ['version', 'decision', 'fileNumber', 'ecedReference', 'startedOn', 'closedOn', 'notes']);
+    assertKeys(value, ['version', 'decision', 'fileNumber', 'ecedReference', 'startedOn', 'applicationSubmittedOn', 'closedOn', 'notes']);
     assertVersion(value.version);
     if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
     const client = await this.db.pool.connect();
@@ -250,6 +251,9 @@ export class CedService {
       const fileNumber = Object.hasOwn(value, 'fileNumber') ? boundedText(value.fileNumber, 0, 120, 'Dosya numarası') : current.file_number;
       const ecedReference = Object.hasOwn(value, 'ecedReference') ? boundedText(value.ecedReference, 0, 160, 'e-ÇED referansı') : current.eced_reference;
       const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
+      const applicationSubmittedOn = Object.hasOwn(value, 'applicationSubmittedOn')
+        ? optionalDate(value.applicationSubmittedOn, 'Bakanlığa / İl Müdürlüğüne başvuru tarihi')
+        : (current.application_submitted_on ? String(current.application_submitted_on).slice(0, 10) : null);
       const hasClosedOnInput = Object.hasOwn(value, 'closedOn');
       const closedOnIsBlank = !hasClosedOnInput || value.closedOn === null || value.closedOn === '';
       const clearPtdClosure = routeCode === 'ek2_ptd' && ['pending','ced_report_required'].includes(decision) && closedOnIsBlank;
@@ -263,11 +267,11 @@ export class CedService {
       await client.query(
         `UPDATE ced_cases SET decision=$1,file_number=$2,eced_reference=$3,started_on=$4,
          closed_on=CASE WHEN $9::boolean AND $5::date IS NULL THEN CURRENT_DATE ELSE $5::date END,
-         notes=$6,updated_by=$7,updated_at=now(),version=version+1 WHERE id=$8`,
-        [decision, fileNumber, ecedReference, startedOn, closedOn, notes, user.id, caseId, closePtdTerminal],
+         notes=$6,updated_by=$7,updated_at=now(),version=version+1,application_submitted_on=$10 WHERE id=$8`,
+        [decision, fileNumber, ecedReference, startedOn, closedOn, notes, user.id, caseId, closePtdTerminal, applicationSubmittedOn],
       );
       await this.audit(client, caseId, 'case', caseId, 'updated',
-        { decision, routeCode, fileNumber, ecedReference, startedOn, closedOn: closePtdTerminal && !closedOn ? 'CURRENT_DATE' : closedOn }, user.id);
+        { decision, routeCode, fileNumber, ecedReference, startedOn, applicationSubmittedOn, closedOn: closePtdTerminal && !closedOn ? 'CURRENT_DATE' : closedOn }, user.id);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
@@ -633,7 +637,8 @@ export class CedService {
     const [caseResult, stages, documents, opinions, meetings, activity] = await Promise.all([
       this.db.query(
         `SELECT c.id,c.project_id AS "projectId",c.route_code AS "routeCode",c.case_origin AS "caseOrigin",c.decision,c.file_number AS "fileNumber",
-         c.eced_reference AS "ecedReference",c.started_on::text AS "startedOn",c.closed_on::text AS "closedOn",c.notes,c.version,
+         c.eced_reference AS "ecedReference",c.started_on::text AS "startedOn",c.application_submitted_on::text AS "applicationSubmittedOn",
+         c.closed_on::text AS "closedOn",c.notes,c.version,
          c.created_by AS "createdBy",creator.display_name AS "creatorName",c.updated_by AS "updatedBy",updater.display_name AS "updaterName",
          c.created_at AS "createdAt",c.updated_at AS "updatedAt"
          FROM ced_cases c JOIN users creator ON creator.id=c.created_by JOIN users updater ON updater.id=c.updated_by WHERE c.id=$1`, [caseId],
