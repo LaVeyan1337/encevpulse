@@ -41,6 +41,11 @@
 .calendar-entry-event{--calendar-entry-color:#8b9b7d}
 .calendar-entry-reminder{--calendar-entry-color:#c19a58}
 .calendar-entry-deadline{--calendar-entry-color:#c16e62}
+.calendar-entry-presentation{--calendar-entry-color:#8b7bd2}
+.calendar-entry-site_visit{--calendar-entry-color:#3fa8a0}
+.calendar-entry-hkt{--calendar-entry-color:#d08a50}
+.calendar-entry-idk{--calendar-entry-color:#c16e85}
+
 .calendar-entry-milestone{--calendar-entry-color:#9a8bbd;border-left-style:dashed}
 .calendar-entry-milestone.task_due,.calendar-entry-milestone.project_target{--calendar-entry-color:#c16e62}
 .calendar-entry-milestone.project_ced_stage_due{--calendar-entry-color:#469cc9;border-left-style:solid}
