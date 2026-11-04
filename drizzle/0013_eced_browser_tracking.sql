@@ -76,3 +76,8 @@ END;
 $$;
 CREATE TRIGGER eced_audit_events_append_only BEFORE UPDATE OR DELETE ON eced_audit_events
 FOR EACH ROW EXECUTE FUNCTION prevent_eced_audit_mutation();
+
+-- Process owners may revoke only their own paired browser devices.
+INSERT INTO role_module_permissions(role_id,module_key,permission_key)
+SELECT id,'eced','delete' FROM roles WHERE code='process_owner'
+ON CONFLICT DO NOTHING;
