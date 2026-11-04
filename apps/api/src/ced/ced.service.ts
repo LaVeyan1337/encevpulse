@@ -99,3 +99,83 @@ export class CedService {
       await client.query('ROLLBACK');
       throw error;
     }
+    } finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async updateCase(user: AuthUser, caseId: string, input: unknown) {
+    assertUuid(caseId, 'ÇED kaydı');
+    const value = objectInput(input);
+    assertKeys(value, ['version', 'decision', 'fileNumber', 'ecedReference', 'startedOn', 'closedOn', 'notes']);
+    assertVersion(value.version);
+    if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await this.loadAccessibleCase(client, caseId, user.id, true);
+      if (current.version !== Number(value.version)) throw new ConflictException({ code: 'CED_CASE_CHANGED', message: 'ÇED kaydı başka bir işlemde güncellendi. Yenileyip tekrar deneyin.' });
+      const decision = Object.hasOwn(value, 'decision') ? enumValue(value.decision, DECISIONS, 'ÇED kararı') : current.decision;
+      const fileNumber = Object.hasOwn(value, 'fileNumber') ? boundedText(value.fileNumber, 0, 120, 'Dosya numarası') : current.file_number;
+      const ecedReference = Object.hasOwn(value, 'ecedReference') ? boundedText(value.ecedReference, 0, 160, 'e-ÇED referansı') : current.eced_reference;
+      const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
+      const closedOn = Object.hasOwn(value, 'closedOn') ? optionalDate(value.closedOn, 'Kapanış tarihi') : current.closed_on;
+      const notes = Object.hasOwn(value, 'notes') ? boundedText(value.notes, 0, 6000, 'Açıklama') : current.notes;
+      await client.query(
+        `UPDATE ced_cases SET decision=$1,file_number=$2,eced_reference=$3,started_on=$4,closed_on=$5,notes=$6,
+         updated_by=$7,updated_at=now(),version=version+1 WHERE id=$8`,
+        [decision, fileNumber, ecedReference, startedOn, closedOn, notes, user.id, caseId],
+      );
+      await this.audit(client, caseId, 'case', caseId, 'updated', { decision, fileNumber, ecedReference, startedOn, closedOn }, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async createStage(user: AuthUser, caseId: string, input: unknown) {
+    assertUuid(caseId, 'ÇED kaydı');
+    const value = objectInput(input);
+    assertKeys(value, ['title', 'sortOrder', 'dueOn', 'notes']);
+    const title = boundedText(value.title, 2, 180, 'Aşama adı');
+    const sortOrder = value.sortOrder === undefined ? 85 : Number(value.sortOrder);
+    if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10000) throw invalid('Aşama sırası geçersiz.');
+    const dueOn = optionalDate(value.dueOn, 'Hedef tarihi');
+    const notes = boundedText(value.notes ?? '', 0, 3000, 'Açıklama');
+    const client = await this.db.pool.connect();
+    let stageId = '';
+    try {
+      await client.query('BEGIN');
+      await this.loadAccessibleCase(client, caseId, user.id, true);
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO ced_case_stages(case_id,stage_key,title,sort_order,status,is_custom,due_on,notes,created_by,updated_by)
+         VALUES($1,$2,$3,$4,'pending',true,$5,$6,$7,$7) RETURNING id`,
+        [caseId, 'custom_' + randomUUID(), title, sortOrder, dueOn, notes, user.id],
+      );
+      stageId = inserted.rows[0].id;
+      await this.audit(client, caseId, 'stage', stageId, 'created', { title, sortOrder, dueOn }, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async updateStage(user: AuthUser, stageId: string, input: unknown) {
+    assertUuid(stageId, 'Aşama');
+    const value = objectInput(input);
+    assertKeys(value, ['version', 'title', 'status', 'sortOrder', 'dueOn', 'notes']);
+    assertVersion(value.version);
+    if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
+    const client = await this.db.pool.connect();
+    let caseId = '';
+    try {
+      await client.query('BEGIN');
+      const found = await client.query<any>(
+        `SELECT s.*,c.project_id FROM ced_case_stages s JOIN ced_cases c ON c.id=s.case_id
+         WHERE s.id=$1 AND s.archived_at IS NULL FOR UPDATE OF s`, [stageId],
+      );
+      if (!found.rowCount) throw new NotFoundException({ code: 'CED_STAGE_NOT_FOUND', message: 'ÇED aşaması bulunamadı.' });
+      const stage = found.rows[0];
+      caseId = stage.case_id;
+      await this.assertProjectAccess(client, stage.project_id, user.id);
+      if (stage.version !== Number(value.version)) throw new ConflictException({ code: 'CED_STAGE_CHANGED', message: 'Aşama başka bir işlemde güncellendi. Yenileyip tekrar deneyin.' });
+      if (Object.hasOwn(value, 'status')) {
