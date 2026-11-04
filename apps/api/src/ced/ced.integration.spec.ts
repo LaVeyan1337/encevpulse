@@ -23,7 +23,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     application_name: 'encev-pulse-ced-integration',
   });
   const suffix = randomBytes(5).toString('hex');
-  const names = ['pm' + suffix, 'po' + suffix, 'em' + suffix];
+  const names = ['pm' + suffix, 'po' + suffix, 'px' + suffix, 'em' + suffix];
   const hasher = new PasswordHasher();
   const hash = await hasher.hash('Yerel-CED-Test-Parolasi-2026!');
   const userIds: string[] = [];
@@ -66,7 +66,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     );
     const roleIds = new Map(roles.rows.map((row) => [row.code, row.id]));
     assert.equal(roleIds.size, 3);
-    const roleCodes = ['project_manager', 'process_owner', 'employee'];
+    const roleCodes = ['project_manager', 'process_owner', 'project_manager', 'employee'];
     for (let i = 0; i < names.length; i += 1) {
       const user = await pool.query<{ id: string }>(
         'INSERT INTO users(username,email,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id',
@@ -83,7 +83,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     app.setGlobalPrefix('api');
     await app.listen(0, '127.0.0.1');
     const base = 'http://127.0.0.1:' + (app.getHttpServer().address() as AddressInfo).port;
-    const [projectManager, processOwner, employee] = await Promise.all(names.map((name) => signIn(base, name)));
+    const [projectManager, processOwner, outsider, employee] = await Promise.all(names.map((name) => signIn(base, name)));
 
     const denied = await api(base, employee, 'ced/projects/00000000-0000-4000-8000-000000000001');
     assert.equal(denied.response.status, 403);
@@ -126,8 +126,8 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(after.data.stages.find((stage: {id:string}) => stage.id === cbd.id).status, 'completed');
     assert.ok(after.data.documents.some((item: {sourceReference:string}) => item.sourceReference === fileReference));
 
-    const outsider = await api(base, employee, 'ced/projects/' + projectId);
-    assert.equal(outsider.response.status, 404);
+    const outsideProject = await api(base, outsider, 'ced/projects/' + projectId);
+    assert.equal(outsideProject.response.status, 404);
   } finally {
     if (app) await app.close();
     const cleanup = await pool.connect();
@@ -153,11 +153,13 @@ test('ÇED API: route-specific milestones, document completion and project acces
       if (userIds.length) {
         await cleanup.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM user_role_assignments WHERE user_id=ANY($1::uuid[])', [userIds]);
+        await cleanup.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
         await cleanup.query(
           'DELETE FROM auth_audit_events WHERE actor_user_id=ANY($1::uuid[]) OR target_user_id=ANY($1::uuid[])',
           [userIds],
         );
         await cleanup.query('DELETE FROM users WHERE id=ANY($1::uuid[])', [userIds]);
+        await cleanup.query('ALTER TABLE auth_audit_events ENABLE TRIGGER auth_audit_events_append_only');
       }
       await cleanup.query('COMMIT');
     } catch (error) {
