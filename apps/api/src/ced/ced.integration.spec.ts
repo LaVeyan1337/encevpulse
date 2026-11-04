@@ -115,7 +115,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     });
     assert.equal(cannotUsePtd.response.status, 400);
 
-    const fileReference = '\\\\\\\\192.168.1.55\\\\Genel Evrak\\\\CED Test\\\\CBD.pdf';
+    const fileReference = 'C:\\EncevPulseTest\\CED Test\\CBD.pdf';
     const document = await api(base, processOwner, 'ced/cases/' + caseId + '/documents', 'POST', {
       stageId: cbd.id, documentType: 'cbd', title: 'ÇBD başvuru dosyası',
       sourceType: 'network_path', sourceReference: fileReference, versionLabel: 'Rev.00',
@@ -125,6 +125,41 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const after = await api(base, processOwner, 'ced/projects/' + projectId);
     assert.equal(after.data.stages.find((stage: {id:string}) => stage.id === cbd.id).status, 'completed');
     assert.ok(after.data.documents.some((item: {sourceReference:string}) => item.sourceReference === fileReference));
+
+    const deniedOpinionList = await api(base, employee, 'ced/opinions');
+    assert.equal(deniedOpinionList.response.status, 403);
+
+    const opinionCreated = await api(base, processOwner, 'ced/cases/' + caseId + '/opinions', 'POST', {
+      institutionName: 'Ankara İl Müdürlüğü',
+      subject: 'ÇED kapsamındaki kurum görüşü talebi',
+      status: 'waiting',
+      requestDate: '2026-11-04',
+      deadlineDate: '2026-11-14',
+      outgoingLetterNo: '2026/TEST-01',
+      notes: 'Entegrasyon testi kaydı',
+    });
+    assert.equal(opinionCreated.response.status, 201, JSON.stringify(opinionCreated.data));
+    const opinionList = await api(base, processOwner, 'ced/opinions');
+    assert.equal(opinionList.response.status, 200);
+    const listedOpinion = opinionList.data.opinions.find((item: { institutionName: string }) => item.institutionName === 'Ankara İl Müdürlüğü');
+    assert.ok(listedOpinion, 'Yeni kurum görüşü genel listede görünmeli.');
+    assert.equal(listedOpinion.projectId, projectId);
+    assert.equal(listedOpinion.status, 'waiting');
+
+    const opinionUpdated = await api(base, processOwner, 'ced/opinions/' + listedOpinion.id, 'PATCH', {
+      version: listedOpinion.version,
+      status: 'responded',
+      responseDate: '2026-11-05',
+      incomingLetterNo: '2026/TEST-02',
+    });
+    assert.equal(opinionUpdated.response.status, 200, JSON.stringify(opinionUpdated.data));
+    const refreshedOpinions = await api(base, processOwner, 'ced/opinions');
+    const refreshedOpinion = refreshedOpinions.data.opinions.find((item: { id: string }) => item.id === listedOpinion.id);
+    assert.equal(refreshedOpinion.status, 'responded');
+
+    const outsiderOpinionList = await api(base, outsider, 'ced/opinions');
+    assert.equal(outsiderOpinionList.response.status, 200);
+    assert.equal(outsiderOpinionList.data.opinions.length, 0, 'Proje dışındaki kullanıcı görüşleri görmemeli.');
 
     const outsideProject = await api(base, outsider, 'ced/projects/' + projectId);
     assert.equal(outsideProject.response.status, 404);
