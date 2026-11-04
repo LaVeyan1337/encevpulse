@@ -11,7 +11,7 @@ const DECISIONS = ['pending', 'ced_positive', 'ced_report_required', 'ced_negati
 const STAGE_STATUSES = ['pending', 'in_progress', 'waiting', 'completed', 'not_applicable', 'revision_requested'] as const;
 const DOCUMENT_TYPES = ['cbd', 'ptd', 'ced_report', 'final_report', 'last_final_report', 'institution_opinion', 'idk_minutes', 'other'] as const;
 const SOURCE_TYPES = ['network_path', 'external_url', 'eced_reference', 'other'] as const;
-const OPINION_STATUSES = ['draft', 'requested', 'waiting', 'responded', 'revision_requested', 'closed'] as const;
+const OPINION_STATUSES = ['draft', 'requested', 'waiting', 'responded', 'revision_requested', 'closed', 'positive', 'negative', 'revision', 'other_request'] as const;
 const MEETING_TYPES = ['idk', 'preliminary', 'other'] as const;
 const MEETING_STATUSES = ['planned', 'held', 'postponed', 'cancelled'] as const;
 
