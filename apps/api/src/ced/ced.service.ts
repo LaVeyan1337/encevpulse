@@ -404,3 +404,99 @@ export class CedService {
         ),
         this.db.query(
           \`SELECT 'idk:'||m.id::text AS id,'project_idk_meeting' AS kind,m.id AS "entityId",
+           m.title,(m.starts_at AT TIME ZONE 'Europe/Istanbul')::date::text AS date,c.project_id AS "projectId",p.name AS "projectName",
+           m.status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
+           FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id JOIN projects p ON p.id=c.project_id
+           WHERE m.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
+             AND m.starts_at >= ($1::date::timestamp AT TIME ZONE 'Europe/Istanbul')
+             AND m.starts_at < ($2::date::timestamp AT TIME ZONE 'Europe/Istanbul') AND m.status IN ('planned','postponed')
+             AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+          [from, to, user.id],
+        ),
+      ]);
+      rows.push(...stages.rows, ...meetings.rows);
+    }
+    if (includeOpinions) {
+      const opinions = await this.db.query(
+        \`SELECT 'opinion:'||o.id::text AS id,'project_institution_opinion_due' AS kind,o.id AS "entityId",
+         (o.institution_name||' · '||o.subject) AS title,o.deadline_date::text AS date,c.project_id AS "projectId",p.name AS "projectName",
+         o.status AS status,NULL::text AS priority,NULL::uuid AS "assigneeId",NULL::text AS "assigneeName"
+         FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id JOIN projects p ON p.id=c.project_id
+         WHERE o.archived_at IS NULL AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
+           AND o.deadline_date >= $1::date AND o.deadline_date < $2::date
+           AND o.status NOT IN ('responded','closed')
+           AND (p.created_by=$3 OR p.owner_user_id=$3 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$3))\`,
+        [from, to, user.id],
+      );
+      rows.push(...opinions.rows);
+    }
+    return rows.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.title).localeCompare(String(b.title), 'tr'));
+  }
+
+  private async loadCase(caseId: string, userId: string, includeOpinions: boolean) {
+    const accessible = await this.db.query(
+      \`SELECT c.id FROM ced_cases c JOIN projects p ON p.id=c.project_id
+       WHERE c.id=$1 AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
+         AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(
+           SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
+         ))\`,
+      [caseId, userId],
+    );
+    if (!accessible.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
+    const [caseResult, stages, documents, opinions, meetings, activity] = await Promise.all([
+      this.db.query(
+        \`SELECT c.id,c.project_id AS "projectId",c.route_code AS "routeCode",c.decision,c.file_number AS "fileNumber",
+         c.eced_reference AS "ecedReference",c.started_on::text AS "startedOn",c.closed_on::text AS "closedOn",c.notes,c.version,
+         c.created_by AS "createdBy",creator.display_name AS "creatorName",c.updated_by AS "updatedBy",updater.display_name AS "updaterName",
+         c.created_at AS "createdAt",c.updated_at AS "updatedAt"
+         FROM ced_cases c JOIN users creator ON creator.id=c.created_by JOIN users updater ON updater.id=c.updated_by WHERE c.id=$1\`, [caseId],
+      ),
+      this.db.query(
+        \`SELECT id,stage_key AS "stageKey",title,sort_order AS "sortOrder",status,required_document_type AS "requiredDocumentType",
+         is_milestone AS "isMilestone",is_custom AS "isCustom",due_on::text AS "dueOn",completed_at AS "completedAt",notes,version
+         FROM ced_case_stages WHERE case_id=$1 AND archived_at IS NULL ORDER BY sort_order,created_at,id\`, [caseId],
+      ),
+      this.db.query(
+        \`SELECT d.id,d.stage_id AS "stageId",d.meeting_id AS "meetingId",d.document_type AS "documentType",d.title,
+         d.source_type AS "sourceType",d.source_reference AS "sourceReference",d.version_label AS "versionLabel",
+         d.document_date::text AS "documentDate",d.notes,d.created_by AS "createdBy",u.display_name AS "creatorName",d.created_at AS "createdAt"
+         FROM ced_documents d JOIN users u ON u.id=d.created_by WHERE d.case_id=$1 AND d.archived_at IS NULL ORDER BY d.created_at DESC,d.id DESC\`, [caseId],
+      ),
+      includeOpinions ? this.db.query(
+        \`SELECT o.id,o.institution_name AS "institutionName",o.subject,o.status,o.request_date::text AS "requestDate",
+         o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",o.outgoing_letter_no AS "outgoingLetterNo",
+         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",o.notes,o.version,
+         o.created_by AS "createdBy",creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
+         FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
+         WHERE o.case_id=$1 AND o.archived_at IS NULL ORDER BY CASE WHEN o.deadline_date IS NULL THEN 1 ELSE 0 END,o.deadline_date,o.institution_name\`, [caseId],
+      ) : Promise.resolve({ rows: [] } as any),
+      this.db.query(
+        \`SELECT m.id,m.meeting_type AS "meetingType",m.title,m.starts_at AS "startsAt",m.ends_at AS "endsAt",m.location,m.status,
+         m.agenda,m.decisions,m.version,m.created_by AS "createdBy",creator.display_name AS "creatorName"
+         FROM ced_idk_meetings m JOIN users creator ON creator.id=m.created_by
+         WHERE m.case_id=$1 AND m.archived_at IS NULL ORDER BY m.starts_at DESC\`, [caseId],
+      ),
+      this.db.query(
+        \`SELECT a.id,a.entity_type AS "entityType",a.entity_id AS "entityId",a.action,a.details,a.occurred_at AS "occurredAt",
+         u.display_name AS "actorName" FROM ced_audit_events a LEFT JOIN users u ON u.id=a.actor_user_id
+         WHERE a.case_id=$1 AND ($2::boolean OR a.entity_type<>'institution_opinion')
+         ORDER BY a.occurred_at DESC,a.id DESC LIMIT 80\`, [caseId, includeOpinions],
+      ),
+    ]);
+    return {
+      case: caseResult.rows[0], stages: stages.rows, documents: documents.rows,
+      opinions: opinions.rows, meetings: meetings.rows, activity: activity.rows,
+      permissions: { opinions: includeOpinions },
+    };
+  }
+
+  private async loadAccessibleCase(client: PoolClient, caseId: string, userId: string, lock = false) {
+    const result = await client.query<any>(
+      \`SELECT c.* FROM ced_cases c JOIN projects p ON p.id=c.project_id
+       WHERE c.id=$1 AND c.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
+       AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2))
+       \${lock ? 'FOR UPDATE OF c' : ''}\`,
+      [caseId, userId],
+    );
+    if (!result.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
+  }
