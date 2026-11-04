@@ -1,0 +1,93 @@
+/* Kurum Görüşleri — ayrı işlem tablosu */
+.institution-opinions-workspace{display:grid;gap:20px;min-width:0}
+.opinions-page-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.opinions-eyebrow{display:block;color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.13em}
+.opinions-page-intro h2{margin:7px 0 5px;color:var(--text);font-size:28px;line-height:1.2;letter-spacing:-.035em}
+.opinions-page-intro p{margin:0;color:var(--text-secondary);font-size:14px;line-height:1.55}
+.opinions-refresh-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(18px)}
+.opinions-refresh-button:hover:not(:disabled){background:var(--surface-hover);border-color:var(--accent)}
+.opinions-refresh-button:disabled{opacity:.55;cursor:wait}
+.opinions-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.opinions-metrics article{display:grid;gap:6px;min-height:88px;padding:15px 17px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface-raised) 82%,transparent),color-mix(in srgb,var(--surface) 90%,transparent));border:1px solid var(--border-strong);border-radius:14px;box-shadow:var(--shadow-sm);backdrop-filter:blur(20px)}
+.opinions-metrics span{color:var(--text-secondary);font-size:13px;font-weight:650}
+.opinions-metrics strong{color:var(--text);font-size:25px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.opinions-metrics .is-overdue strong{color:var(--danger)}
+.opinions-toolbar{display:flex;align-items:center;gap:13px;min-width:0;padding:13px;background:var(--surface);border:1px solid var(--border-strong);border-radius:13px;backdrop-filter:blur(18px)}
+.opinions-search{display:flex;align-items:center;gap:10px;flex:1;min-width:180px;min-height:43px;padding:0 12px;color:var(--text-muted);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:10px}
+.opinions-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+.opinions-search>span{font-size:22px;line-height:1}
+.opinions-search input{width:100%;min-width:0;padding:9px 0;color:var(--text);background:transparent;border:0;outline:0;font:inherit;font-size:13px}
+.opinions-search input::placeholder{color:var(--text-muted)}
+.opinions-status-filter{display:flex;align-items:center;gap:9px;color:var(--text-secondary);font-size:13px;font-weight:650}
+.opinions-status-filter select{min-height:43px;min-width:165px;padding:0 32px 0 11px;color:var(--text);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:10px;font:inherit;font-size:13px}
+.opinions-result-count{flex:0 0 auto;color:var(--text-muted);font-size:12px;font-variant-numeric:tabular-nums}
+.opinions-table-wrap{min-width:0;overflow:auto;background:var(--surface);border:1px solid var(--border-strong);border-radius:15px;box-shadow:var(--shadow-sm);backdrop-filter:blur(22px)}
+.opinions-table{width:100%;min-width:1060px;border-collapse:separate;border-spacing:0;text-align:left}
+.opinions-table th{position:sticky;top:0;z-index:1;padding:14px 13px;color:var(--text-secondary);background:color-mix(in srgb,var(--surface-raised) 94%,transparent);border-bottom:1px solid var(--border-strong);font-size:11px;font-weight:800;letter-spacing:.045em;white-space:nowrap}
+.opinions-table td{padding:14px 13px;color:var(--text-secondary);border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.opinions-table tbody tr:last-child td{border-bottom:0}
+.opinions-table tbody tr:hover td{background:color-mix(in srgb,var(--accent-subtle) 44%,transparent)}
+.opinions-project-cell,.opinions-institution-cell{min-width:190px}
+.opinions-project-cell strong,.opinions-institution-cell strong{display:block;max-width:250px;color:var(--text);font-size:13px;font-weight:750;line-height:1.4}
+.opinions-project-cell span,.opinions-institution-cell span{display:block;margin-top:4px;color:var(--text-secondary);font-size:12px;line-height:1.45}
+.opinions-project-cell small,.opinions-institution-cell small{display:block;margin-top:4px;color:var(--text-muted);font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+.opinions-status{display:inline-flex;align-items:center;min-height:27px;padding:4px 9px;border:1px solid var(--border-strong);border-radius:8px;color:var(--text-secondary);background:var(--surface-raised);font-size:11px;font-weight:750;white-space:nowrap}
+.opinions-status:before{width:6px;height:6px;margin-right:7px;content:"";background:currentColor;border-radius:50%}
+.status-responded,.status-closed{color:#54c99b;border-color:rgba(84,201,155,.32);background:rgba(84,201,155,.1)}
+.status-requested,.status-waiting{color:#83adff;border-color:rgba(105,153,255,.32);background:rgba(105,153,255,.1)}
+.status-revision_requested{color:#f0bd70;border-color:rgba(240,189,112,.3);background:rgba(240,189,112,.1)}
+.opinions-deadline{display:inline-flex;align-items:center;min-height:26px;padding:4px 8px;border-radius:7px;font-size:11px;font-weight:750;white-space:nowrap}
+.deadline-late{color:#ff9ba4;background:rgba(255,112,128,.12)}
+.deadline-today,.deadline-soon{color:#f3c477;background:rgba(243,190,104,.12)}
+.deadline-normal{color:#94b5ff;background:rgba(115,151,255,.1)}
+.deadline-done{color:#64d0a6;background:rgba(84,201,155,.1)}
+.deadline-neutral{color:var(--text-muted);background:var(--surface-raised)}
+.opinions-open-button{min-height:33px;padding:0 10px;color:var(--accent-hover);background:var(--accent-subtle);border:1px solid color-mix(in srgb,var(--accent) 42%,var(--border-strong));border-radius:8px;font:inherit;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}
+.opinions-open-button:hover{background:var(--accent-subtle-hover);border-color:var(--accent)}
+.opinions-empty{display:grid;justify-items:center;gap:8px;padding:46px 20px;text-align:center;color:var(--text-secondary);background:var(--surface);border:1px dashed var(--border-strong);border-radius:15px;font-size:13px}
+.opinions-empty strong{color:var(--text);font-size:16px}
+.opinions-empty span{font-size:13px;line-height:1.6}
+.opinions-error{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;color:#ffb7be;background:rgba(255,112,128,.1);border:1px solid rgba(255,112,128,.3);border-radius:11px;font-size:13px}
+.opinions-error button{padding:7px 11px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:8px;font:inherit;font-weight:700;cursor:pointer}
+.opinions-footnote{margin:0;color:var(--text-muted);font-size:11px;line-height:1.6}
+:root[data-theme='light'] .opinions-metrics article,:root[data-theme='light'] .opinions-table-wrap{background:rgba(255,255,255,.76)}
+:root[data-theme='light'] .opinions-toolbar{background:rgba(255,255,255,.68)}
+:root[data-theme='light'] .opinions-table th{background:rgba(242,245,253,.96)}
+:root[data-theme='light'] .opinions-table tbody tr:hover td{background:rgba(93,112,226,.055)}
+:root[data-theme='light'] .opinions-status{background:rgba(245,247,253,.9)}
+@media(max-width:820px){.opinions-page-intro{align-items:flex-start;flex-direction:column}.opinions-refresh-button{align-self:flex-start}.opinions-toolbar{align-items:stretch;flex-wrap:wrap}.opinions-search{flex-basis:100%}.opinions-status-filter{flex:1}.opinions-status-filter select{flex:1}.opinions-result-count{align-self:center}}
+@media(max-width:560px){.opinions-page-intro h2{font-size:24px}.opinions-page-intro p{font-size:13px}.opinions-metrics{gap:8px}.opinions-metrics article{min-height:78px;padding:12px}.opinions-metrics span{font-size:11px}.opinions-metrics strong{font-size:22px}.opinions-status-filter{align-items:flex-start;flex-direction:column}.opinions-status-filter select{width:100%}}
+
+.opinions-header-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto;flex-wrap:wrap}
+.opinions-add-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;color:#fff;background:linear-gradient(120deg,#247fd5,#3b9fe9);border:1px solid rgba(170,225,255,.3);border-radius:11px;font:inherit;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer;box-shadow:0 7px 18px rgba(20,111,194,.18)}
+.opinions-add-button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.opinions-row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.opinions-edit-button{min-height:33px;padding:0 10px;color:var(--text-secondary);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:8px;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.opinions-edit-button:hover{color:var(--accent-hover);border-color:var(--accent)}
+.status-positive{color:#2eb984;border-color:rgba(61,189,139,.34);background:rgba(61,189,139,.1)}
+.status-negative{color:#ff788b;border-color:rgba(240,83,104,.34);background:rgba(240,83,104,.1)}
+.status-waiting{color:#87b9ff;border-color:rgba(105,153,255,.32);background:rgba(105,153,255,.1)}
+.status-revision,.status-revision_requested{color:#f0bd70;border-color:rgba(240,189,112,.32);background:rgba(240,189,112,.1)}
+.status-other_request{color:#c4a3ff;border-color:rgba(163,137,229,.33);background:rgba(163,137,229,.1)}
+.status-draft,.status-requested{opacity:.82}
+.opinions-fixed-project{display:grid;gap:5px;padding:12px 14px;background:var(--accent-subtle);border:1px solid var(--border-strong);border-radius:10px}
+.opinions-fixed-project span{color:var(--text-muted);font-size:10px;font-weight:750}
+.opinions-fixed-project strong{color:var(--text);font-size:13px}
+.opinions-editor-form{max-width:none}
+.opinions-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.opinions-editor-grid .form-group{min-width:0}
+.opinions-editor-form input,.opinions-editor-form select,.opinions-editor-form textarea{width:100%;min-width:0;min-height:42px;padding:9px 11px;color:var(--text);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:9px;font:inherit;font-size:12px}
+.opinions-editor-form textarea{min-height:110px;resize:vertical}
+.opinions-editor-form label{display:block;margin-bottom:6px;color:var(--text-secondary);font-size:11px;font-weight:750}
+.opinions-editor-form input:focus,.opinions-editor-form select:focus,.opinions-editor-form textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+.opinions-editor-form select{color-scheme:dark}
+.opinions-editor-form select option{color:#e6f0fc;background:#132b48}
+:root[data-theme='light'] .opinions-editor-form input,:root[data-theme='light'] .opinions-editor-form select,:root[data-theme='light'] .opinions-editor-form textarea{color:#203b59;background:rgba(255,255,255,.9)}
+:root[data-theme='light'] .opinions-editor-form select{color-scheme:light}
+:root[data-theme='light'] .opinions-editor-form select option{color:#203b59;background:#fff}
+:root[data-theme='light'] .status-positive{color:#217e59;background:rgba(61,189,139,.09)}
+:root[data-theme='light'] .status-negative{color:#b8364d;background:rgba(240,83,104,.08)}
+:root[data-theme='light'] .status-waiting{color:#2865a5;background:rgba(105,153,255,.08)}
+:root[data-theme='light'] .status-revision,:root[data-theme='light'] .status-revision_requested{color:#9a641d;background:rgba(240,189,112,.1)}
+:root[data-theme='light'] .status-other_request{color:#6546a6;background:rgba(163,137,229,.1)}
+@media(max-width:640px){.opinions-header-actions{width:100%}.opinions-header-actions button{flex:1}.opinions-editor-grid{grid-template-columns:1fr}}

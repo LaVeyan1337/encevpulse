@@ -13,11 +13,23 @@ export class CedController {
     @Inject(CedService) private readonly ced: CedService,
   ) {}
 
+  @Get('opinions')
+  async listInstitutionOpinions(@Req() request: Request) {
+    const user = await this.authorize(request, 'institution_opinions', 'view');
+    return this.ced.listInstitutionOpinions(user);
+  }
+
   @Get('projects/:projectId')
   async getProjectCase(@Req() request: Request, @Param('projectId') projectId: string) {
     const user = await this.authorize(request, 'eced', 'view');
     const includeOpinions = await this.access.hasPermission(user, 'institution_opinions', 'view');
     return this.ced.getProjectCase(user, projectId, includeOpinions);
+  }
+
+  @Post('projects/:projectId/opinions')
+  @HttpCode(HttpStatus.CREATED)
+  async createOpinionForProject(@Req() request: Request, @Param('projectId') projectId: string, @Body() body: unknown) {
+    return this.ced.createOpinionForProject(await this.authorize(request, 'institution_opinions', 'create', true), projectId, body);
   }
 
   @Post('projects/:projectId')

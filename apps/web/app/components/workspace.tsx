@@ -3,7 +3,10 @@ import { Drawer } from './drawer';
 import { ChatWorkspace } from './chat-workspace';
 import { PeopleDirectory } from './people-directory';
 import { CalendarWorkspace } from './calendar-workspace';
+import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
+import { EcedWorkspace, EcedAccountOverview } from './eced-workspace';
 import { CedWorkspace } from './ced-workspace';
+import { PetitionsWorkspace } from './petitions-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
@@ -51,12 +54,14 @@ export interface Person {
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
+const projectTypeLabels:Record<string,string>={res:'RES',ges:'GES',maden:'Maden',yk_ges:'YK GES',storage:'Depolama',other:'Diğer'};
 
 export interface Project {
   id: string;
   name: string;
   description: string;
   status: ProjectStatus;
+  projectType: 'res'|'ges'|'maden'|'yk_ges'|'storage'|'other';
   taskCount: number;
   completedTaskCount: number;
   memberCount: number;
@@ -154,7 +159,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'people' | 'chat' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'institution_opinions' | 'eced' | 'petitions' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -267,7 +272,7 @@ export function Workspace({
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState('');
   const [projectEditing, setProjectEditing] = useState(false);
-  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'ced'>('overview');
+  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'opinions' | 'ced'>('overview');
   const [projectRestoreStatus, setProjectRestoreStatus] = useState<'' | 'planning' | 'active' | 'on_hold' | 'completed'>('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -304,7 +309,7 @@ export function Workspace({
 
   useEffect(()=>{
     if(hasModulePermission(section))return;
-    const next=(['overview','tasks','projects','calendar','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
+    const next=(['overview','tasks','projects','calendar','institution_opinions','eced','petitions','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
     if(next[0])setSection(next[0]);
   },[section,hasModulePermission]);
 
@@ -677,13 +682,13 @@ export function Workspace({
     }
   }
 
-  async function openProject(projectId: string) {
+  async function openProject(projectId: string, initialTab?: 'overview' | 'opinions' | 'ced') {
     setProjectDetailOpen(true);
     setProjectLoading(true);
     setProjectEditing(false);
     setProjectError('');
     setProjectDetail(null);
-    setProjectTab('overview');
+    setProjectTab(initialTab ?? (hasModulePermission('eced') ? 'ced' : 'overview'));
     setProjectRestoreStatus('');
     try {
       const result = await request(`projects/${projectId}`);
@@ -707,6 +712,7 @@ export function Workspace({
         name: form.get('name'),
         description: form.get('description'),
         status: form.get('status'),
+        projectType: form.get('projectType') || 'other',
         ownerId: form.get('ownerId'),
         startsOn: form.get('startsOn') || null,
         targetOn: form.get('targetOn') || null,
@@ -777,6 +783,7 @@ export function Workspace({
       await request('projects', 'POST', {
         name: form.get('name'),
         description: form.get('description'),
+        projectType: form.get('projectType') || 'other',
         status: form.get('status') || 'planning',
         startsOn: form.get('startsOn') || null,
         targetOn: form.get('targetOn') || null,
@@ -826,7 +833,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -927,6 +934,45 @@ export function Workspace({
           >
             <Icon name="folder" />
             <span>Projeler</span>
+          </button>
+          )}
+          {hasModulePermission('institution_opinions') && (
+          <button
+            type="button"
+            className={section === 'institution_opinions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('institution_opinions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Kurum Görüşleri</span>
+          </button>
+          )}
+          {hasModulePermission('eced') && (
+          <button
+            type="button"
+            className={section === 'eced' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('eced');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="calendar-days" />
+            <span>e-ÇED Takip</span>
+          </button>
+          )}
+          {hasModulePermission('petitions') && (
+          <button
+            type="button"
+            className={section === 'petitions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('petitions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Dilekçeler</span>
           </button>
           )}
           {hasModulePermission('users') && (
@@ -1249,6 +1295,8 @@ export function Workspace({
                   <strong>{summary.completed}</strong>
                 </button>
               </div>
+
+              {hasModulePermission('eced') && <EcedAccountOverview request={request} onOpen={() => setSection('eced')} />}
 
               <div className="overview-dual-grid">
                 {/* Upcoming tasks */}
@@ -1666,6 +1714,34 @@ export function Workspace({
             />
           )}
 
+          {section === 'institution_opinions' && hasModulePermission('institution_opinions') && (
+            <InstitutionOpinionsWorkspace
+              request={request}
+              projects={projects}
+              canCreate={hasModulePermission('institution_opinions','create')}
+              canUpdate={hasModulePermission('institution_opinions','update')}
+              canOpenProject={hasModulePermission('projects')}
+              onOpenProject={(projectId) => { void openProject(projectId, 'opinions'); }}
+            />
+          )}
+
+          {section === 'eced' && hasModulePermission('eced') && (
+            <EcedWorkspace
+              request={request}
+              currentUserId={user.id}
+              canCreate={hasModulePermission('eced','create')}
+              canUpdate={hasModulePermission('eced','update')}
+              canDelete={hasModulePermission('eced','delete')}
+            />
+          )}
+
+          {section === 'petitions' && hasModulePermission('petitions') && (
+            <PetitionsWorkspace
+              projects={projects.map(({id,name,status})=>({id,name,status}))}
+              canCreate={hasModulePermission('petitions','create')}
+            />
+          )}
+
           {section === 'people' && (
             <PeopleDirectory
               people={people}
@@ -1737,7 +1813,10 @@ export function Workspace({
                         aria-label={`${project.name} projesini aç`}
                       >
                         <div className="project-card-top">
-                          <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                          <div className="project-card-tags">
+                            <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                            <span className={`project-kind-tag project-kind-${project.projectType||'other'}`}>{projectTypeLabels[project.projectType]??'Diğer'}</span>
+                          </div>
                           <span className="project-card-code">#{project.id.slice(0, 6).toUpperCase()}</span>
                         </div>
                         <h2>{project.name}</h2>
@@ -2179,6 +2258,14 @@ export function Workspace({
           </div>
 
           <div className="form-group">
+            <label htmlFor="project-type">Proje türü</label>
+            <select id="project-type" name="projectType" defaultValue="other">
+              <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+              <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+            </select>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="project-desc">Açıklama</label>
             <textarea
               id="project-desc"
@@ -2278,6 +2365,13 @@ export function Workspace({
                 <label htmlFor="project-edit-description">Proje amacı ve kapsamı</label>
                 <textarea id="project-edit-description" name="description" defaultValue={projectDetail.project.description} maxLength={4000} rows={4} />
               </div>
+              <div className="form-group">
+                <label htmlFor="project-edit-type">Proje türü</label>
+                <select id="project-edit-type" name="projectType" defaultValue={projectDetail.project.projectType ?? 'other'}>
+                  <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+                  <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+                </select>
+              </div>
               <div className="form-pair">
                 <div className="form-group">
                   <label htmlFor="project-edit-status">Proje durumu</label>
@@ -2328,6 +2422,7 @@ export function Workspace({
                   <span className={'project-status-badge project-status-' + projectDetail.project.status}>
                     {projectStatusLabel(projectDetail.project.status)}
                   </span>
+                  <span className={`project-kind-tag project-kind-${projectDetail.project.projectType||'other'}`}>{projectTypeLabels[projectDetail.project.projectType]??'Diğer'}</span>
                   {projectDetail.project.archivedAt && <span className="project-archived-tag">Arşivlenmiş</span>}
                   <h3>{projectDetail.project.name}</h3>
                   <p>{projectDetail.project.description || 'Bu proje için açıklama eklenmemiş.'}</p>
@@ -2375,7 +2470,8 @@ export function Workspace({
                 <button type="button" role="tab" aria-selected={projectTab === 'overview'} onClick={() => setProjectTab('overview')}>Genel bakış</button>
                 <button type="button" role="tab" aria-selected={projectTab === 'tasks'} onClick={() => setProjectTab('tasks')}>Görevler <span>{projectDetail.tasks.length}</span></button>
                 <button type="button" role="tab" aria-selected={projectTab === 'members'} onClick={() => setProjectTab('members')}>Üyeler <span>{projectDetail.members.length}</span></button>
-                {hasModulePermission('eced') && <button type="button" role="tab" aria-selected={projectTab === 'ced'} onClick={() => setProjectTab('ced')}>ÇED Süreci <span>Takip</span></button>}
+                {hasModulePermission('eced') && <button type="button" role="tab" aria-selected={projectTab === 'ced'} onClick={() => setProjectTab('ced')}>ÇED Süreci</button>}
+                {hasModulePermission('institution_opinions') && <button type="button" role="tab" aria-selected={projectTab === 'opinions'} onClick={() => setProjectTab('opinions')}>Kurum Görüşleri</button>}
               </div>
 
               {projectTab === 'overview' && (
@@ -2449,6 +2545,20 @@ export function Workspace({
                     canViewOpinions={hasModulePermission('institution_opinions')}
                     canCreateOpinions={hasModulePermission('institution_opinions','create')}
                     canUpdateOpinions={hasModulePermission('institution_opinions','update')}
+                  />
+                </div>
+              )}
+
+              {projectTab === 'opinions' && hasModulePermission('institution_opinions') && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <InstitutionOpinionsWorkspace
+                    request={request}
+                    projects={projects}
+                    projectId={projectDetail.project.id}
+                    canCreate={hasModulePermission('institution_opinions','create')}
+                    canUpdate={hasModulePermission('institution_opinions','update')}
+                    canOpenProject={false}
+                    onOpenProject={()=>{}}
                   />
                 </div>
               )}

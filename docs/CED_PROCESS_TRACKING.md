@@ -1,6 +1,6 @@
 # ENCEV PULSE — ÇED Süreç Takibi
 
-**Durum:** Proje kapsamlı ilk süreç takip temeli. Resmî e-ÇED entegrasyonu veya dosya depolama entegrasyonu değildir.
+**Durum:** Proje detayına gömülü ÇED süreç takibi. Resmî e-ÇED entegrasyonu veya dosya depolama entegrasyonu değildir. ÇED yetkisi olan kullanıcı proje detayını açtığında varsayılan sekme ÇED Süreci'dir.
 
 ## Ana belge kilometre taşları
 
@@ -18,12 +18,29 @@ Kilometre taşları, aradaki hazırlık, başvuru incelemesi, eksik tamamlama, h
 
 ÇBD ve PTD her projede peş peşe zorunlu iki belge olarak kabul edilmez. Yeni kayıt açılırken yol seçilir:
 
-- **Ek-1 / ÇBD:** ÇBD hazırlığı ve ÇBD yükleme basamağı aktiftir; PTD basamakları uygulanmıyor olarak işaretlenir.
-- **Ek-2 / PTD:** PTD hazırlığı, PTD yüklemesi ve PTD değerlendirme/karar bildirimi aktiftir; ÇBD basamakları uygulanmıyor olarak işaretlenir.
-- **Karma takip:** İki belge kolu da açık tutulur.
-- **Özel / henüz netleşmedi:** Her iki kol aktif kalır ve proje sorumlusu akışı düzenler.
+Yeni süreçlerde yalnızca iki başlangıç yolu seçilebilir:
 
-Bu seçim operasyonel bir takip şablonudur; projenin mevzuat kapsamı, başvuru yolu veya zorunlu belge dizisini sistem kendiliğinden belirlemez.
+- **Ek-1 / ÇBD:** ÇBD hazırlığı ve ÇBD yükleme basamağı aktiftir; PTD basamakları uygulanmıyor olarak işaretlenir. ÇBD akışından sonra tam ÇED aşamaları başlar.
+- **Ek-2 / PTD:** PTD hazırlığı, PTD yüklemesi ve PTD değerlendirme/karar bildirimi aktiftir; ÇBD basamakları uygulanmıyor olarak işaretlenir. PTD sonucu **ÇED Raporu Hazırlanmalıdır** olduğunda sonraki ÇED aşamaları açılır. Sonuç **ÇED Olumlu** olduğunda PTD değerlendirmesi tamamlanır ve süreç kapanır.
+
+Yeni kayıtlarda karma/özel rota seçeneği sunulmaz. Eski kayıtların karma/özel rota değerleri veri kaybı oluşturmamak için okunabilir bırakılmıştır; yeni süreç oluşturma API'si bunları kabul etmez. Rota seçimi yetkili süreç sorumlusunun kararıdır; uygulama resmî mevzuat kapsam tespiti yapmaz.
+
+## 2026 değişikliği ve geçiş hükmü için başvuru tarihi
+
+5 Mart 2026 tarihli ve 33187 sayılı Resmî Gazete'de ÇED Yönetmeliği değişikliği yayımlanmıştır. Bakanlık, 18 Mart 2026 tarihli 2026/4 sayılı Genelge ile Ek-1, Ek-2 ve Yönetmelik kapsamında Bakanlık / İl Müdürlüğünden talep edilen görüşler için uygulama açıklamalarını yayımlamıştır.
+
+Bu nedenle ÇED dosyasında iki ayrı tarih tutulur:
+
+- **İç süreç başlangıç tarihi:** EnÇev'in kendi iş takibinde dosyanın fiilen başlatıldığı tarih.
+- **Bakanlık / İl Müdürlüğü başvuru tarihi:** İlgili resmî başvurunun yapıldığı tarihtir. İç süreç başlangıç tarihiyle aynı olduğu varsayılmaz.
+
+Başvuru tarihinin 05.03.2026 öncesinde olması, bazı dosyalarda geçiş hükümlerinin uzman tarafından incelenmesini gerektirebilir. PULSE yalnızca bu tarihi kaydeder ve bu tarihe göre otomatik Ek-1 / Ek-2 sınıflandırması, kapsam kararı veya mevzuat uygunluğu üretmez. Rota ve geçiş hükmü değerlendirmesi, dosyanın somut geçmişi ve resmî belgeleri incelenerek süreç sorumlusu tarafından yapılmalıdır.
+
+Eski kayıtlarda resmî başvuru tarihi bilinmiyorsa alan boş bırakılır; iç süreç başlangıç tarihinden geriye dönük tarih türetilmez.
+
+Resmî kaynaklar:
+- [05.03.2026 tarihli ve 33187 sayılı Resmî Gazete](https://resmigazete.gov.tr/05.03.2026)
+- [Bakanlık: 18.03.2026 tarihli 2026/4 sayılı Genelge duyurusu](https://ced.csb.gov.tr/haberler/ced-yonetmeligi-uygulamalarina-dair-genelge-304302)
 
 ## Belge kayıtları ve depolama
 
@@ -35,9 +52,15 @@ Ana belge kilometre taşının tamamlanması için ilişkili belge referansını
 
 ## Kurum görüşleri
 
+Kurum görüşleri ÇED dosyasına değil, doğrudan projeye bağlanır; bu nedenle ÇED süreci açılmadan önce de eklenebilir. `ced_institution_opinions.project_id` ana ilişkidir, `case_id` ise eski dosya bağlantıları için isteğe bağlı kalır. Görüş eklemek sahte/boş bir ÇED dosyası oluşturmaz ve proje için gerçek ÇED süreci sonradan açıldığında görüş kayıtları aynı projede görünmeye devam eder. Eski sürümde yalnız kurum görüşleri için oluşturulmuş geçici dosyalar silinmez; gerçek süreç oluşturulurken aynı kayıt kimliği korunarak sürece dönüştürülür.
+
 Kurum adı, konu, talep/yanıt/son tarih, giden-gelen yazı numarası, iletişim kişisi ve notlar saklanır. Kalan gün/takvim rengi yalnızca girilen tarih üzerinden hesaplanır. Sistem mevzuata dayalı süre başlatma olayı, iş günü, resmî tatil, durma/uzama veya cevap süresini otomatik hesaplamaz.
 
 institution_opinions.view/create/update izinleri eced izinlerinden ayrıdır. Kurum görüşü içeriği, görüş belgeleri ve ilgili denetim olayları bu ayrı izin olmadan API yanıtlarında gösterilmez.
+
+## e-ÇED tarayıcı gözlemi
+
+Genel Bakış, eşleştirilmiş tarayıcı profillerinden gelen hesap gözlem sinyallerini küçük bir özet halinde gösterir. Ekrandaki “etkin sinyal” veya “oturum kapalı işaretli” metinleri resmî e-ÇED kimlik doğrulaması değildir; eklentinin izin verilen portal sekmesinde gördüğü görünür hesap etiketi ve son gözlem raporudur. Durum belirsiz/eski olduğunda hesap oturum kapalı kabul edilmez. Eklenti eşleştirmeleri e-ÇED takip ekranının en altındadır. Eklenti yalnız açıkça izin verilmiş portal sekmesinde çalışır ve parola, çerez, form alanı, localStorage/sessionStorage veya sayfa HTML içeriği okumaz.
 
 ## İDK / toplantılar ve takvim
 

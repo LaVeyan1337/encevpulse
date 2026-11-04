@@ -94,6 +94,13 @@ export function ChatWorkspace({
   const lastExternalTarget=useRef<string|null>(null);
   const messageHistoryLoaded=useRef(false);
   const selected=useMemo(()=>conversations.find(item=>item.id===selectedId)??null,[conversations,selectedId]);
+  const [conversationFilter,setConversationFilter]=useState<'all'|'direct'|'group'|'unread'>('all');
+  const visibleConversations=useMemo(()=>conversations.filter(item=>{
+    if(conversationFilter==='direct')return item.type==='direct';
+    if(conversationFilter==='group')return item.type==='group';
+    if(conversationFilter==='unread')return item.unreadCount>0;
+    return true;
+  }),[conversations,conversationFilter]);
 
   const loadConversations=useCallback(async()=>{
     const result=await request('chat/conversations');
@@ -551,6 +558,14 @@ export function ChatWorkspace({
           <input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Mesajlarda ara…" aria-label="Mesajlarda ara"/>
           <button type="submit" disabled={actionBusy||search.trim().length<2}>Ara</button>
         </form>
+        <div className="chat-list-filters" role="group" aria-label="Sohbet filtresi">
+          {([
+            ['all','Tümü'],
+            ['direct','Birebir'],
+            ['group','Gruplar'],
+            ['unread','Okunmamış'],
+          ] as const).map(([value,label])=><button key={value} type="button" aria-pressed={conversationFilter===value} onClick={()=>setConversationFilter(value)}>{label}</button>)}
+        </div>
         {searchOpen&&(
           <div className="chat-search-results">
             <div className="chat-search-results-head"><strong>Arama sonuçları</strong><button type="button" onClick={()=>setSearchOpen(false)}>Kapat</button></div>
@@ -564,7 +579,9 @@ export function ChatWorkspace({
         <div className="chat-conversation-list">
           {loading?Array.from({length:6},(_,i)=><div className="chat-conversation-skeleton" key={i}><i/><span/><b/></div>):conversations.length===0?(
             <div className="chat-list-empty"><strong>Henüz sohbet yok</strong><span>Çalışan rehberinden bir kişi seçerek konuşma başlatın veya grup oluşturun.</span></div>
-          ):conversations.map(conversation=>(
+           ):visibleConversations.length===0?(
+            <div className="chat-list-empty"><strong>Bu filtrede sohbet yok</strong><span>Başka bir filtre seçin veya bir çalışanla yeni sohbet başlatın.</span></div>
+          ):visibleConversations.map(conversation=>(
             <button type="button" key={conversation.id} className={'chat-conversation-item'+(selectedId===conversation.id?' selected':'')} onClick={()=>void openConversation(conversation.id)}>
               {conversation.type==='group'
                 ? <span className="chat-conversation-avatar">✦</span>
@@ -574,7 +591,7 @@ export function ChatWorkspace({
             </button>
           ))}
         </div>
-        <div className="chat-rail-bottom"><span>{conversations.length} konuşma</span><span>{realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span></div>
+        <div className="chat-rail-bottom"><span>{visibleConversations.length} / {conversations.length} konuşma</span><span>{realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span></div>
       </aside>
 
       <main className="chat-thread">

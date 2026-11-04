@@ -20,7 +20,7 @@ export class CalendarController {
     const includeProjects = await this.access.hasPermission(user, 'projects', 'view');
     const includeCed = await this.access.hasPermission(user, 'eced', 'view');
     const includeOpinions = await this.access.hasPermission(user, 'institution_opinions', 'view');
-    return this.calendar.list(user, query, includeTasks, includeProjects, includeCed, includeOpinions);
+    return this.calendar.list(user, query, includeTasks, includeProjects, includeCed, includeOpinions, true);
   }
 
   @Post('events')
