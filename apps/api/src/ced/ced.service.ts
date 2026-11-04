@@ -284,6 +284,34 @@ export class CedService {
     return { ok: true, caseId };
   }
 
+  async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
+    assertUuid(projectId, 'Proje');
+    const client = await this.db.pool.connect();
+    let caseId = '';
+    try {
+      await client.query('BEGIN');
+      await this.assertProjectAccess(client, projectId, user.id, true);
+      const existing = await client.query<{id:string;archived_at:string|null}>(
+        'SELECT id,archived_at FROM ced_cases WHERE project_id=$1 FOR UPDATE',[projectId],
+      );
+      if(existing.rowCount) {
+        if(existing.rows[0].archived_at) throw new ConflictException({code:'CED_CASE_ARCHIVED',message:'Bu projenin eski süreç kaydı arşivlenmiş. Önce mevcut kayıt kontrol edilmelidir.'});
+        caseId=existing.rows[0].id;
+      } else {
+        const created=await client.query<{id:string}>(
+          `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,started_on,notes,created_by,updated_by)
+           VALUES($1,'custom','','',NULL,'', $2,$2) RETURNING id`,
+          [projectId,user.id],
+        );
+        caseId=created.rows[0].id;
+        await this.audit(client,caseId,'case',caseId,'created',{source:'institution_opinion_workspace'},user.id);
+      }
+      await client.query('COMMIT');
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return this.createOpinion(user,caseId,input);
+  }
+
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
