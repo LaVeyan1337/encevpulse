@@ -314,3 +314,48 @@ export class CedService {
       await client.query(
         `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
          outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,notes=$10,updated_by=$11,updated_at=now(),version=version+1 WHERE id=$12`,
+        [merged.institutionName, merged.subject, merged.status, merged.requestDate, merged.deadlineDate, merged.responseDate,
+          merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, merged.notes, user.id, opinionId],
+      );
+      await this.audit(client, caseId, 'institution_opinion', opinionId, 'updated', merged, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async createIdkMeeting(user: AuthUser, caseId: string, input: unknown) {
+    assertUuid(caseId, 'ÇED kaydı');
+    const value = objectInput(input);
+    assertKeys(value, ['meetingType', 'title', 'startsAt', 'endsAt', 'location', 'status', 'agenda', 'decisions']);
+    const draft = validateMeeting(value);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.loadAccessibleCase(client, caseId, user.id, true);
+      const inserted = await client.query<{ id: string }>(
+        \`INSERT INTO ced_idk_meetings(case_id,meeting_type,title,starts_at,ends_at,location,status,agenda,decisions,created_by,updated_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING id\`,
+        [caseId, draft.meetingType, draft.title, draft.startsAt, draft.endsAt, draft.location, draft.status, draft.agenda, draft.decisions, user.id],
+      );
+      await this.audit(client, caseId, 'idk_meeting', inserted.rows[0].id, 'created', draft, user.id);
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+    return { ok: true, caseId };
+  }
+
+  async updateIdkMeeting(user: AuthUser, meetingId: string, input: unknown) {
+    assertUuid(meetingId, 'İDK toplantısı');
+    const value = objectInput(input);
+    assertKeys(value, ['version', 'meetingType', 'title', 'startsAt', 'endsAt', 'location', 'status', 'agenda', 'decisions']);
+    assertVersion(value.version);
+    if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
+    const client = await this.db.pool.connect();
+    let caseId = '';
+    try {
+      await client.query('BEGIN');
+      const found = await client.query<any>(
+        \`SELECT m.*,c.project_id FROM ced_idk_meetings m JOIN ced_cases c ON c.id=m.case_id
+         WHERE m.id=$1 AND m.archived_at IS NULL FOR UPDATE OF m\`, [meetingId],
+      );
