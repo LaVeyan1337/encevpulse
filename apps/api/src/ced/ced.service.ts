@@ -318,7 +318,8 @@ export class CedService {
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        `SELECT o.*,c.project_id FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id
+        `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
+          o.response_date::text AS response_date,c.project_id FROM ced_institution_opinions o JOIN ced_cases c ON c.id=o.case_id
          WHERE o.id=$1 AND o.archived_at IS NULL AND c.archived_at IS NULL FOR UPDATE OF o`, [opinionId],
       );
       if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
