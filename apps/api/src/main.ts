@@ -7,6 +7,19 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(ApplicationModule);
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (origin && /^(chrome-extension|moz-extension):\/\/[a-z0-9-]{16,}$/i.test(origin)) {
+        callback(null, origin);
+        return;
+      }
+      callback(null, false);
+    },
+    methods: ['GET','POST','OPTIONS'],
+    allowedHeaders: ['Content-Type','X-Pulse-Token'],
+    maxAge: 600,
+    credentials: false,
+  });
 
   const trustedProxyIps = (process.env.TRUSTED_PROXY_IPS ?? '')
     .split(',')
