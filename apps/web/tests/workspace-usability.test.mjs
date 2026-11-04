@@ -62,7 +62,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.calendar,/type CalendarScope = 'all'\|'personal'\|'corporate'/);
   assert.match(source.calendar,/calendar-scope-switch/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
-  assert.match(source.calendar,/scope==='corporate'\?event\.visibility==='shared'/);
+  assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal':event\.visibility==='shared'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
   assert.match(source.calendarApiService,/includeCompanyMilestones: boolean/);
   assert.match(source.calendarApiService,/includeCompanyMilestones\),/);
