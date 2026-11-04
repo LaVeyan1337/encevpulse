@@ -27,6 +27,9 @@
 .petition-template-file strong{overflow-wrap:anywhere;color:var(--text);font-size:13px}
 .petition-template-file small{color:var(--text-muted);font-size:11px;line-height:1.4}
 .petition-text-button{padding:7px 10px;color:#ff9ca8;background:rgba(255,112,128,.07);border:1px solid rgba(255,112,128,.19);border-radius:8px;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.petition-template-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.petition-export-button{padding:7px 10px;color:var(--accent-hover);background:var(--accent-subtle);border:1px solid var(--border-strong);border-radius:8px;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.petition-export-button:disabled,.petition-text-button:disabled{opacity:.45;cursor:not-allowed}
 .petition-empty-template{padding:18px;color:var(--text-muted);background:var(--surface-raised);border:1px dashed var(--border-strong);border-radius:10px;font-size:12px}
 .petition-template-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .petition-file-picker{position:relative;display:inline-flex;align-items:center;min-height:38px;padding:0 13px;color:#fff;background:linear-gradient(135deg,#7186f2,#596bd8);border:1px solid rgba(190,199,255,.42);border-radius:9px;font-size:12px;font-weight:750;cursor:pointer;overflow:hidden}
