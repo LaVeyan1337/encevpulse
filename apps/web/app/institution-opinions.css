@@ -57,3 +57,37 @@
 :root[data-theme='light'] .opinions-status{background:rgba(245,247,253,.9)}
 @media(max-width:820px){.opinions-page-intro{align-items:flex-start;flex-direction:column}.opinions-refresh-button{align-self:flex-start}.opinions-toolbar{align-items:stretch;flex-wrap:wrap}.opinions-search{flex-basis:100%}.opinions-status-filter{flex:1}.opinions-status-filter select{flex:1}.opinions-result-count{align-self:center}}
 @media(max-width:560px){.opinions-page-intro h2{font-size:24px}.opinions-page-intro p{font-size:13px}.opinions-metrics{gap:8px}.opinions-metrics article{min-height:78px;padding:12px}.opinions-metrics span{font-size:11px}.opinions-metrics strong{font-size:22px}.opinions-status-filter{align-items:flex-start;flex-direction:column}.opinions-status-filter select{width:100%}}
+
+.opinions-header-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto;flex-wrap:wrap}
+.opinions-add-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;color:#fff;background:linear-gradient(120deg,#247fd5,#3b9fe9);border:1px solid rgba(170,225,255,.3);border-radius:11px;font:inherit;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer;box-shadow:0 7px 18px rgba(20,111,194,.18)}
+.opinions-add-button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.opinions-row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.opinions-edit-button{min-height:33px;padding:0 10px;color:var(--text-secondary);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:8px;font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.opinions-edit-button:hover{color:var(--accent-hover);border-color:var(--accent)}
+.status-positive{color:#2eb984;border-color:rgba(61,189,139,.34);background:rgba(61,189,139,.1)}
+.status-negative{color:#ff788b;border-color:rgba(240,83,104,.34);background:rgba(240,83,104,.1)}
+.status-waiting{color:#87b9ff;border-color:rgba(105,153,255,.32);background:rgba(105,153,255,.1)}
+.status-revision,.status-revision_requested{color:#f0bd70;border-color:rgba(240,189,112,.32);background:rgba(240,189,112,.1)}
+.status-other_request{color:#c4a3ff;border-color:rgba(163,137,229,.33);background:rgba(163,137,229,.1)}
+.status-draft,.status-requested{opacity:.82}
+.opinions-fixed-project{display:grid;gap:5px;padding:12px 14px;background:var(--accent-subtle);border:1px solid var(--border-strong);border-radius:10px}
+.opinions-fixed-project span{color:var(--text-muted);font-size:10px;font-weight:750}
+.opinions-fixed-project strong{color:var(--text);font-size:13px}
+.opinions-editor-form{max-width:none}
+.opinions-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.opinions-editor-grid .form-group{min-width:0}
+.opinions-editor-form input,.opinions-editor-form select,.opinions-editor-form textarea{width:100%;min-width:0;min-height:42px;padding:9px 11px;color:var(--text);background:var(--surface-raised);border:1px solid var(--border-strong);border-radius:9px;font:inherit;font-size:12px}
+.opinions-editor-form textarea{min-height:110px;resize:vertical}
+.opinions-editor-form label{display:block;margin-bottom:6px;color:var(--text-secondary);font-size:11px;font-weight:750}
+.opinions-editor-form input:focus,.opinions-editor-form select:focus,.opinions-editor-form textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+.opinions-editor-form select{color-scheme:dark}
+.opinions-editor-form select option{color:#e6f0fc;background:#132b48}
+:root[data-theme='light'] .opinions-editor-form input,:root[data-theme='light'] .opinions-editor-form select,:root[data-theme='light'] .opinions-editor-form textarea{color:#203b59;background:rgba(255,255,255,.9)}
+:root[data-theme='light'] .opinions-editor-form select{color-scheme:light}
+:root[data-theme='light'] .opinions-editor-form select option{color:#203b59;background:#fff}
+:root[data-theme='light'] .status-positive{color:#217e59;background:rgba(61,189,139,.09)}
+:root[data-theme='light'] .status-negative{color:#b8364d;background:rgba(240,83,104,.08)}
+:root[data-theme='light'] .status-waiting{color:#2865a5;background:rgba(105,153,255,.08)}
+:root[data-theme='light'] .status-revision,:root[data-theme='light'] .status-revision_requested{color:#9a641d;background:rgba(240,189,112,.1)}
+:root[data-theme='light'] .status-other_request{color:#6546a6;background:rgba(163,137,229,.1)}
+@media(max-width:640px){.opinions-header-actions{width:100%}.opinions-header-actions button{flex:1}.opinions-editor-grid{grid-template-columns:1fr}}
