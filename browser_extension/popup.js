@@ -46,10 +46,19 @@ $('enableSite').addEventListener('click',async()=>{
   await chrome.storage.local.set({allowedOrigins:allowed});
   $('enableSite').textContent='Portal izni açık'; $('enableSite').classList.add('enabled');
   let detectorReady = false;
-  try { await chrome.tabs.sendMessage(currentTabId,{type:'scan-visible-account'}); detectorReady = true; } catch {}
+  try {
+    await chrome.scripting.executeScript({
+      target:{tabId:currentTabId},
+      files:['content-script.js']
+    });
+    await chrome.tabs.sendMessage(currentTabId,{type:'scan-visible-account'});
+    detectorReady = true;
+  } catch {
+    // The user has granted portal access; do not reload or navigate their active page.
+  }
   $('status').textContent = detectorReady
     ? 'Site izni verildi. Görünür profil etiketi otomatik algılanırsa hesap listesine eklenir; bulunamazsa etiketi manuel girebilirsiniz.'
-    : 'Site izni verildi. Algılayıcının yüklenmesi için e-ÇED sekmesini bir kez yenileyin. Parola veya çerez okunmaz.';
+    : 'Site izni verildi ancak algılayıcı bu sekmeye eklenemedi. Sayfayı kendiniz yenileyip eklentiyi tekrar açın. Parola veya çerez okunmaz.';
 });
 $('save').addEventListener('click',async()=>{
   if (!currentOrigin) return;
