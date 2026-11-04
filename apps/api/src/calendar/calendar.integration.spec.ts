@@ -171,6 +171,44 @@ test('takvim API: kişisel, ortak ve proje etkinlikleri; kapsam, tarih izdüşü
     assert.equal(personalEvent.response.status, 201);
     eventIds.push(personalEvent.data.event.id as string);
 
+    // The corporate ÇED workflow event types must pass both API validation and
+    // the PostgreSQL event_type check constraint after migration 0016.
+    const cedEventTypes = ['presentation','site_visit','hkt','idk'] as const;
+    for (const [index,eventType] of cedEventTypes.entries()) {
+      const created = await api(base, alice, 'calendar/events', 'POST', {
+        title: 'ÇED takvim türü ' + eventType,
+        description: '',
+        eventType,
+        visibility: 'shared',
+        projectId: null,
+        allDay: true,
+        startsOn: `2026-12-${13+index}`,
+        endsOn: `2026-12-${13+index}`,
+        startsAt: null,
+        endsAt: null,
+        location: '',
+        attendeeIds: [],
+      });
+      assert.equal(created.response.status, 201, `eventType ${eventType}: ${JSON.stringify(created.data)}`);
+      assert.equal(created.data.event.eventType, eventType);
+      eventIds.push(created.data.event.id as string);
+    }
+    const unsupportedEventType = await api(base, alice, 'calendar/events', 'POST', {
+      title: 'Geçersiz takvim türü',
+      description: '',
+      eventType: 'unknown_type',
+      visibility: 'shared',
+      projectId: null,
+      allDay: true,
+      startsOn: '2026-12-20',
+      endsOn: '2026-12-20',
+      startsAt: null,
+      endsAt: null,
+      location: '',
+      attendeeIds: [],
+    });
+    assert.equal(unsupportedEventType.response.status, 400);
+
     const bobCalendar = await api(base, bob, 'calendar?from=2026-12-01&to=2027-01-01');
     assert.equal(bobCalendar.response.status, 200, JSON.stringify(bobCalendar.data));
     const bobEventIds = bobCalendar.data.events.map((event: { id: string }) => event.id);
