@@ -11,6 +11,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     opinionController: '../../api/src/ced/ced.controller.ts',
     projectService: '../../api/src/tasks/tasks.service.ts',
     projectMigration: '../../../drizzle/0014_project_types_and_opinion_statuses.sql',
+    calendarMigration: '../../../drizzle/0015_calendar_ced_event_types.sql',
     projectStyles: '../app/projects.css',
     opinionStyles: '../app/institution-opinions.css',
     calendar: '../app/components/calendar-workspace.tsx',
@@ -61,6 +62,12 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
 
   assert.match(source.calendar,/type CalendarScope = 'all'\|'personal'\|'corporate'/);
   assert.match(source.calendar,/calendar-scope-switch/);
+  for(const kind of ['presentation','site_visit','hkt','idk']) {
+    assert.match(source.calendar,new RegExp(kind));
+    assert.match(source.calendarApiService,new RegExp("'" + kind + "'"));
+    assert.match(source.calendarMigration,new RegExp("'" + kind + "'"));
+    assert.match(source.calendarStyles,new RegExp('calendar-entry-' + kind));
+  }
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal':event\.visibility==='shared'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
