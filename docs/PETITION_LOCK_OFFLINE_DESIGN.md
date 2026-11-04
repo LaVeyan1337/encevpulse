@@ -2,7 +2,7 @@
 
 ## Değişmez çalışma sınırı
 
-Bu geliştirme dalı, şirket NAS'ına ve `\\\\192.168.1.55\\Genel Evrak` paylaşımına bağlanmaz. Hiçbir test, uygulama, yardımcı süreç veya dağıtım adımı bu paylaşımın varlığını sorgulamaz. NAS'a yazma, okuma, listeleme, kilit/varlık/günlük/yedek oluşturma ve eski dosya temizleme işlemleri kapalıdır.
+Bu geliştirme dalı, şirket NAS'ına ve `\\192.168.1.55\Genel Evrak` paylaşımına bağlanmaz. Hiçbir test, uygulama, yardımcı süreç veya dağıtım adımı bu paylaşımın varlığını sorgulamaz. NAS'a yazma, okuma, listeleme, kilit/varlık/günlük/yedek oluşturma ve eski dosya temizleme işlemleri kapalıdır.
 
 Bu belge bir erişim izni değildir. Gelecekte NAS erişimi istenirse kullanıcıdan ayrı, açık ve kapsamı belirli onay alınmadan tasarım sınırı değiştirilemez.
 
