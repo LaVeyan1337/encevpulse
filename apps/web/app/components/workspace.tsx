@@ -2540,6 +2540,7 @@ export function Workspace({
                     projects={projects}
                     projectId={projectDetail.project.id}
                     canCreate={hasModulePermission('institution_opinions','create')}
+                    canUpdate={hasModulePermission('institution_opinions','update')}
                     canOpenProject={false}
                     onOpenProject={()=>{}}
                   />
