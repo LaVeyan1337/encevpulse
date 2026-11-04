@@ -230,10 +230,13 @@ export class CedService {
       const fileNumber = Object.hasOwn(value, 'fileNumber') ? boundedText(value.fileNumber, 0, 120, 'Dosya numarası') : current.file_number;
       const ecedReference = Object.hasOwn(value, 'ecedReference') ? boundedText(value.ecedReference, 0, 160, 'e-ÇED referansı') : current.eced_reference;
       const startedOn = Object.hasOwn(value, 'startedOn') ? optionalDate(value.startedOn, 'Başlangıç tarihi') : current.started_on;
-      const clearPtdClosure = routeCode === 'ek2_ptd' && ['pending','ced_report_required'].includes(decision) && !Object.hasOwn(value, 'closedOn');
-      const closedOn = Object.hasOwn(value, 'closedOn') ? optionalDate(value.closedOn, 'Kapanış tarihi') : clearPtdClosure ? null : current.closed_on;
+      const hasClosedOnInput = Object.hasOwn(value, 'closedOn');
+      const closedOnIsBlank = !hasClosedOnInput || value.closedOn === null || value.closedOn === '';
+      const clearPtdClosure = routeCode === 'ek2_ptd' && ['pending','ced_report_required'].includes(decision) && closedOnIsBlank;
+      const closePtdTerminal = routeCode === 'ek2_ptd' && ['ced_positive','withdrawn'].includes(decision) && closedOnIsBlank;
+      const submittedClosedOn = hasClosedOnInput && !closedOnIsBlank ? optionalDate(value.closedOn, 'Kapanış tarihi') : null;
+      const closedOn = submittedClosedOn ?? (clearPtdClosure ? null : current.closed_on);
       const notes = Object.hasOwn(value, 'notes') ? boundedText(value.notes, 0, 6000, 'Açıklama') : current.notes;
-      const closePtdTerminal = routeCode === 'ek2_ptd' && ['ced_positive','withdrawn'].includes(decision) && !Object.hasOwn(value, 'closedOn');
       await client.query(
         `UPDATE ced_cases SET decision=$1,file_number=$2,eced_reference=$3,started_on=$4,
          closed_on=CASE WHEN $9::boolean AND $5::date IS NULL THEN CURRENT_DATE ELSE $5::date END,
@@ -241,7 +244,7 @@ export class CedService {
         [decision, fileNumber, ecedReference, startedOn, closedOn, notes, user.id, caseId, closePtdTerminal],
       );
       await this.audit(client, caseId, 'case', caseId, 'updated',
-        { decision, routeCode, fileNumber, ecedReference, startedOn, closedOn: closePtdTerminal ? 'CURRENT_DATE' : closedOn }, user.id);
+        { decision, routeCode, fileNumber, ecedReference, startedOn, closedOn: closePtdTerminal && !closedOn ? 'CURRENT_DATE' : closedOn }, user.id);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }

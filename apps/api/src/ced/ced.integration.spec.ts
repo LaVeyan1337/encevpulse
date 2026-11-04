@@ -239,7 +239,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(afterPtdRequired.data.stages.find((stage: {title:string})=>stage.title==='PTD sonucu sonrası kontrol').status,'pending');
 
     const resetPtd = await api(base, processOwner, 'ced/cases/' + ptdCaseId, 'PATCH', {
-      version: afterPtdRequired.data.case.version, decision: 'pending',
+      version: afterPtdRequired.data.case.version, decision: 'pending', closedOn: null,
     });
     assert.equal(resetPtd.response.status, 200, JSON.stringify(resetPtd.data));
     const afterReset = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
@@ -247,7 +247,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(afterReset.data.stages.find((stage: {title:string})=>stage.title==='PTD sonucu sonrası kontrol').status,'not_applicable');
 
     const positivePtd = await api(base, processOwner, 'ced/cases/' + ptdCaseId, 'PATCH', {
-      version: afterReset.data.case.version, decision: 'ced_positive',
+      version: afterReset.data.case.version, decision: 'ced_positive', closedOn: null,
     });
     assert.equal(positivePtd.response.status, 200, JSON.stringify(positivePtd.data));
     const afterPositive = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
