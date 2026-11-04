@@ -60,16 +60,23 @@ export function EcedWorkspace({
   const [selectedDeviceId,setSelectedDeviceId]=useState('');
   const [showToken,setShowToken]=useState(false);
 
-  const load=useCallback(async()=>{
-    setLoading(true);setError('');
+  const load=useCallback(async(quiet=false)=>{
+    if(!quiet)setLoading(true);
+    setError('');
     try{
-      const next=await request('eced/monitor') as MonitorData;
-      setData(next);
-      setSelectedDeviceId(current=>current&&next.devices.some(d=>d.id===current)?current:(next.devices[0]?.id??''));
+      const result=await request('eced/monitor') as MonitorData;
+      setData(result);
+      setSelectedDeviceId(current=>current&&result.devices.some(d=>d.id===current)?current:(result.devices[0]?.id??''));
     }catch(cause){setError(cause instanceof Error?cause.message:'e-ÇED izleme verileri alınamadı.');}
-    finally{setLoading(false);}
+    finally{if(!quiet)setLoading(false);}
   },[request]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{
+    void load();
+    const timer=window.setInterval(()=>{
+      if(document.visibilityState==='visible')void load(true);
+    },20_000);
+    return ()=>window.clearInterval(timer);
+  },[load]);
 
   const reports=data?.reports??[];
   const devices=data?.devices??[];
