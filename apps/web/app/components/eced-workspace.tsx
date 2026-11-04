@@ -245,8 +245,6 @@ export function EcedWorkspace({
       </article>)}</div>}
       <p className="eced-security-note">Eklenti yalnızca izin verilen portal sekmesinin adresini, başlığını, sekme etkinliğini ve sizin seçtiğiniz görünür hesap etiketini gönderir. Parola, çerez, form alanı, localStorage / sessionStorage veya sayfa HTML içeriği okunmaz. Bu gözlem, e-ÇED sunucusundan doğrulanmış kimlik kanıtı değildir.</p>
     </section>
-
-    </section>
   </section>;
 }
 
