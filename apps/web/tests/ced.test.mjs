@@ -3,19 +3,27 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 test('ÇED workspace exposes the five required document milestones, project entry and PTD decision branches', async () => {
-  const [component, workspace, styles, migration, service, projectMigration] = await Promise.all([
+  const [component, workspace, styles, migration, service, projectMigration, transitionMigration] = await Promise.all([
     readFile(new URL('../app/components/ced-workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/ced.css', import.meta.url), 'utf8'),
     readFile(new URL('../../../drizzle/0012_ced_process_tracking.sql', import.meta.url), 'utf8'),
     readFile(new URL('../../api/src/ced/ced.service.ts', import.meta.url), 'utf8'),
     readFile(new URL('../../../drizzle/0015_project_scoped_institution_opinions.sql', import.meta.url), 'utf8'),
+    readFile(new URL('../../../drizzle/0017_ced_application_submitted_date.sql', import.meta.url), 'utf8'),
   ]);
   for (const milestone of ['ÇBD YÜKLENDİ', 'PTD YÜKLENDİ', 'ÇED RAPORU YÜKLENDİ', 'NİHAİ RAPOR YÜKLENDİ', 'SON NİHAİ RAPOR YÜKLENDİ']) {
     assert.ok(component.includes(milestone), 'Missing milestone: ' + milestone);
   }
   assert.match(component, /name="routeCode" required/);
   assert.match(component, /option value="">Başvuru yolunu seçin/);
+  assert.match(component, /name="applicationSubmittedOn"/);
+  assert.match(component, /data\.case\.applicationSubmittedOn/);
+  assert.match(component, /05\.03\.2026 öncesi başvurular için geçiş hükümleri ayrıca incelenmelidir/);
+  assert.match(component, /rotasını otomatik değiştirmez/);
+  assert.match(service, /application_submitted_on/);
+  assert.match(transitionMigration, /ADD COLUMN application_submitted_on date/);
+  assert.doesNotMatch(transitionMigration, /UPDATE ced_cases|SET application_submitted_on/);
   for (const feature of ['Ara adım ekle', 'Kurum görüşleri', 'İDK toplantıları ve kararlar', 'sourceReference']) {
     assert.ok(component.includes(feature), 'Missing workflow feature: ' + feature);
   }
