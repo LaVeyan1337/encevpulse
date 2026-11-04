@@ -206,7 +206,9 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     try{
       await cleanup.query('BEGIN');
       if(deviceIds.length){
+        await cleanup.query('ALTER TABLE eced_audit_events DISABLE TRIGGER eced_audit_events_append_only');
         await cleanup.query('DELETE FROM eced_audit_events WHERE device_id=ANY($1::uuid[])',[deviceIds]);
+        await cleanup.query('ALTER TABLE eced_audit_events ENABLE TRIGGER eced_audit_events_append_only');
         await cleanup.query('DELETE FROM eced_account_claims WHERE device_id=ANY($1::uuid[])',[deviceIds]);
         await cleanup.query('DELETE FROM eced_browser_reports WHERE device_id=ANY($1::uuid[])',[deviceIds]);
         await cleanup.query('DELETE FROM eced_seen_accounts WHERE last_device_id=ANY($1::uuid[])',[deviceIds]);
