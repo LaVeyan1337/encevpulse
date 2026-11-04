@@ -329,7 +329,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(finalNegative.response.status,200,JSON.stringify(finalNegative.data));
     const completedFullProcess = await api(base, processOwner, 'ced/projects/' + fullCedProjectId);
     assert.equal(completedFullProcess.data.case.decision,'ced_negative');
-    assert.match(completedFullProcess.data.case.closedOn,/^\\d{4}-\\d{2}-\\d{2}$/);
+    assert.ok(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(completedFullProcess.data.case.closedOn));
     assert.equal(completedFullProcess.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='last_final_report_upload').status,'completed');
     assert.equal(completedFullProcess.data.stages.find((stage: {stageKey:string})=>stage.stageKey==='decision').status,'completed');
 
