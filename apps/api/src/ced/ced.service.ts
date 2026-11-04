@@ -499,7 +499,6 @@ export class CedService {
       [caseId, userId],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
-  }
     return result.rows[0];
   }
 
