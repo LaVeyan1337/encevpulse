@@ -102,12 +102,27 @@ test('ÇED API: route-specific milestones, document completion and project acces
 
     const created = await api(base, processOwner, 'ced/projects/' + projectId, 'POST', {
       routeCode: 'ek1_cbd', fileNumber: 'CED-' + suffix,
+      startedOn: '2026-03-01',
+      applicationSubmittedOn: '2026-03-04',
     });
     assert.equal(created.response.status, 201, JSON.stringify(created.data));
     caseId = created.data.caseId as string;
 
     const initial = await api(base, processOwner, 'ced/projects/' + projectId);
     assert.equal(initial.response.status, 200);
+    assert.equal(initial.data.case.applicationSubmittedOn, '2026-03-04');
+    const changedApplicationDate = await api(base, processOwner, 'ced/cases/' + caseId, 'PATCH', {
+      version: initial.data.case.version,
+      applicationSubmittedOn: '2026-03-06',
+    });
+    assert.equal(changedApplicationDate.response.status, 200, JSON.stringify(changedApplicationDate.data));
+    const afterApplicationDate = await api(base, processOwner, 'ced/projects/' + projectId);
+    assert.equal(afterApplicationDate.data.case.applicationSubmittedOn, '2026-03-06');
+    const invalidApplicationDate = await api(base, processOwner, 'ced/cases/' + caseId, 'PATCH', {
+      version: afterApplicationDate.data.case.version,
+      applicationSubmittedOn: '2026-02-30',
+    });
+    assert.equal(invalidApplicationDate.response.status, 400);
     const stages = initial.data.stages as Array<{id:string;stageKey:string;status:string;version:number}>;
     const cbd = stages.find((stage) => stage.stageKey === 'cbd_upload')!;
     const ptd = stages.find((stage) => stage.stageKey === 'ptd_upload')!;
