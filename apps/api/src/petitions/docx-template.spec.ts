@@ -86,7 +86,7 @@ test('tanınmayan ve Word satırlarına bölünmüş alanlar reddedilir',()=>{
 test('bozuk ZIP veya CRC değeri değiştirilmiş DOCX reddedilir',()=>{
   const bytes=docx(xml('{{PROJECT_NAME}}'));
   const badSignature=Buffer.from(bytes);badSignature[0]=0;
-  assert.throws(()=>inspectDocxTemplate(badSignature),/ZIP bitiş kaydı|ZIP kayıtlarından biri/);
+  assert.throws(()=>inspectDocxTemplate(badSignature),/ZIP bitiş kaydı|ZIP kayıtlarından biri|yerel ZIP başlığı/);
   const badCrc=Buffer.from(bytes);
   const localNameLength=badCrc.readUInt16LE(26),localExtraLength=badCrc.readUInt16LE(28);
   badCrc[30+localNameLength+localExtraLength]^=0x01;
