@@ -100,11 +100,15 @@ Kurum Rehberi dış kurum ve iletişim bilgilerini kapsar. Çalışan hesapları
 
 ## Dilekçe oluşturma akışı
 
-1. Kullanıcı yetkili şablonu ve ilgili süreç/projeyi seçer.
-2. Sistem gerekli alanları ve veri kaynağını açıklar; eksik/çelişen bilgiler düzeltilmeden çıktı üretmez.
-3. Gerçek `.docx` dosyası oluşturulur; şablon biçimi korunur ve çıktı kullanıcıya önizleme/indirme veya tanımlı depoya kaydetme imkânı verir.
-4. Kullanıcı belgeyi inceler. Taslak ile onaylanmış/nihai belge ayrımı görünür olur.
-5. Belge sürümü, oluşturan kişi, tarih ve ilişkili kayıt izlenebilir.
+1. Süreç sahibi veya belge sorumlusu, EnÇev tarafından onaylanmış `.docx` şablonunu yükler. Şablondaki alanlar tek Word metin satırında `{{PROJECT_NAME}}` biçiminde tanımlanır. Şablon sürümü, dosya özeti ve yükleyen kişi kaydedilir.
+2. Çalışan erişim yetkisi olan projeyi ve etkin şablon sürümünü seçer. Projeye ait ad/tür/sorumlu/tarihler ve kendi kullanıcı bilgisi sistem tarafından doldurulur.
+3. Dilekçe konusu, hitap, kurum ve metin gibi kullanıcı alanları doldurulur. Zorunlu alan eksikse üretim durur ve eksik alanlar belirtilir.
+4. API şablonu doğrular ve gerçek `.docx` üretir. Çıktı proje kaydına bağlı olarak PULSE PostgreSQL içinde saklanır; metin önizlemesi ve indirme sunulur. Orijinal şablon değiştirilmez.
+5. Belge taslak olarak kaydedilir. Belge sahibi “İncelemeye gönder” işlemini yapar; süreç sahibi/belge sorumlusu düzeltmeye iade edebilir veya onaylayabilir.
+6. Kuruma gönderim insan tarafından yapılır. Yetkili kullanıcı yalnız gönderimi teyit ettikten sonra “Gönderildi olarak işaretle” durumunu seçer; PULSE dış kuruma otomatik gönderim veya elektronik imza yapmaz.
+7. Her belge hangi şablon sürümüyle üretildiği, dosya SHA-256 özeti, oluşturan kişi, proje, durum ve indirme/onay geçmişiyle izlenebilir.
+
+Şablon dosyaları ve çıktılar PULSE veritabanında saklanır; bu akış şirket NAS/SMB paylaşımına bağlanmaz. Gerçek şirket şablonlarının içeriği ve hangi dilekçe türlerinde kullanılacağı süreç sahibi tarafından ayrıca onaylanmalıdır.
 
 ## Hata ve istisna akışları
 
