@@ -252,8 +252,8 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
         method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
         body:JSON.stringify({enabled:true}),
       });
-      assert.equal(petitionsOn.response.status,200);
-      assert.equal(petitionsOn.body.enabled,true);
+      assert.equal(petitionsOn.response.status,409);
+      assert.equal(petitionsOn.body.code,'MODULE_NOT_READY');
 
       const myPermissions=await api(baseUrl,'permissions/me',{headers:{Cookie:employeeSession.cookie}});
       assert.equal(myPermissions.response.status,200);
