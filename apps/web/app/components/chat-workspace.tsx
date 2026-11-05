@@ -514,6 +514,11 @@ export function ChatWorkspace({
 
   const activeCallIdRef=useRef<string|null>(null);
   useEffect(()=>{activeCallIdRef.current=activeCall?.id??null;},[activeCall?.id]);
+  useEffect(()=>()=> {
+    const callId=activeCallIdRef.current;
+    if(callId)void request('chat/calls/'+callId+'/end','POST',{}).catch(()=>undefined);
+    closeLocalCall();
+  },[request]);
 
   async function sendCallSignal(callId:string,signalType:'offer'|'answer'|'ice_candidate',payload:Record<string,unknown>){
     await request('chat/calls/'+callId+'/signals','POST',{signalType,payload});
@@ -533,7 +538,6 @@ export function ChatWorkspace({
       const result=await request('chat/calls/'+callId+'/signals?afterId='+encodeURIComponent(lastCallSignalIdRef.current));
       const signals=(result.signals??[]) as CallSignal[];
       for(const signal of signals){
-        lastCallSignalIdRef.current=signal.id;
         if(signal.signalType==='answer'&&peer.signalingState==='have-local-offer'&&!peer.remoteDescription){
           await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
           await flushIceCandidates(peer);
@@ -545,6 +549,7 @@ export function ChatWorkspace({
           if(peer.remoteDescription)await peer.addIceCandidate(new RTCIceCandidate(candidate));
           else pendingIceCandidatesRef.current.push(candidate);
         }
+        lastCallSignalIdRef.current=signal.id;
       }
     }catch(cause){
       setCallError(cause instanceof Error?cause.message:'Arama sinyalleşmesi alınamadı.');
