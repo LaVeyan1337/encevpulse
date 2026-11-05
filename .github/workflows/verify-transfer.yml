@@ -10,6 +10,7 @@ on:
       - feature/workspace-usability-chat-calendar-20261104
       - feature/ced-project-flow-opinions-20261104
       - feature/whatsapp-calendar-opinion-directory-20261105
+      - feature/chat-media-audio-20261105
     paths:
       - "apps/**"
       - "drizzle/**"
