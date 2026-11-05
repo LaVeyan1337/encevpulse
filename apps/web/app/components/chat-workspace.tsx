@@ -1314,7 +1314,7 @@ export function ChatWorkspace({
             {detail.pinned.length===0?<p>Henüz sabitlenmiş mesaj yok.</p>:detail.pinned.map(item=><button type="button" key={item.id} onClick={()=>{const target=document.getElementById('message-'+item.id);target?.scrollIntoView({behavior:'smooth',block:'center'});}}><strong>{item.senderName}</strong><span>{item.body}</span><time>{dateLabel(item.createdAt)}</time></button>)}
           </div>
         )}
-        <div className="chat-context-footer"><span>Sohbet ekleri ve aramalar erişim yetkisiyle korunur.</span></div>
+        
       </aside>
 
       {activeCall&&typeof document!=='undefined'&&createPortal(
