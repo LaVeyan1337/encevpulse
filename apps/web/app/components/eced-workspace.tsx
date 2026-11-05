@@ -200,7 +200,7 @@ export function EcedWorkspace({
         {canUpdate&&<label className="eced-claim-device"><span>Rezervasyon cihazı</span><select value={selectedDeviceId} onChange={event=>setSelectedDeviceId(event.target.value)}><option value="">Eşleştirme seçin</option>{devices.map(device=><option key={device.id} value={device.id}>{device.deviceName}</option>)}</select></label>}
       </div>
       {loading&&!data?<div className="eced-monitor-empty">Tarayıcı eklentisi raporları yükleniyor…</div>
-      :filtered.length===0?<div className="eced-monitor-empty"><strong>{reports.length?'Filtreyle eşleşen rapor yok':'Henüz tarayıcı raporu alınmadı'}</strong><span>{reports.length?'Arama ve durum filtresini değiştirin.':'Eklentiyi kurun, PULSE API bağlantısını doğrulayın ve resmî portal sekmesinde “Bu portalı izlemeye aç” iznini verin. Ardından eklenti penceresinden sinyali kontrol edin.'}</span></div>
+      :filtered.length===0?<div className="eced-monitor-empty"><strong>{reports.length?'Filtreyle eşleşen rapor yok':'Henüz tarayıcı raporu alınmadı'}</strong><span>{reports.length?'Arama ve durum filtresini değiştirin.':'Eşleştirilmiş tarayıcıda e-ÇED sekmesi gözlendiğinde kayıt burada görünür. Eklenti ve portal izinlerini kontrol edin.'}</span></div>
       :<div className="eced-report-table-wrap"><table className="eced-report-table"><thead><tr><th>Durum</th><th>e-ÇED hesabı</th><th>Bilgisayar / kullanıcı</th><th>Tarayıcı</th><th>Portal sayfası</th><th>Son sinyal</th><th>Rezervasyon</th><th>İşlem</th></tr></thead>
         <tbody>{filtered.map(report=>{
           const state=stateOf(report,staleAfter);
