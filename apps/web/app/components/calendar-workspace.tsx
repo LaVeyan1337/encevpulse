@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { Person, Project } from './workspace';
+import { Drawer } from './drawer';
 
 type CalendarView = 'month' | 'week' | 'day' | 'agenda';
 type CalendarScope = 'all'|'personal'|'corporate';
@@ -259,6 +260,7 @@ export function CalendarWorkspace({
   const [notice, setNotice] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [dayPanelOpen, setDayPanelOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [draft, setDraft] = useState<CalendarDraft>(() => initialDraft(today));
@@ -361,11 +363,16 @@ export function CalendarWorkspace({
     setSelectedDate(next + '-01');
   }
 
-  function openCreate(day = selectedDate) {
+  function showDayPanel(day: string) {
+    changeSelectedDate(day);
+    setDayPanelOpen(true);
+  }
+
+  function openCreate(day = selectedDate, eventType: EventType = 'meeting') {
     if (!canCreate) return;
     setSelectedEvent(null);
     setEditingEvent(null);
-    setDraft(initialDraft(day));
+    setDraft({ ...initialDraft(day), eventType });
     setFormError('');
     setFormOpen(true);
   }
@@ -465,7 +472,7 @@ export function CalendarWorkspace({
           key={entry.key}
           type="button"
           className={'calendar-entry calendar-entry-' + event.eventType + (compact ? ' compact' : '')}
-          onClick={(clickEvent) => { clickEvent.stopPropagation(); openEntry(entry); }}
+          onClick={(clickEvent) => { clickEvent.stopPropagation(); setDayPanelOpen(false); openEntry(entry); }}
           title={event.title}
         >
           <span className="calendar-entry-time">{entryTime(event)}</span>
@@ -497,11 +504,7 @@ export function CalendarWorkspace({
             <h1>Takvim</h1>
             <p>Etkinlikler, görev tarihleri ve proje kilometre taşları</p>
           </div>
-          {canCreate && (
-            <button type="button" className="primary-button calendar-create-button" onClick={() => openCreate()}>
-              <span aria-hidden="true">＋</span> Etkinlik oluştur
-            </button>
-          )}
+
         </div>
         <div className="calendar-controls">
           <div className="calendar-range-controls">
@@ -546,13 +549,14 @@ export function CalendarWorkspace({
                 return (
                   <div
                     key={day}
+                    onClick={() => showDayPanel(day)}
                     className={'calendar-day-cell' + (view === 'month' && !sameMonth ? ' outside-month' : '') +
                       (day === selectedDate ? ' selected-day' : '') + (day === today ? ' is-today' : '')}
                   >
                     <button
                       type="button"
                       className="calendar-day-select"
-                      onClick={() => changeSelectedDate(day)}
+                      onClick={() => showDayPanel(day)}
                       aria-label={formatDate(day) + ', ' + entries.length + ' kayıt'}
                       aria-pressed={day === selectedDate}
                     >
@@ -620,6 +624,10 @@ export function CalendarWorkspace({
                     <option value="event">Etkinlik</option>
                     <option value="reminder">Hatırlatma</option>
                     <option value="deadline">Teslim / Son tarih</option>
+                    <option value="presentation">Sunum</option>
+                    <option value="site_visit">Yer Görme</option>
+                    <option value="hkt">Halkın Katılım Toplantısı (HKT)</option>
+                    <option value="idk">İDK Toplantısı</option>
                   </select>
                 </label>
                 <label className="calendar-field">
@@ -747,6 +755,49 @@ export function CalendarWorkspace({
           )}
         </aside>
       </div>
+
+      <Drawer
+        isOpen={dayPanelOpen}
+        onClose={() => setDayPanelOpen(false)}
+        size="lg"
+        title="Günün planı"
+        subtitle={formatDate(selectedDate)}
+        ariaLabelledBy="calendar-day-drawer-title"
+      >
+        <div className="calendar-day-drawer">
+          <div className="calendar-day-drawer-actions">
+            {canCreate && (
+              <>
+                <button type="button" className="calendar-day-action-primary" onClick={() => { setDayPanelOpen(false); openCreate(selectedDate, 'meeting'); }}>
+                  <span aria-hidden="true">＋</span> Toplantı planla
+                </button>
+                <button type="button" className="calendar-day-action-secondary" onClick={() => { setDayPanelOpen(false); openCreate(selectedDate, 'event'); }}>
+                  <span aria-hidden="true">＋</span> Etkinlik ekle
+                </button>
+              </>
+            )}
+          </div>
+          <div className="calendar-day-drawer-list">
+            {entriesForDay(selectedDate).map((entry) => (
+              <article className="calendar-day-drawer-row" key={entry.key}>
+                {renderEntry(entry)}
+                {entry.milestone && <small>{milestoneLabel(entry.milestone)}</small>}
+              </article>
+            ))}
+            {entriesForDay(selectedDate).length === 0 && !loading && (
+              <div className="calendar-empty">
+                <strong>Bu gün için kayıt yok</strong>
+                <span>Toplantı veya etkinlik planlamak için yukarıdaki işlemleri kullanın.</span>
+              </div>
+            )}
+            {loading && <div className="calendar-loading" role="status">Günün kayıtları alınıyor…</div>}
+          </div>
+          <div className="calendar-day-drawer-summary">
+            <strong>{entriesForDay(selectedDate).length}</strong>
+            <span>etkinlik, görev veya süreç kaydı</span>
+          </div>
+        </div>
+      </Drawer>
     </section>
   );
 }
