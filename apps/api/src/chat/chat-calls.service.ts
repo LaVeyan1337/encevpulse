@@ -70,7 +70,7 @@ export class ChatCallsService {
       await client.query(
         `UPDATE chat_calls call_row SET status='ended',ended_at=now()
          WHERE call_row.status IN ('ringing','accepted')
-           AND (call_row.status='accepted' AND call_row.last_heartbeat_at<now()-interval '120 seconds'
+           AND (call_row.status='accepted' AND (call_row.caller_heartbeat_at<now()-interval '120 seconds' OR call_row.callee_heartbeat_at IS NULL OR call_row.callee_heartbeat_at<now()-interval '120 seconds')
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
                WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.caller_user_id AND member.left_at IS NULL)
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
@@ -114,7 +114,7 @@ export class ChatCallsService {
     );
     await this.db.query(
       `UPDATE chat_calls SET status='ended',ended_at=now()
-       WHERE status='accepted' AND last_heartbeat_at<now()-interval '120 seconds'`,
+       WHERE status='accepted' AND (caller_heartbeat_at<now()-interval '120 seconds' OR callee_heartbeat_at IS NULL OR callee_heartbeat_at<now()-interval '120 seconds')`,
     );
     const result=await this.db.query(
       `SELECT call_row.id,call_row.conversation_id AS "conversationId",
@@ -141,7 +141,7 @@ export class ChatCallsService {
   async acceptCall(user:AuthUser,callId:string) {
     assertUuid(callId);
     const result=await this.db.query(
-      `UPDATE chat_calls SET status='accepted',accepted_at=now(),last_heartbeat_at=now()
+      `UPDATE chat_calls SET status='accepted',accepted_at=now(),callee_heartbeat_at=now()
        WHERE id=$1 AND callee_user_id=$2 AND status='ringing' AND expires_at>now()
          AND EXISTS(SELECT 1 FROM conversation_members callee_member
            WHERE callee_member.conversation_id=chat_calls.conversation_id AND callee_member.user_id=$2 AND callee_member.left_at IS NULL)
@@ -183,7 +183,9 @@ export class ChatCallsService {
   async heartbeat(user:AuthUser,callId:string) {
     assertUuid(callId);
     const result=await this.db.query(
-      `UPDATE chat_calls call_row SET last_heartbeat_at=now()
+      `UPDATE chat_calls call_row SET
+         caller_heartbeat_at=CASE WHEN call_row.caller_user_id=$2 THEN now() ELSE call_row.caller_heartbeat_at END,
+         callee_heartbeat_at=CASE WHEN call_row.callee_user_id=$2 THEN now() ELSE call_row.callee_heartbeat_at END
        WHERE call_row.id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
          AND call_row.status='accepted'
          AND (SELECT count(*) FROM conversation_members member
@@ -244,7 +246,13 @@ export class ChatCallsService {
          VALUES($1,$2,$3,$4,$5) RETURNING id::text AS id,created_at AS "createdAt"`,
         [callId,row.conversation_id,user.id,signalType,payload],
       );
-      await client.query(`UPDATE chat_calls SET last_heartbeat_at=now() WHERE id=$1`,[callId]);
+      await client.query(
+        `UPDATE chat_calls SET
+          caller_heartbeat_at=CASE WHEN caller_user_id=$2 THEN now() ELSE caller_heartbeat_at END,
+          callee_heartbeat_at=CASE WHEN callee_user_id=$2 THEN now() ELSE callee_heartbeat_at END
+         WHERE id=$1`,
+        [callId,user.id],
+      );
       await client.query('COMMIT');
       return {signal:inserted.rows[0]};
     }catch(error){await client.query('ROLLBACK');throw error;}
