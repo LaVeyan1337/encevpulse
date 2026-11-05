@@ -856,7 +856,6 @@ export default function Home() {
                       const blockedReason=({
                         drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
                         institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur; harici kurum sistemleriyle otomatik eşitleme bulunmaz.',
-                        petitions:'Onaylı ortak şablon, alan eşleme, gerçek Word üretimi/önizleme ve kayıt-onay akışı tamamlanmadı.',
                       } as Record<string,string>)[module.moduleKey];
                       const moduleHint=({
                         petitions:'Mevcut taslak yalnızca tarayıcıda saklanan DOCX dosyasının değiştirilmemiş kopyasını indirir; otomatik dilekçe üretimi değildir.',
