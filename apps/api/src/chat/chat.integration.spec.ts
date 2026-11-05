@@ -430,6 +430,10 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
         signalType:'offer',payload:{type:'offer',sdp:'v=0\\r\\no=- 1 1 IN IP4 127.0.0.1\\r\\ns=ENCEV test offer\\r\\nt=0 0'},
       });
       assert.equal(offer.response.status,201,JSON.stringify(offer.data));
+      const duplicateOffer=await api(base,alice,`chat/calls/${callId}/signals`,'POST',{
+        signalType:'offer',payload:{type:'offer',sdp:'v=0\\r\\ns=duplicate offer\\r\\nt=0 0'},
+      });
+      assert.equal(duplicateOffer.response.status,409,'Bir çağrıda ikinci SDP teklifi kabul edilmemeli.');
       const remoteOffer=await api(base,carol,`chat/calls/${callId}/signals?afterId=0`);
       assert.equal(remoteOffer.response.status,200);
       assert.equal(remoteOffer.data.signals.length,1);
@@ -461,6 +465,9 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(ice.response.status,201,JSON.stringify(ice.data));
       const endedCall=await api(base,alice,`chat/calls/${callId}/end`,'POST',{});
       assert.equal(endedCall.response.status,201,JSON.stringify(endedCall.data));
+      const closedSignals=await api(base,carol,`chat/calls/${callId}/signals?afterId=0`);
+      assert.equal(closedSignals.response.status,200);
+      assert.equal(closedSignals.data.signals.length,0,'Biten çağrının SDP/ICE sinyalleri artık istemciye sunulmamalı.');
       const endedHeartbeat=await api(base,alice,`chat/calls/${callId}/heartbeat`,'POST',{});
       assert.equal(endedHeartbeat.response.status,409,'Bitmiş çağrı heartbeat ile yeniden açılamamalı.');
       const noActiveAlice=await api(base,alice,'chat/calls/active');
