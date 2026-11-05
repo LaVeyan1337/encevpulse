@@ -492,7 +492,6 @@ export default function Home() {
     const blocked:Record<string,string>={
       drive:'Ortak Drive, kaynak dosya yetkilerini koruyan bağlantı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
       petitions:'Dilekçe şablon alan eşlemesi ve onaylı belge akışı tamamlanmadan bu modül açılamaz.',
-      institution_guide:'Kurum Rehberi şu anda Kurum Görüşleri içindeki iletişim alanlarında bulunuyor; bağımsız modül akışı henüz hazır değil.',
     };
     if(enabled&&blocked[moduleKey]){setAdminError(blocked[moduleKey]);return;}
     setModuleSavingKey(moduleKey);setAdminError('');setAdminMessage('');
