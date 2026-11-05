@@ -90,11 +90,13 @@ Bu akış mevcut e-ÇED sisteminden otomatik veri alınacağını varsaymaz. Man
 
 ## Kurum Rehberi akışı
 
-1. Çalışan, proje veya Kurum Görüşü kapsamında dış kurum/kuruluşu arar. İç çalışan hesapları bu rehberde değil, kullanıcı ve ekip yönetimindedir.
-2. Kurum kaydından doğrulanmış iletişim noktalarını ve kurumla ilişkili yazışma/proje bağlantılarını inceler.
-3. Yeni kurum veya iletişim bilgisi ekleme/düzeltme yetkisi olan kullanıcı değişiklik yapar; kaynağı ve güncelleme geçmişi korunur.
+1. Çalışan dış kurum/kuruluş ve iletişim kişisini arar. İç çalışan hesapları bu rehberde değil, kullanıcı ve ekip yönetimindedir.
+2. Kurum veya iletişim kaydı bulunmuyorsa yetkili süreç sahibi/belge sorumlusu yeni kayıt açar; kurum adı ve kayıt kaynağı zorunludur.
+3. Kaynak etiketi, URL/yazı referansı ve varsa teyit tarihi kullanıcı tarafından girilir. Sistem dış kurum sistemine bağlanıp doğrulama yapmaz; kullanıcı beyanı ile otomatik doğrulama birbirinden ayrıdır.
+4. Yetkili kullanıcı kayıt bilgilerini günceller veya arşivler. Sürüm çakışması eski verinin üzerine yazmayı engeller; oluşturma, güncelleme ve arşivleme aktör/zaman bilgisiyle denetim kaydına eklenir.
+5. Proje Kurum Görüşü kayıtlarından gelen iletişim bilgileri ortak rehbere kendiliğinden açılmaz. Bir kaydın ortak rehberde görünmesi için ayrıca yetkili kullanıcı tarafından eklenmesi gerekir.
 
-Kurum Rehberi dış kurum ve iletişim bilgilerini kapsar. Şirket çalışanları kullanıcı ve ekip yönetimi altında yer alır.
+Kurum Rehberi dış kurum ve iletişim bilgilerini kapsar. Çalışan hesapları ve ekipleri kullanıcı yönetiminde yer alır. İlk rol izinleri: çalışan görüntüler; süreç sahibi ve belge sorumlusu ekler, düzenler ve arşivler. Resmî kaynak eşitlemesi sonraki karar/onay gerektirir.
 
 ## Dilekçe oluşturma akışı
 
