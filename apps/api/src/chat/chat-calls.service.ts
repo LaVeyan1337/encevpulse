@@ -103,6 +103,10 @@ export class ChatCallsService {
              AND cm.user_id=call.callee_user_id AND cm.left_at IS NULL
          ))`,
     );
+    await this.db.query(
+      `UPDATE chat_calls SET status='ended',ended_at=now()
+       WHERE status='accepted' AND last_heartbeat_at<now()-interval '120 seconds'`,
+    );
     const result=await this.db.query(
       `SELECT call.id,call.conversation_id AS "conversationId",
         call.caller_user_id AS "callerUserId",call.callee_user_id AS "calleeUserId",
@@ -128,7 +132,7 @@ export class ChatCallsService {
   async acceptCall(user:AuthUser,callId:string) {
     assertUuid(callId);
     const result=await this.db.query(
-      `UPDATE chat_calls SET status='accepted',accepted_at=now()
+      `UPDATE chat_calls SET status='accepted',accepted_at=now(),last_heartbeat_at=now()
        WHERE id=$1 AND callee_user_id=$2 AND status='ringing' AND expires_at>now()
        RETURNING id,conversation_id AS "conversationId",media_type AS "mediaType",
          caller_user_id AS "callerUserId",callee_user_id AS "calleeUserId",status,accepted_at AS "acceptedAt"`,
@@ -161,6 +165,20 @@ export class ChatCallsService {
     );
     if(!result.rowCount)throw new ConflictException({code:'CHAT_CALL_NOT_ACTIVE',message:'Arama zaten sona ermiş.'});
     return {call:result.rows[0]};
+  }
+
+  async heartbeat(user:AuthUser,callId:string) {
+    assertUuid(callId);
+    const result=await this.db.query(
+      `UPDATE chat_calls call SET last_heartbeat_at=now()
+       WHERE call.id=$1 AND (call.caller_user_id=$2 OR call.callee_user_id=$2)
+         AND call.status='accepted'
+         AND EXISTS(SELECT 1 FROM conversation_members member
+           WHERE member.conversation_id=call.conversation_id AND member.user_id=$2 AND member.left_at IS NULL)`,
+      [callId,user.id],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CHAT_CALL_NOT_ACTIVE',message:'Etkin arama bulunamadı.'});
+    return {ok:true};
   }
 
   async sendSignal(user:AuthUser,callId:string,input:unknown) {
@@ -196,6 +214,7 @@ export class ChatCallsService {
          VALUES($1,$2,$3,$4,$5) RETURNING id::text AS id,created_at AS "createdAt"`,
         [callId,row.conversation_id,user.id,signalType,payload],
       );
+      await client.query(`UPDATE chat_calls SET last_heartbeat_at=now() WHERE id=$1`,[callId]);
       await client.query('COMMIT');
       return {signal:inserted.rows[0]};
     }catch(error){await client.query('ROLLBACK');throw error;}
