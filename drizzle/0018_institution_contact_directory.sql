@@ -33,3 +33,10 @@ ALTER TABLE ced_institution_opinions
 CREATE INDEX ced_institution_opinions_contact_idx
   ON ced_institution_opinions(contact_id)
   WHERE contact_id IS NOT NULL AND archived_at IS NULL;
+
+-- Project leads and process owners can remove irrelevant draft/request entries.
+INSERT INTO role_module_permissions(role_id,module_key,permission_key)
+SELECT r.id,'institution_opinions','delete'
+FROM roles r
+WHERE r.code IN ('project_manager','process_owner')
+ON CONFLICT DO NOTHING;
