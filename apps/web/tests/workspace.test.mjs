@@ -167,6 +167,18 @@ test('Sohbet metin gönderimi gerçek POST uç noktasıyla eşleşir ve CSRF ba�
   assert.match(chat, /setSendState\('failed'\)/);
 });
 
+test('Sohbet POST başarılıysa sonradan gelen yenileme hatası mesajı gönderilmedi göstermez', async () => {
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  const postIndex = chat.indexOf("posted=await request('chat/conversations/'+targetConversationId+'/messages','POST'");
+  const refreshIndex = chat.indexOf("await loadMessages(targetConversationId,true,true)", postIndex);
+  const catchIndex = chat.indexOf("}catch(cause)", postIndex);
+  assert.ok(postIndex >= 0);
+  assert.ok(refreshIndex > postIndex);
+  assert.ok(catchIndex < 0 || catchIndex > refreshIndex);
+  assert.match(chat, /Mesaj sunucuya kaydedildi; ancak sohbet geçmişi yenilenemedi/);
+  assert.match(chat, /setMessages\(current=>current\.some\(item=>item\.id===optimistic\.id\)\?current:\[\.\.\.current,optimistic\]\)/);
+});
+
 test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet başlatır', async () => {
   const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
   const directory = await readFile(new URL('../app/components/people-directory.tsx', import.meta.url), 'utf8');
