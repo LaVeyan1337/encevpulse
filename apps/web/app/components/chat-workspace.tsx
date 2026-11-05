@@ -771,7 +771,41 @@ export function ChatWorkspace({
                             {editingId===message.id?(
                               <div className="chat-edit-box"><textarea value={editingBody} onChange={event=>setEditingBody(event.target.value)} maxLength={4000}/><div><button type="button" onClick={()=>{setEditingId(null);setEditingBody('');}}>Vazgeç</button><button type="button" disabled={actionBusy||!editingBody.trim()} onClick={()=>void editMessage(message)}>Kaydet</button></div></div>
                             ):(
-                              <p className={message.deletedAt?'chat-message-deleted':''}>{message.deletedAt?'Bu mesaj silindi.':message.body}</p>
+                              message.deletedAt
+                                ? <p className="chat-message-deleted">Bu mesaj silindi.</p>
+                                : (message.attachments?.length??0)===0||!message.body.startsWith('📎 ')
+                                  ? <p>{message.body}</p>
+                                  : null
+                            )}
+                            {!message.deletedAt&&(message.attachments?.length??0)>0&&(
+                              <div className="chat-attachments">
+                                {message.attachments.map(attachment=>{
+                                  const contentUrl='/api/chat/attachments/'+attachment.id+'/content';
+                                  if(attachment.mimeType.startsWith('image/'))return (
+                                    <a className="chat-attachment-image" href={contentUrl} target="_blank" rel="noreferrer" key={attachment.id}>
+                                      <img src={contentUrl} alt={attachment.originalName} loading="lazy"/>
+                                    </a>
+                                  );
+                                  if(attachment.mimeType.startsWith('audio/'))return (
+                                    <div className="chat-attachment-audio" key={attachment.id}>
+                                      <span>♫ {attachment.originalName}</span>
+                                      <audio controls preload="metadata" src={contentUrl}/>
+                                    </div>
+                                  );
+                                  if(attachment.mimeType.startsWith('video/'))return (
+                                    <div className="chat-attachment-video" key={attachment.id}>
+                                      <video controls preload="metadata" src={contentUrl}/>
+                                      <span>{attachment.originalName} · {fileSizeLabel(attachment.byteSize)}</span>
+                                    </div>
+                                  );
+                                  return (
+                                    <a className="chat-attachment-file" href={'/api/chat/attachments/'+attachment.id+'/download'} key={attachment.id}>
+                                      <span className="chat-attachment-file-icon">↧</span>
+                                      <span><strong>{attachment.originalName}</strong><small>{fileSizeLabel(attachment.byteSize)}</small></span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
                             )}
                             {!message.deletedAt&&(
                               <>
@@ -803,8 +837,35 @@ export function ChatWorkspace({
             </div>
             {canCreate ? <form className="chat-composer" onSubmit={sendMessage}>
               {replyTo&&<div className="chat-replying"><span><strong>{replyTo.senderName}</strong> mesajına yanıt veriliyor</span><p>{replyTo.body.slice(0,120)}</p><button type="button" onClick={()=>setReplyTo(null)} aria-label="Yanıtı iptal et">×</button></div>}
+              {pendingFiles.length>0&&<div className="chat-pending-files" aria-label="Gönderilmeye hazır dosyalar">
+                {pendingFiles.map((file,index)=><div key={file.name+'-'+index}><span>{file.name} · {fileSizeLabel(file.size)}</span><button type="button" onClick={()=>setPendingFiles(items=>items.filter((_,fileIndex)=>fileIndex!==index))} aria-label={file.name+' dosyasını kaldır'}>×</button></div>)}
+              </div>}
+              <div className="chat-composer-media">
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,audio/*"
+                  onChange={event=>{
+                    const chosen=Array.from(event.currentTarget.files??[]);
+                    event.currentTarget.value='';
+                    if(chosen.length>5){setError('Bir mesajda en fazla 5 dosya seçebilirsiniz.');return;}
+                    if(chosen.some(file=>file.size<1||file.size>12*1024*1024)||chosen.reduce((total,file)=>total+file.size,0)>24*1024*1024){
+                      setError('Her dosya en fazla 12 MB, toplam ekler en fazla 24 MB olabilir.');return;
+                    }
+                    setPendingFiles(chosen);setError('');
+                  }}
+                />
+                <button type="button" className="chat-media-button" onClick={()=>attachmentInputRef.current?.click()} disabled={sending||recording} aria-label="Fotoğraf veya dosya ekle" title="Fotoğraf veya dosya ekle">＋</button>
+                {recording
+                  ? <button type="button" className="chat-record-button is-recording" onClick={stopVoiceRecording} aria-label="Ses kaydını bitir"><i/> Kaydı bitir</button>
+                  : <button type="button" className="chat-record-button" onClick={()=>void startVoiceRecording()} disabled={sending||pendingFiles.length>0} aria-label="Sesli mesaj kaydet" title="Sesli mesaj kaydet">🎙 Sesli mesaj</button>}
+                {recording&&<span className="chat-recording-live" role="status">Kayıt sürüyor · en fazla 2 dakika</span>}
+                {recordingError&&<span className="chat-recording-error" role="alert">{recordingError}</span>}
+              </div>
               <textarea value={draft} onChange={event=>setDraft(event.target.value)} maxLength={4000} rows={2} placeholder={replyTo?'Yanıtınızı yazın…':'Mesajınızı yazın…'} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
-              <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · Metin korundu':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||!draft.trim()}>{sending?'Gönderiliyor…':'Gönder'} <b>↗</b></button></div>
+              <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · İçerik korundu':recording?'Kaydı bitirerek sesli mesajı gönderin':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||recording||(!draft.trim()&&pendingFiles.length===0)}>{sending?'Gönderiliyor…':pendingFiles.length?'Dosyaları gönder':'Gönder'} <b>↗</b></button></div>
             </form> : <div className="chat-readonly-note">Bu konuşmaları görüntüleme yetkiniz var; mesaj gönderme izniniz bulunmuyor.</div>}
           </>
         ):(
