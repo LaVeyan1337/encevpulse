@@ -124,7 +124,8 @@ test('Dilekçe API: ortak DOCX şablonu, sürüm, proje verisi, onay ve indirme'
   async function upload(base:string,client:Client,path:string,fields:Record<string,string>,bytes:Buffer){
     const form=new FormData();
     for(const [key,value] of Object.entries(fields))form.append(key,value);
-    form.append('file',new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),'Kurum_Dilekcesi.docx');
+    const blobBytes=new Uint8Array(bytes.byteLength);blobBytes.set(bytes);
+    form.append('file',new Blob([blobBytes.buffer],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),'Kurum_Dilekcesi.docx');
     const response=await fetch(base+'/api/'+path,{
       method:'POST',
       headers:{Origin:ORIGIN,Cookie:client.cookie,'X-CSRF-Token':client.csrf},
