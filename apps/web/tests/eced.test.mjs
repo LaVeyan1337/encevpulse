@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { Script } from 'node:vm';
+import { buildManifestForApi, normalizeApiBase } from '../../../scripts/build-extension.mjs';
 
 test('e-ÇED screen and API use scoped pairing, conservative account states and a portal origin allowlist', async () => {
   const [component, workspace, controller, service, migration, manifestText, worker, popup, options, contentScript, styles] = await Promise.all([
@@ -18,6 +19,22 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
     readFile(new URL('../app/eced.css', import.meta.url), 'utf8'),
   ]);
   const manifest = JSON.parse(manifestText);
+  const packagedManifest = buildManifestForApi(manifest,'https://pulse.example.test/api');
+  assert.ok(packagedManifest.optional_host_permissions.includes('https://pulse.example.test/*'));
+  assert.ok(packagedManifest.optional_host_permissions.includes('https://eced.csb.gov.tr/*'));
+  assert.equal(packagedManifest.version,'1.0.2');
+  assert.equal(buildManifestForApi(manifest,'https://pulse.example.test/api').optional_host_permissions
+    .filter((permission)=>permission==='https://pulse.example.test/*').length,1);
+  assert.equal(normalizeApiBase('http://127.0.0.1:3000/api'),'http://127.0.0.1:3000/api');
+  assert.equal(normalizeApiBase('http://localhost:3000/api'),'http://localhost:3000/api');
+  for (const invalidApiBase of [
+    'http://pulse.example.test/api',
+    'https://*.example.test/api',
+    'https://user:password@pulse.example.test/api',
+    'https://pulse.example.test/api?token=secret',
+    'https://eced.csb.gov.tr/api',
+    'javascript:alert(1)',
+  ]) assert.throws(()=>normalizeApiBase(invalidApiBase),invalidApiBase);
 
   for (const [name, source] of Object.entries({
     'service-worker.js':worker,
@@ -77,6 +94,8 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(popup.includes("accountSources[currentTabKey]='manual'"));
   assert.ok(popup.includes('detectedByPortal'));
   assert.ok(popup.includes('showReportResult'));
+  assert.ok(popup.includes('Sinyal kontrol ediliyor…'));
+  assert.ok(popup.includes("const result = await chrome.runtime.sendMessage({type:'report-active-tab'})"));
   assert.ok(popup.includes("await chrome.runtime.sendMessage({type:'report-active-tab'})"));
   assert.ok(options.includes('chrome.runtime.getManifest().optional_host_permissions'));
   assert.ok(options.includes('testConnection(apiBase,pairingToken)'));
@@ -92,6 +111,9 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(worker.includes('portal-account-observed'));
   assert.ok(worker.includes('attachObserversToAllowedTabs'));
   assert.ok(worker.includes("chrome.runtime.onStartup.addListener"));
+  assert.ok(worker.includes("chrome.runtime.onInstalled.addListener(() => { void initializeBrowserState(); })"));
+  assert.ok(worker.includes("await attachPortalObserver(tab)"));
+  assert.ok(worker.includes("await attachPortalObserver(tabs[0])"));
   assert.ok(worker.includes("chrome.tabs.onUpdated.addListener"));
   assert.ok(worker.includes('_sender?.tab'));
   assert.ok(worker.includes("accountSources[tabKey]==='manual'"));
