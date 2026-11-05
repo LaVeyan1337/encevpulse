@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { deflateRawSync } from 'node:zlib';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -40,6 +40,35 @@ function makeZip(entries:ZipInput[]):Buffer{
   end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(entries.length,8);end.writeUInt16LE(entries.length,10);
   end.writeUInt32LE(central.length,12);end.writeUInt32LE(local.length,16);
   return Buffer.concat([local,central,end]);
+}
+
+function readZipEntry(input:Buffer,targetName:string):Buffer{
+  let endRecord=-1;
+  for(let offset=input.length-22;offset>=Math.max(0,input.length-65557);offset--){
+    if(input.readUInt32LE(offset)===0x06054b50){endRecord=offset;break;}
+  }
+  assert.ok(endRecord>=0);
+  const count=input.readUInt16LE(endRecord+10);
+  let centralOffset=input.readUInt32LE(endRecord+16);
+  for(let index=0;index<count;index++){
+    assert.equal(input.readUInt32LE(centralOffset),0x02014b50);
+    const method=input.readUInt16LE(centralOffset+10);
+    const compressedSize=input.readUInt32LE(centralOffset+20);
+    const nameLength=input.readUInt16LE(centralOffset+28);
+    const extraLength=input.readUInt16LE(centralOffset+30);
+    const commentLength=input.readUInt16LE(centralOffset+32);
+    const localOffset=input.readUInt32LE(centralOffset+42);
+    const name=input.subarray(centralOffset+46,centralOffset+46+nameLength).toString('utf8');
+    if(name===targetName){
+      const localNameLength=input.readUInt16LE(localOffset+26);
+      const localExtraLength=input.readUInt16LE(localOffset+28);
+      const dataOffset=localOffset+30+localNameLength+localExtraLength;
+      const compressed=input.subarray(dataOffset,dataOffset+compressedSize);
+      return method===0?Buffer.from(compressed):inflateRawSync(compressed);
+    }
+    centralOffset+=46+nameLength+extraLength+commentLength;
+  }
+  throw new Error('DOCX entry not found: '+targetName);
 }
 
 function makeDocx():Buffer{
@@ -224,7 +253,9 @@ test('Dilekçe API: ortak DOCX şablonu, sürüm, proje verisi, onay ve indirme'
     assert.equal(download.headers.get('content-type'),'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     const downloaded=Buffer.from(await download.arrayBuffer());
     assert.ok(downloaded.length>100);
-    assert.ok(downloaded.includes(Buffer.from('Petition project '+suffix)));
+    const downloadedXml=readZipEntry(downloaded,'word/document.xml').toString('utf8');
+    assert.ok(downloadedXml.includes('Petition project '+suffix));
+    assert.ok(downloadedXml.includes('GES projesi kurum görüşü'));
 
     const review=await api(base,owner,'petitions/documents/'+document.id+'/status','PATCH',{
       status:'in_review',version:1,note:'Süreç sahibi incelemesine gönderildi.',
