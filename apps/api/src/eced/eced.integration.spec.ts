@@ -117,8 +117,8 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(employeePermissions.response.status,200);
     const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(employeePetitions?.enabled,true);
-    assert.ok(employeePetitions.actions.includes('view')&&employeePetitions.actions.includes('create'),'Employees can create project-linked draft documents.');
-    assert.ok(!employeePetitions.actions.includes('manage')&&!employeePetitions.actions.includes('update'),'Employees cannot manage templates or approve documents.');
+    assert.ok(employeePetitions.actions.includes('view')&&employeePetitions.actions.includes('create')&&employeePetitions.actions.includes('update'),'Employees can create drafts and submit their own documents for review.');
+    assert.ok(!employeePetitions.actions.includes('manage'),'Employees cannot manage shared templates or approve documents.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
