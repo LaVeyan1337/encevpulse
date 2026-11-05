@@ -284,7 +284,6 @@ test('Dilekçe API: ortak DOCX şablonu, sürüm, proje verisi, onay ve indirme'
       if(familyIds.length){
         await cleanup.query('ALTER TABLE petition_template_audit_events DISABLE TRIGGER petition_template_audit_events_append_only');
         await cleanup.query('DELETE FROM petition_template_audit_events WHERE template_id=ANY($1::uuid[])',[familyIds]);
-        await cleanup.query('DELETE FROM petition_template_audit_events WHERE template_id=ANY($1::uuid[])',[familyIds]);
         await cleanup.query('ALTER TABLE petition_template_audit_events ENABLE TRIGGER petition_template_audit_events_append_only');
         await cleanup.query('DELETE FROM petition_template_versions WHERE template_id=ANY($1::uuid[])',[familyIds]);
         await cleanup.query('DELETE FROM petition_template_families WHERE id=ANY($1::uuid[])',[familyIds]);
