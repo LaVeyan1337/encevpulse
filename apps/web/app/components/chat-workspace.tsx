@@ -93,7 +93,6 @@ export function ChatWorkspace({
   const [callError,setCallError]=useState('');
   const [callBusy,setCallBusy]=useState(false);
   const [callPeerReady,setCallPeerReady]=useState(0);
-  const [relayConfigured,setRelayConfigured]=useState(false);
   const [localStream,setLocalStream]=useState<MediaStream|null>(null);
   const [remoteStream,setRemoteStream]=useState<MediaStream|null>(null);
   const [microphoneEnabled,setMicrophoneEnabled]=useState(true);
@@ -506,7 +505,6 @@ export function ChatWorkspace({
       throw new Error('Mikrofon/kamera için HTTPS veya localhost güvenli bağlamı gerekir.');
     }
     const configuration=await request('chat/call-configuration');
-    setRelayConfigured(Boolean(configuration.relayConfigured));
     const stream=await navigator.mediaDevices.getUserMedia({
       audio:true,
       video:mediaType==='video'?{width:{ideal:1280},height:{ideal:720},facingMode:'user'}:false,
@@ -532,7 +530,7 @@ export function ChatWorkspace({
     };
     peer.onconnectionstatechange=()=>{
       if(peer.connectionState==='failed'){
-        setCallError('Bu ağlarda doğrudan bağlantı kurulamadı. TURN olmadan bazı NAT/güvenlik duvarı türlerinde arama mümkün olmayabilir; ücretli bir servise geçilmez.');
+        setCallError('Bu ağlar arasında bağlantı kurulamadı. Şirket ağ yöneticisiyle ağ erişim kısıtlarını kontrol edin.');
       }else if(peer.connectionState==='disconnected'){
         setCallError('Bağlantı kesildi; yeniden bağlanması bekleniyor.');
       }else if(peer.connectionState==='connected'){
@@ -1346,7 +1344,7 @@ export function ChatWorkspace({
                   <span>{remoteStream?'Ses bağlantısı etkin':'Karşı tarafın sesi bekleniyor…'}</span>
                 </div>
               )}
-              {!relayConfigured&&<p className="chat-call-network-note">Ücretsiz STUN ile doğrudan eşler arası bağlantı deneniyor; ek relay sunucusu veya ücretli servis kullanılmıyor. Bazı katı NAT/güvenlik duvarı ağlarında bağlantı kurulamayabilir.</p>}
+              
               {callError&&<p className="chat-call-error" role="alert">{callError}</p>}
               <div className="chat-call-actions">
                 <button type="button" className={!microphoneEnabled?'is-off':''} onClick={toggleMicrophone} disabled={!localStream} aria-label={microphoneEnabled?'Mikrofonu kapat':'Mikrofonu aç'}>{microphoneEnabled?'🎙 Mikrofon':'Mikrofon kapalı'}</button>
