@@ -191,6 +191,7 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
     })}</tbody></table></div>}
     <p className="opinions-footnote">Süre göstergesi yalnızca kayda girilmiş son tarihe göre hesaplanır; mevzuattaki iş günü veya resmî tatil hesabı değildir. Liste, erişim izniniz bulunan aktif projelerdeki en fazla 500 kaydı gösterir.</p>
     </div>
+    {view==='directory'&&error&&<div className="opinions-error" role="alert"><span>{error}</span><button type="button" onClick={()=>void loadContacts()}>Tekrar dene</button></div>}
     {view==='directory'&&<section className="institution-directory" aria-label="Kurum rehberi">
       <header><div><h3>Kurum ve ilgili kişi kayıtları</h3><p>Kurum görüşü kaydına girilen iletişim bilgileri burada otomatik toplanır.</p></div><span>{contacts.length} kişi</span></header>
       {contactsLoading?<div className="opinions-empty">Kurum rehberi yükleniyor…</div>
