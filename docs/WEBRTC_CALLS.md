@@ -3,10 +3,10 @@
 ## İlk sürüm kapsamı
 - Yalnızca bire bir sohbet içinde sesli veya görüntülü arama başlatılabilir.
 - Aranan taraf gelen çağrıyı kabul edebilir veya reddedebilir; katılımcılardan biri çağrıyı bitirebilir.
-- Oturum ve sinyalleşme kayıtları PostgreSQL'de tutulur. SDP ve ICE içerikleri yalnızca çağrının iki katılımcısına döndürülür.
+- Çağrı oturumları PostgreSQL'de tutulur. SDP ve ICE içerikleri yalnızca etkin çağrı sırasında iki katılımcıya döndürülür; çağrı bittiğinde, reddedildiğinde veya zaman aşımına uğradığında sinyal payload'ları veritabanından silinir.
 - Sinyalleşme olayları mevcut sohbet SSE kanalından yalnızca “çağrı değişti” sinyaliyle duyurulur; SDP/ICE içeriği SSE kanalında yayınlanmaz.
 - SDP boyutu, ICE aday boyutu ve aday adedi sınırlandırılır; çağrı/mesaj erişimi etkin sohbet üyeliğine bağlıdır.
-- Arama çalma süresi 45 saniyedir. Cevaplanmayan çağrı kullanıcı sonraki durum sorguladığında “missed” olarak sonlandırılır.
+- Arama çalma süresi 45 saniyedir. Cevaplanmayan çağrı sonraki durum sorgusunda “missed” olarak sonlandırılır. Kabul edilmiş çağrıda iki katılımcı da 20 saniyede bir heartbeat gönderir; taraflardan biri 120 saniye sessiz kalırsa çağrı sonlandırılır.
 
 ## STUN ve TURN
 Uygulama, arama başlatıldığında API'den kullanıcıya özgü ICE sunucu yapılandırması alır.
