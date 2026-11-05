@@ -78,7 +78,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.opinions,/contactEmail/);
   assert.match(source.opinions,/contactAddress/);
   assert.match(source.opinions,/ced\/contacts/);
-  assert.match(source.opinions,/ced\/projects\/\+projectId\+'\/opinions\/defaults/);
+  assert.match(source.opinions,/ced\/projects\/'\+projectId\+'\/opinions\/defaults/);
   assert.match(source.opinionController,/@Get\('contacts'\)/);
   assert.match(source.opinionController,/@Delete\('opinions\/:opinionId'\)/);
   assert.match(source.opinionController,/@Post\('projects\/:projectId\/opinions\/defaults'\)/);
