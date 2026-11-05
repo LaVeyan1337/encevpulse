@@ -10,9 +10,12 @@ export class AccessControlService {
   constructor(@Inject(DatabaseService) private readonly db:DatabaseService) {}
   async assertPermission(user:AuthUser,moduleKey:string,action:ModuleAction):Promise<void> {
     if(!MODULE_KEY.test(moduleKey)||!MODULE_ACTIONS.includes(action)) throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'Bu modüle erişim yetkiniz bulunmuyor.'});
-    if(user.roles.includes('system_admin') &&
-      ((moduleKey==='users'&&['view','create','update','delete','manage'].includes(action)) ||
-       ((moduleKey==='permissions'||moduleKey==='settings')&&['view','manage'].includes(action)))) return;
+    if(user.roles.includes('system_admin')) {
+      const moduleState=await this.db.query<{enabled:boolean}>(
+        'SELECT is_enabled AS enabled FROM app_modules WHERE module_key=$1',[moduleKey],
+      );
+      if(moduleState.rows[0]?.enabled) return;
+    }
     const result=await this.db.query<{allowed:boolean}>(
       `SELECT EXISTS(
          SELECT 1 FROM user_role_assignments ura
@@ -55,8 +58,8 @@ export class AccessControlService {
     );
     const modules=result.rows.map(row=>{
       const actions=new Set(row.actions);
-      if(roleCodes.includes('system_admin')&&['users','permissions','settings'].includes(row.moduleKey)) {
-        actions.add('view');actions.add('manage');
+      if(roleCodes.includes('system_admin')&&row.enabled) {
+        for(const action of MODULE_ACTIONS) actions.add(action);
       }
       return {...row,actions:[...actions]};
     });
