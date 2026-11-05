@@ -14,10 +14,11 @@ type Contact = {
 };
 
 export function InstitutionGuideWorkspace({
-  request,onOpenOpinions,
+  request,onOpenOpinions,canOpenOpinions,
 }:{
   request:(path:string,method?:string,data?:unknown)=>Promise<Record<string,any>>;
   onOpenOpinions:()=>void;
+  canOpenOpinions:boolean;
 }) {
   const [contacts,setContacts]=useState<Contact[]>([]);
   const [query,setQuery]=useState('');
@@ -61,7 +62,7 @@ export function InstitutionGuideWorkspace({
       </div>
       <div className="institution-guide-actions">
         <button type="button" className="secondary-button" onClick={()=>setRefreshKey(value=>value+1)} disabled={loading}>↻ Yenile</button>
-        <button type="button" className="primary-button" onClick={onOpenOpinions}>Kurum Görüşleri</button>
+        {canOpenOpinions&&<button type="button" className="primary-button" onClick={onOpenOpinions}>Kurum Görüşleri</button>}
       </div>
     </header>
     <div className="institution-guide-summary">
@@ -79,7 +80,7 @@ export function InstitutionGuideWorkspace({
     :filtered.length===0?<div className="institution-guide-empty">
       <strong>{contacts.length?'Aramayla eşleşen kurum bulunamadı':'Henüz erişilebilir kurum rehberi kaydı yok'}</strong>
       <span>{contacts.length?'Arama ölçütünü değiştirin.':'Kurum iletişim bilgileri, erişiminiz olan projelerde Kurum Görüşü kaydı oluşturulurken kaydedilir.'}</span>
-      <button type="button" className="secondary-button" onClick={onOpenOpinions}>Kurum Görüşleri bölümüne git</button>
+      {canOpenOpinions&&<button type="button" className="secondary-button" onClick={onOpenOpinions}>Kurum Görüşleri bölümüne git</button>}
     </div>
     :<div className="institution-guide-grid">
       {filtered.map(contact=><article className="institution-guide-card" key={contact.id}>
@@ -102,6 +103,6 @@ export function InstitutionGuideWorkspace({
         <footer>Son güncelleme · {updatedLabel(contact.updatedAt)}</footer>
       </article>)}
     </div>}
-    <p className="institution-guide-note">İletişim kayıtlarının kaynağı kurum görüşleridir. Bir kurum yetkilisini güncellemek için ilgili proje görüşünü açın; rehberdeki kayıtlar proje erişim kapsamınıza göre listelenir.</p>
+    <p className="institution-guide-note">İletişim kayıtlarının kaynağı kurum görüşleridir. Rehberde yalnızca proje erişim kapsamınızdaki kayıtlar listelenir.</p>
   </section>;
 }
