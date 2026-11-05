@@ -1022,7 +1022,7 @@ export function Workspace({
         </nav>
 
         <div className="sidebar-bottom">
-          <span className="sidebar-caption">EnÇev Çevre Mühendisliği</span>
+          <span className="sidebar-caption">ENÇEV ENERJİ</span>
         </div>
       </aside>
 
@@ -1836,7 +1836,7 @@ export function Workspace({
               {projectError && <p className="auth-error" role="alert">{projectError}</p>}
               <div className="projects-toolbar">
                 <div>
-                  <strong>{projectView === 'active' ? 'Çalışma alanındaki projeler' : 'Arşivlenmiş projeler'}</strong>
+                  <strong>{projectView === 'active' ? 'Aktif projeler' : 'Arşivlenmiş projeler'}</strong>
                   <span>{projects.length} proje</span>
                 </div>
                 <div className="project-view-switch" role="group" aria-label="Proje görünümü">
