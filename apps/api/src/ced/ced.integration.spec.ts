@@ -398,6 +398,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('ALTER TABLE project_audit_events ENABLE TRIGGER project_audit_events_append_only');
       }
       if (userIds.length) {
+        await cleanup.query('DELETE FROM ced_institution_contacts WHERE created_by=ANY($1::uuid[]) OR updated_by=ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM user_role_assignments WHERE user_id=ANY($1::uuid[])', [userIds]);
         await cleanup.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
