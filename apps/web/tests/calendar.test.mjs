@@ -23,7 +23,11 @@ test('Takvim ekranı gerçek API kayıtlarını ve mevcut görev/proje tarih izd
   assert.match(calendar, /<Drawer/);
   assert.match(calendar, /Toplantı planla/);
   assert.match(calendar, /Etkinlik ekle/);
-  assert.doesNotMatch(calendar, /Etkinlik oluştur<\\/button>/);
+  assert.ok(!calendar.includes('Etkinlik oluştur'));
+  assert.ok(calendar.includes('showDayPanel(day)'));
+  assert.ok(calendar.includes('Toplantı planla'));
+  assert.ok(calendar.includes('Etkinlik ekle'));
+  assert.ok(styles.includes('.calendar-day-drawer-actions'));
   assert.match(styles, /\\.calendar-day-drawer-actions/);
   assert.match(calendar, /currentUserId/);
   assert.match(calendar, /canManageSelectedEvent/);
