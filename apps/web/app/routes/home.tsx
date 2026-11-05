@@ -87,7 +87,8 @@ export default function Home() {
   const [permissionMatrix,setPermissionMatrix]=useState<PermissionMatrix|null>(null);
   const [selectedPermissionRole,setSelectedPermissionRole]=useState('employee');
   const [permissionSavingKey,setPermissionSavingKey]=useState<string|null>(null);
-  const [adminTab,setAdminTab]=useState<'users'|'permissions'>('users');
+  const [moduleSavingKey,setModuleSavingKey]=useState<string|null>(null);
+  const [adminTab,setAdminTab]=useState<'users'|'permissions'|'modules'>('users');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [temporaryCredential, setTemporaryCredential] = useState<{
     username: string;
@@ -482,6 +483,35 @@ export default function Home() {
     } finally {setPermissionSavingKey(null);}
   }
 
+  async function saveModuleState(moduleKey:string,enabled:boolean) {
+    if(view.status!=='authenticated'||moduleSavingKey)return;
+    const blocked:Record<string,string>={
+      drive:'Ortak Drive, kaynak dosya yetkilerini koruyan bağlantı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
+      petitions:'Dilekçe şablon alan eşlemesi ve onaylı belge akışı tamamlanmadan bu modül açılamaz.',
+      institution_guide:'Kurum Rehberi şu anda Kurum Görüşleri içindeki iletişim alanlarında bulunuyor; bağımsız modül akışı henüz hazır değil.',
+    };
+    if(enabled&&blocked[moduleKey]){setAdminError(blocked[moduleKey]);return;}
+    setModuleSavingKey(moduleKey);setAdminError('');setAdminMessage('');
+    try {
+      const response=await fetch('/api/auth/modules/'+moduleKey,{
+        method:'PUT',credentials:'same-origin',
+        headers:{'Content-Type':'application/json','X-CSRF-Token':view.csrfToken},
+        body:JSON.stringify({enabled}),
+      });
+      const result=await readBody(response);
+      if(!response.ok){setAdminError(typeof result.message==='string'?result.message:'Modül durumu değiştirilemedi.');return;}
+      setPermissionMatrix(current=>current?({...current,modules:current.modules.map(module=>module.moduleKey===moduleKey?{...module,enabled:Boolean(result.enabled)}:module)}):current);
+      const mine=await fetch('/api/auth/permissions/me',{credentials:'same-origin',cache:'no-store'});
+      if(mine.ok){
+        const mineResult=await readBody(mine);
+        if(Array.isArray(mineResult.modules))setView(current=>current.status==='authenticated'?{...current,user:{...current.user,modulePermissions:mineResult.modules as ModulePermissionSnapshot[]}}:current);
+      }
+      setAdminMessage((result.displayName??moduleKey)+' modülü '+(enabled?'etkinleştirildi.':'devre dışı bırakıldı.'));
+    } catch {
+      setAdminError('Modül durumu kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.');
+    } finally {setModuleSavingKey(null);}
+  }
+
   const handleSessionExpired = useCallback(() => setView({ status: 'anonymous' }), []);
 
   if (view.status === 'authenticated' && !view.user.mustChangePassword) {
@@ -501,7 +531,8 @@ export default function Home() {
           <section className="admin-panel workspace-admin" aria-labelledby="user-management-title">
             <div className="admin-tab-bar" role="tablist" aria-label="Sistem yönetimi bölümleri">
               <button type="button" role="tab" aria-selected={adminTab==='users'} className={adminTab==='users'?'selected':''} onClick={()=>setAdminTab('users')}>Kullanıcılar</button>
-              <button type="button" role="tab" aria-selected={adminTab==='permissions'} className={adminTab==='permissions'?'selected':''} onClick={()=>setAdminTab('permissions')}>Rol / Modül İzinleri</button>
+              <button type="button" role="tab" aria-selected={adminTab==='permissions'} className={adminTab==='permissions'?'selected':''} onClick={()=>setAdminTab('permissions')}>Rol / İşlem İzinleri</button>
+              <button type="button" role="tab" aria-selected={adminTab==='modules'} className={adminTab==='modules'?'selected':''} onClick={()=>setAdminTab('modules')}>Modül Durumu</button>
             </div>
             {adminTab==='users' && (
             <>
@@ -805,6 +836,51 @@ export default function Home() {
               </form>
             </Drawer>
             </>
+            )}
+            {adminTab==='modules' && (
+              <div className="permission-admin-panel">
+                {adminMessage && <p className="workspace-success" role="status">{adminMessage}</p>}
+                {adminError && <p className="auth-error" role="alert">{adminError}</p>}
+                <div className="permission-toolbar">
+                  <div>
+                    <h2>Modül etkinliği</h2>
+                    <p>Modülün açık olması tek başına erişim vermez. Kullanıcının rolünde ayrıca görüntüleme ve işlem izni bulunmalıdır.</p>
+                  </div>
+                </div>
+                {!permissionMatrix ? <div className="empty-state">Modül listesi yüklenemedi.</div> : (
+                  <div className="permission-module-list">
+                    {permissionMatrix.modules.map(module=>{
+                      const lockedCore=['overview','tasks','users','permissions','settings'].includes(module.moduleKey);
+                      const blockedReason=({
+                        drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
+                        petitions:'Word şablon alan eşlemesi ve onaylı belge iş akışı henüz tamamlanmadı.',
+                        institution_guide:'Kurum Rehberi şu anda Kurum Görüşleri içindeki iletişim alanlarında bulunuyor.',
+                      } as Record<string,string>)[module.moduleKey];
+                      return (
+                        <div className="permission-module-row" key={module.moduleKey}>
+                          <div className="permission-module-heading">
+                            <div>
+                              <strong>{module.displayName}</strong>
+                              <span>{blockedReason??(module.enabled?'Modül etkin':'Modül kapalı')}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className={module.enabled?'secondary-button compact-button':'primary-button compact-button'}
+                              onClick={()=>void saveModuleState(module.moduleKey,!module.enabled)}
+                              disabled={moduleSavingKey!==null||Boolean(blockedReason&& !module.enabled)||Boolean(lockedCore&&!module.enabled)}
+                              aria-pressed={module.enabled}
+                            >
+                              {moduleSavingKey===module.moduleKey?'Kaydediliyor…':module.enabled?'Devre dışı bırak':'Etkinleştir'}
+                            </button>
+                          </div>
+                          {blockedReason&&<p className="field-hint">{blockedReason}</p>}
+                          {lockedCore&&!module.enabled&&<p className="field-hint">Bu temel modül kapalı bırakılamaz.</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
             {adminTab==='permissions' && (
               <div className="permission-admin-panel">
