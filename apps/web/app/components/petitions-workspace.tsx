@@ -199,10 +199,10 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
     </header>
     {error&&<div className="petitions-alert" role="alert">{error}</div>}
     {notice&&<div className="petitions-notice" role="status"><span>{notice}</span><button type="button" onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
-    <p className="petitions-limit-note">Şablon bu tarayıcı profilinde saklanır; sunucuya veya şirket NAS’ına aktarılmaz. İndirilen kopyadaki Word alanları otomatik doldurulmaz.</p>
+    <p className="petitions-limit-note">Şablon bu tarayıcı profilinde saklanır. Sunucuya veya şirket NAS'ına aktarılmaz. İndirilen kopyadaki Word alanları otomatik doldurulmaz.</p>
 
     <section className="petition-template-panel">
-      <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>Mevcut dolu örneği ya da kurumunuzca onaylanmış bir DOCX belgesini seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
+      <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>DOCX şablonu seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
       {template?<div className="petition-template-current">
         <div className="petition-template-file"><span className="petition-docx-icon">W</span><div><strong>{template.name}</strong><small>{formatSize(template.size)} · Son kaydetme {new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(template.updatedAt))}{template.sha256?` · SHA-256 ${template.sha256}`:' · SHA-256 doğrulaması yok'}</small></div></div>
         {canCreate&&<div className="petition-template-buttons">
@@ -214,22 +214,16 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
         <label className="petition-file-picker">DOCX dosyası seç<input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={busy} onChange={event=>{void importTemplate(event.target.files?.[0]??null);event.currentTarget.value='';}}/></label>
         <a href={SAMPLE_URL} target="_blank" rel="noopener noreferrer" className="petition-sample-link">2026 örnek dilekçeyi indir ↗</a>
       </div>}
-      <p className="petition-storage-note">Gizlilik sınırı: IndexedDB içindeki şablon aynı tarayıcı profiline aittir; başka bilgisayarla eşitlenmez. Tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir.</p>
     </section>
 
     <section className="petition-draft-panel">
-      <div className="petition-panel-heading"><div><h3>Yeni Word taslağı oluştur</h3><p>Orijinal şablonun üzerine yazılmaz. Her işlem yeni bir DOCX indirmesi üretir.</p></div><span className="petition-step-index">01 / 02</span></div>
+      <div className="petition-panel-heading"><div><h3>Yeni Word taslağı oluştur</h3></div><span className="petition-step-index">01 / 02</span></div>
       <div className="petition-draft-form">
         <label><span>İlgili proje</span><select value={selectedProjectId} onChange={event=>setSelectedProjectId(event.target.value)} disabled={projects.length===0}><option value="">Proje seçin</option>{projects.filter(project=>project.status!=='archived').map(project=><option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
         <label><span>Dosya adı (isteğe bağlı)</span><input value={draftName} onChange={event=>setDraftName(event.target.value)} maxLength={90} placeholder={selectedProject?'Dilekce_'+fileNameSafe(selectedProject.name):'Dilekce_Proje_YYYY-AA-GG'}/></label>
         <button type="button" className="petition-create-button" disabled={!canCreate||busy||loading||!template||!selectedProject} onClick={()=>void createDraft()}>{busy?'Hazırlanıyor…':'Word taslağını indir'}</button>
       </div>
-      <p className="petition-draft-footnote">İndirilen belge, seçilen şablonun birebir kopyasıdır. Proje adı, kurum, tarih, mevzuat maddesi ve dilekçe metni gibi içerikler Word içinde yetkili kullanıcı tarafından kontrol edilip düzenlenmelidir.</p>
     </section>
 
-    <section className="petition-desktop-parity">
-      <div><span className="petition-parity-label">MASAÜSTÜ PULSE İŞLEVLERİ</span><h3>Ortak Word kilidi ve bekleme sırası web’e aktarılmadı</h3>
-        <p>Word dosyasının gerçek kullanım kilidi, Windows/SMB dosya sahipliği, ekip çevrimiçi durumu, bekleme sırası, erişim geçmişi ve ortak yedek geçmişi masaüstü PULSE’un Windows dosya sunucusu bağlantısına bağlıdır. Bu web sürümünde NAS erişimi kapalıdır; bu işlemler yapılmış gibi gösterilmez. Ortak kilit akışı, ayrı ve güvenli bir masaüstü yardımcı servis kararıyla taşınabilir.</p></div>
-    </section>
   </section>;
 }
