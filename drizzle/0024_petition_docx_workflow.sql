@@ -143,6 +143,13 @@ FROM (VALUES
   ('document_steward','petitions','update'),
   ('document_steward','petitions','delete'),
   ('document_steward','petitions','manage'),
+  ('employee','petitions','update'),
+  ('team_lead','petitions','update'),
+  ('system_admin','petitions','view'),
+  ('system_admin','petitions','create'),
+  ('system_admin','petitions','update'),
+  ('system_admin','petitions','delete'),
+  ('system_admin','petitions','manage'),
   ('auditor','petitions','view')
 ) AS d(role_code,module_key,permission_key)
 JOIN roles r ON r.code=d.role_code
