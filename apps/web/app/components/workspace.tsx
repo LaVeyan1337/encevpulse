@@ -1780,6 +1780,10 @@ export function Workspace({
             <PetitionsWorkspace
               projects={projects.map(({id,name,status})=>({id,name,status}))}
               canCreate={hasModulePermission('petitions','create')}
+              canUpdate={hasModulePermission('petitions','update')}
+              canManageTemplates={hasModulePermission('petitions','manage')}
+              canApprove={user.roles.includes('system_admin')||user.roles.includes('process_owner')||user.roles.includes('document_steward')}
+              request={request}
             />
           )}
 
