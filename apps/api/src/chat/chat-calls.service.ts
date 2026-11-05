@@ -74,7 +74,9 @@ export class ChatCallsService {
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
                WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.caller_user_id AND member.left_at IS NULL)
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
-               WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.callee_user_id AND member.left_at IS NULL))`,
+               WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.callee_user_id AND member.left_at IS NULL)
+             OR NOT EXISTS(SELECT 1 FROM users account WHERE account.id=call_row.caller_user_id AND account.status='active')
+             OR NOT EXISTS(SELECT 1 FROM users account WHERE account.id=call_row.callee_user_id AND account.status='active'))`,
       );
       await client.query(
         `DELETE FROM chat_call_signals
@@ -114,6 +116,10 @@ export class ChatCallsService {
          ) OR NOT EXISTS(
            SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call_row.conversation_id
              AND cm.user_id=call_row.callee_user_id AND cm.left_at IS NULL
+         ) OR NOT EXISTS(
+           SELECT 1 FROM users account WHERE account.id=call_row.caller_user_id AND account.status='active'
+         ) OR NOT EXISTS(
+           SELECT 1 FROM users account WHERE account.id=call_row.callee_user_id AND account.status='active'
          ))`,
     );
     await this.db.query(
@@ -155,6 +161,8 @@ export class ChatCallsService {
            WHERE callee_member.conversation_id=chat_calls.conversation_id AND callee_member.user_id=$2 AND callee_member.left_at IS NULL)
          AND EXISTS(SELECT 1 FROM conversation_members caller_member
            WHERE caller_member.conversation_id=chat_calls.conversation_id AND caller_member.user_id=chat_calls.caller_user_id AND caller_member.left_at IS NULL)
+         AND EXISTS(SELECT 1 FROM users callee_account WHERE callee_account.id=$2 AND callee_account.status='active')
+         AND EXISTS(SELECT 1 FROM users caller_account WHERE caller_account.id=chat_calls.caller_user_id AND caller_account.status='active')
        RETURNING id,conversation_id AS "conversationId",media_type AS "mediaType",
          caller_user_id AS "callerUserId",callee_user_id AS "calleeUserId",status,accepted_at AS "acceptedAt"`,
       [callId,user.id],
@@ -199,6 +207,7 @@ export class ChatCallsService {
        WHERE call_row.id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
          AND call_row.status='accepted'
          AND (SELECT count(*) FROM conversation_members member
+           JOIN users account ON account.id=member.user_id AND account.status='active'
            WHERE member.conversation_id=call_row.conversation_id
              AND member.user_id=ANY(ARRAY[call_row.caller_user_id,call_row.callee_user_id])
              AND member.left_at IS NULL)=2`,
@@ -227,8 +236,9 @@ export class ChatCallsService {
       const row=call.rows[0];
       if(user.id!==row.caller_user_id&&user.id!==row.callee_user_id)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
       const participants=await client.query(
-        `SELECT count(*)::int AS count FROM conversation_members
-         WHERE conversation_id=$1 AND user_id=ANY($2::uuid[]) AND left_at IS NULL`,
+`SELECT count(*)::int AS count FROM conversation_members member
+         JOIN users account ON account.id=member.user_id AND account.status='active'
+         WHERE member.conversation_id=$1 AND member.user_id=ANY($2::uuid[]) AND member.left_at IS NULL`,
         [row.conversation_id,[row.caller_user_id,row.callee_user_id]],
       );
       if(participants.rows[0].count!==2)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
