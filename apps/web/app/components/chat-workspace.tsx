@@ -12,11 +12,12 @@ type ChatMember = {
   role:'owner'|'admin'|'member';joinedAt:string;
 };
 type Reaction = {code:string;count:number;reactedByMe:boolean};
+type ChatAttachment = {id:string;originalName:string;mimeType:string;byteSize:number;createdAt:string};
 type Message = {
   id:string;conversationId:string;senderId:string;senderName:string;senderAvatarKey:string;body:string;
   replyToId:string|null;replyBody:string|null;replySenderName:string|null;version:number;
   createdAt:string;editedAt:string|null;deletedAt:string|null;pinnedAt:string|null;
-  isMine:boolean;reactions:Reaction[];readBy:string[];linkedTaskId:string|null;
+  isMine:boolean;reactions:Reaction[];readBy:string[];linkedTaskId:string|null;attachments:ChatAttachment[];
 };
 type DirectoryPerson = {
   id:string;displayName:string;username:string;email?:string;jobTitle?:string;department?:string;avatarKey?:string;roles?:string[];
@@ -70,6 +71,9 @@ export function ChatWorkspace({
   const [messageLoading,setMessageLoading]=useState(false);
   const [error,setError]=useState('');
   const [draft,setDraft]=useState('');
+  const [pendingFiles,setPendingFiles]=useState<File[]>([]);
+  const [recording,setRecording]=useState(false);
+  const [recordingError,setRecordingError]=useState('');
   const [replyTo,setReplyTo]=useState<Message|null>(null);
   const [sending,setSending]=useState(false);
   const [sendState,setSendState]=useState<'idle'|'sent'|'failed'>('idle');
@@ -91,6 +95,11 @@ export function ChatWorkspace({
   const [taskDraftAssigneeId,setTaskDraftAssigneeId]=useState(currentUserId);
   const [taskDraftProjectId,setTaskDraftProjectId]=useState('');
   const scrollRef=useRef<HTMLDivElement|null>(null);
+  const attachmentInputRef=useRef<HTMLInputElement|null>(null);
+  const recorderRef=useRef<MediaRecorder|null>(null);
+  const recordingStreamRef=useRef<MediaStream|null>(null);
+  const recordingChunksRef=useRef<Blob[]>([]);
+  const recordingTimeoutRef=useRef<number|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
   const lastExternalTarget=useRef<string|null>(null);
