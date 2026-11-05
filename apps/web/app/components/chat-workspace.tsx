@@ -89,6 +89,7 @@ export function ChatWorkspace({
   const [activeCall,setActiveCall]=useState<ActiveCall|null>(null);
   const [callError,setCallError]=useState('');
   const [callBusy,setCallBusy]=useState(false);
+  const [callPeerReady,setCallPeerReady]=useState(0);
   const [relayConfigured,setRelayConfigured]=useState(false);
   const [localStream,setLocalStream]=useState<MediaStream|null>(null);
   const [remoteStream,setRemoteStream]=useState<MediaStream|null>(null);
@@ -129,6 +130,7 @@ export function ChatWorkspace({
   const lastCallSignalIdRef=useRef('0');
   const pendingIceCandidatesRef=useRef<RTCIceCandidateInit[]>([]);
   const processingCallSignalsRef=useRef(false);
+  const callSetupRef=useRef(false);
   const callPollTimerRef=useRef<number|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
@@ -372,10 +374,22 @@ export function ChatWorkspace({
   },[remoteStream,localStream]);
 
   useEffect(()=>{
-    if(!activeCall||!peerConnectionRef.current)return;
-    const timer=window.setInterval(()=>void processCallSignals(activeCall.id),1200);
+    if(!activeCall||activeCall.status!=='accepted')return;
+    const timer=window.setInterval(()=>{
+      void request('chat/calls/'+activeCall.id+'/heartbeat','POST',{}).catch(()=>undefined);
+    },20000);
     return ()=>window.clearInterval(timer);
-  },[activeCall?.id,activeCall?.status]);
+  },[activeCall?.id,activeCall?.status,request]);
+
+  useEffect(()=>{
+    if(!activeCall||!peerConnectionRef.current||callSetupRef.current)return;
+    const timer=window.setInterval(()=>void processCallSignals(activeCall.id),1200);
+    callPollTimerRef.current=timer;
+    return ()=>{
+      window.clearInterval(timer);
+      if(callPollTimerRef.current===timer)callPollTimerRef.current=null;
+    };
+  },[activeCall?.id,activeCall?.status,callPeerReady]);
 
   useEffect(()=>{
     const element=scrollRef.current;
@@ -423,13 +437,13 @@ export function ChatWorkspace({
     try{
       const result=await request('chat/calls/active');
       const next=(result.call??null) as ActiveCall|null;
-      setActiveCall(current=>{
-        if(!next&&current){
-          closeLocalCall();
-          setCallError(current.status==='accepted'?'Bağlantı sona erdi.':'Arama sona erdi.');
-        }
-        return next;
-      });
+      const previous=activeCallIdRef.current;
+      if(!next&&previous){
+        closeLocalCall();
+        setCallError('Arama sona erdi veya bağlantı zaman aşımına uğradı.');
+      }
+      activeCallIdRef.current=next?.id??null;
+      setActiveCall(next);
     }catch{
       // A transient call-state lookup must not tear down an active peer connection.
     }
@@ -440,7 +454,9 @@ export function ChatWorkspace({
     callPollTimerRef.current=null;
     const peer=peerConnectionRef.current;
     peerConnectionRef.current=null;
-    if(peer){peer.onicecandidate=null;peer.ontrack=null;peer.close();}
+    activeCallIdRef.current=null;
+    callSetupRef.current=false;
+    if(peer){peer.onicecandidate=null;peer.ontrack=null;peer.onconnectionstatechange=null;peer.close();}
     localStreamRef.current?.getTracks().forEach(track=>track.stop());
     localStreamRef.current=null;
     pendingIceCandidatesRef.current=[];
@@ -450,6 +466,7 @@ export function ChatWorkspace({
     setMicrophoneEnabled(true);
     setCameraEnabled(true);
     processingCallSignalsRef.current=false;
+    setCallPeerReady(value=>value+1);
   }
 
   async function getCallMedia(mediaType:'audio'|'video'){
@@ -491,6 +508,7 @@ export function ChatWorkspace({
     };
     lastCallSignalIdRef.current='0';
     pendingIceCandidatesRef.current=[];
+    setCallPeerReady(value=>value+1);
     return peer;
   }
 
@@ -509,7 +527,7 @@ export function ChatWorkspace({
 
   async function processCallSignals(callId:string){
     const peer=peerConnectionRef.current;
-    if(!peer||processingCallSignalsRef.current)return;
+    if(!peer||callSetupRef.current||processingCallSignalsRef.current)return;
     processingCallSignalsRef.current=true;
     try{
       const result=await request('chat/calls/'+callId+'/signals?afterId='+encodeURIComponent(lastCallSignalIdRef.current));
@@ -559,18 +577,19 @@ export function ChatWorkspace({
   async function acceptCall(){
     if(!activeCall||activeCall.isCaller||activeCall.status!=='ringing'||callBusy)return;
     setCallBusy(true);setCallError('');
+    callSetupRef.current=true;
+    const callId=activeCall.id;
+    activeCallIdRef.current=callId;
     try{
-      const callId=activeCall.id;
       await request('chat/calls/'+callId+'/accept','POST',{});
       const peer=await getCallMedia(activeCall.mediaType);
       const offerResult=await request('chat/calls/'+callId+'/signals?afterId=0');
       const signals=(offerResult.signals??[]) as CallSignal[];
       const offer=signals.find(signal=>signal.signalType==='offer');
       if(!offer)throw new Error('Arama teklifi henüz ulaşmadı. Tekrar deneyin.');
-      lastCallSignalIdRef.current=offer.id;
       await peer.setRemoteDescription(new RTCSessionDescription(offer.payload as RTCSessionDescriptionInit));
-      for(const signal of signals.filter(item=>item.signalType==='ice_candidate')){
-        await peer.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit));
+      for(const signal of signals){
+        if(signal.signalType==='ice_candidate')await peer.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit));
         lastCallSignalIdRef.current=signal.id;
       }
       const answer=await peer.createAnswer();
@@ -584,7 +603,11 @@ export function ChatWorkspace({
       setCallError(cause instanceof Error?cause.message:'Arama kabul edilemedi.');
       if(activeCall)await request('chat/calls/'+activeCall.id+'/end','POST',{}).catch(()=>undefined);
       closeLocalCall();setActiveCall(null);
-    }finally{setCallBusy(false);}
+    }finally{
+      callSetupRef.current=false;
+      setCallPeerReady(value=>value+1);
+      setCallBusy(false);
+    }
   }
 
   async function declineCall(){
