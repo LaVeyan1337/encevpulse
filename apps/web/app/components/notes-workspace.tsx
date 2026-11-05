@@ -126,7 +126,7 @@ export function NotesWorkspace({
         </article>)}
       </div>}
     <Drawer isOpen={drawerOpen} onClose={()=>setDrawerOpen(false)} size="lg" title={editing?'Notu düzenle':'Yeni not'} subtitle="Bu not yalnızca sizin hesabınızda görünür." ariaLabelledBy="notes-editor-title"
-      footer={<><button type="button" className="secondary-button" onClick={()=>setDrawerOpen(false)} disabled={saving}>Vazgeç</button><button type="submit" form="notes-editor-form" className="primary-button" disabled={saving||(!editing&&!canCreate)||(editing&&!canUpdate)}>{saving?'Kaydediliyor…':'Kaydet'}</button></>}>
+      footer={<><button type="button" className="secondary-button" onClick={()=>setDrawerOpen(false)} disabled={saving}>Vazgeç</button><button type="submit" form="notes-editor-form" className="primary-button" disabled={Boolean(saving||(!editing&&!canCreate)||(editing&&!canUpdate))}>{saving?'Kaydediliyor…':'Kaydet'}</button></>}>
       <form id="notes-editor-form" className="notes-editor" onSubmit={save}>
         <label><span>Başlık</span><input value={draft.title} onChange={event=>setDraft(current=>({...current,title:event.target.value}))} maxLength={160} required autoFocus placeholder="Not başlığını yazın…"/></label>
         <label><span>Not</span><textarea value={draft.body} onChange={event=>setDraft(current=>({...current,body:event.target.value}))} rows={12} maxLength={20000} placeholder="Notunuzu yazın…"/></label>
