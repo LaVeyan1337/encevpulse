@@ -1,8 +1,11 @@
 (() => {
   'use strict';
   if (location.origin !== 'https://eced.csb.gov.tr') return;
-  if (window.__encevPulseAccountObserver) return;
-  window.__encevPulseAccountObserver = true;
+  const SCRIPT_VERSION = '1.0.2';
+  // A versioned sentinel allows an updated extension to register a fresh runtime listener
+  // in an already-open portal tab; repeated injections of the same version remain idempotent.
+  if (window.__encevPulseAccountObserver === SCRIPT_VERSION) return;
+  window.__encevPulseAccountObserver = SCRIPT_VERSION;
 
   // Read only a small allowlist of visible profile labels on the official e-CED host.
   // Never inspect forms, inputs, password fields, cookies, storage, or page-wide text.
