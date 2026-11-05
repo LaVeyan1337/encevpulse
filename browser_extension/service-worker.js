@@ -72,46 +72,80 @@ async function attachObserversToAllowedTabs() {
   for (const tab of tabs) await attachPortalObserver(tab);
 }
 
+function reportStatus(ok, code, message, httpStatus = null) {
+  return { ok, code, message, httpStatus };
+}
 async function sendTabReport(tab) {
-  if (!tab || !Number.isInteger(tab.id) || !tab.url) return;
-  const cfg = await getConfig();
-  if (!cfg.apiBase || !cfg.pairingToken) return;
-  let parsed;
-  try { parsed = new URL(tab.url); } catch { return; }
-  if (parsed.origin !== 'https://eced.csb.gov.tr') return;
-  const origin = parsed.origin;
-  if (!cfg.allowedOrigins.includes(origin) || !(await hasOriginPermission(origin))) return;
-  let apiOrigin;
-  try { apiOrigin = new URL(cfg.apiBase).origin; } catch { return; }
-  if (!(await hasOriginPermission(apiOrigin))) return;
-  const tabKey = origin + '::' + String(tab.id);
-  const accountName = cleanText(cfg.accountLabels[tabKey], 100);
-  const accountSource = accountName ? (cfg.accountSources[tabKey] === 'portal' ? 'portal' : 'manual') : 'unknown';
-  const sectionLabel = cleanText(cfg.sectionLabels[tabKey], 60);
-  const selectedState = cfg.sessionStates[tabKey];
-  const sessionState = ['active', 'logged_out', 'unknown'].includes(selectedState) ? selectedState : 'unknown';
-  const payload = {
-    clientId: cfg.clientId,
-    browser: browserLabel(),
-    tabId: String(tab.id),
-    tabTitle: cleanText(tab.title, 120),
-    url: origin + (parsed.pathname || '/'),
-    activeUiTab: sectionLabel,
-    accountName,
-    accountSource,
-    sessionState: accountName ? (sessionState === 'unknown' && accountSource === 'portal' ? 'active' : sessionState) : 'unknown',
-    tabActive: Boolean(tab.active)
-  };
   try {
-    await fetch(cfg.apiBase + '/eced/reports', {
+    if (!tab || !Number.isInteger(tab.id) || !tab.url) {
+      return reportStatus(false, 'tab_unavailable', 'Etkin tarayıcı sekmesi okunamadı.');
+    }
+    const cfg = await getConfig();
+    if (!cfg.apiBase || !cfg.pairingToken) {
+      return reportStatus(false, 'pairing_missing', 'PULSE API adresi veya eşleştirme anahtarı eksik. Eklenti bağlantı ayarlarını kontrol edin.');
+    }
+    let parsed;
+    try { parsed = new URL(tab.url); } catch {
+      return reportStatus(false, 'invalid_tab_url', 'Etkin sekmenin adresi okunamadı.');
+    }
+    if (parsed.origin !== 'https://eced.csb.gov.tr') {
+      return reportStatus(false, 'not_portal_tab', 'Yalnızca resmî e-ÇED portalı sekmeleri raporlanır.');
+    }
+    const origin = parsed.origin;
+    if (!cfg.allowedOrigins.includes(origin) || !(await hasOriginPermission(origin))) {
+      return reportStatus(false, 'portal_permission_missing', 'e-ÇED portal izni verilmemiş. Portal sekmesinde “Bu portalı izlemeye aç” seçeneğini kullanın.');
+    }
+    let apiUrl;
+    try { apiUrl = new URL(cfg.apiBase); } catch {
+      return reportStatus(false, 'invalid_api_url', 'PULSE API adresi geçersiz. Eklenti bağlantı ayarlarını kontrol edin.');
+    }
+    if (!['http:', 'https:'].includes(apiUrl.protocol) || apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
+      return reportStatus(false, 'invalid_api_url', 'PULSE API adresi geçerli bir HTTP(S) adresi olmalıdır.');
+    }
+    if (!(await hasOriginPermission(apiUrl.origin))) {
+      return reportStatus(false, 'api_permission_missing', 'PULSE sunucu adresi için tarayıcı izni yok. Eklenti bağlantı ayarlarından doğru API adresini kaydedin.');
+    }
+    const tabKey = origin + '::' + String(tab.id);
+    const accountName = cleanText(cfg.accountLabels[tabKey], 100);
+    const accountSource = accountName ? (cfg.accountSources[tabKey] === 'portal' ? 'portal' : 'manual') : 'unknown';
+    const sectionLabel = cleanText(cfg.sectionLabels[tabKey], 60);
+    const selectedState = cfg.sessionStates[tabKey];
+    const sessionState = ['active', 'logged_out', 'unknown'].includes(selectedState) ? selectedState : 'unknown';
+    const payload = {
+      clientId: cfg.clientId,
+      browser: browserLabel(),
+      tabId: String(tab.id),
+      tabTitle: cleanText(tab.title, 120),
+      url: origin + (parsed.pathname || '/'),
+      activeUiTab: sectionLabel,
+      accountName,
+      accountSource,
+      sessionState: accountName ? (sessionState === 'unknown' && accountSource === 'portal' ? 'active' : sessionState) : 'unknown',
+      tabActive: Boolean(tab.active)
+    };
+    const response = await fetch(cfg.apiBase.replace(/\/+$/, '') + '/eced/reports', {
       method: 'POST',
       headers: {'Content-Type':'application/json','X-Pulse-Token':cfg.pairingToken},
       body: JSON.stringify(payload),
       cache: 'no-store',
       credentials: 'omit'
     });
+    if (!response.ok) {
+      const message = response.status === 401 || response.status === 403
+        ? 'PULSE eşleştirmeyi reddetti (HTTP ' + response.status + '). Anahtar iptal edilmiş veya geçersiz olabilir.'
+        : 'PULSE raporu kabul etmedi (HTTP ' + response.status + '). API sunucusu ve dağıtım günlükleri kontrol edilmeli.';
+      return reportStatus(false, 'http_error', message, response.status);
+    }
+    return reportStatus(
+      true,
+      'reported',
+      accountName
+        ? 'Sinyal PULSE sunucusuna ulaştı. Hesap etiketi rapora eklendi.'
+        : 'Sinyal PULSE sunucusuna ulaştı; ancak hesap etiketi boş. Portal profil etiketi otomatik tanınmadıysa elle girin.',
+      response.status
+    );
   } catch {
-    // Network errors never become a logged-out observation.
+    return reportStatus(false, 'network_error', 'PULSE sunucusuna erişilemedi. API adresi, HTTPS sertifikası, sunucu erişimi ve izinleri kontrol edin.');
   }
 }
 async function reportAllTabs() {
@@ -175,9 +209,12 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
   }
   if (message?.type === 'report-active-tab') {
     void chrome.tabs.query({active:true,lastFocusedWindow:true}).then(async tabs => {
-      if (tabs[0]) await sendTabReport(tabs[0]);
-      sendResponse({ok:true});
-    }).catch(() => sendResponse({ok:false}));
+      if (!tabs[0]) {
+        sendResponse(reportStatus(false, 'tab_unavailable', 'Etkin tarayıcı sekmesi bulunamadı.'));
+        return;
+      }
+      sendResponse(await sendTabReport(tabs[0]));
+    }).catch(() => sendResponse(reportStatus(false, 'browser_error', 'Tarayıcı sekmesi sorgulanamadı.')));
     return true;
   }
   return false;

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 test('e-ÇED screen and API use scoped pairing, conservative account states and a portal origin allowlist', async () => {
-  const [component, workspace, controller, service, migration, manifestText, worker, popup, contentScript, styles] = await Promise.all([
+  const [component, workspace, controller, service, migration, manifestText, worker, popup, options, contentScript, styles] = await Promise.all([
     readFile(new URL('../app/components/eced-workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../api/src/eced/eced.controller.ts', import.meta.url), 'utf8'),
@@ -12,6 +12,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
     readFile(new URL('../../../browser_extension/manifest.json', import.meta.url), 'utf8'),
     readFile(new URL('../../../browser_extension/service-worker.js', import.meta.url), 'utf8'),
     readFile(new URL('../../../browser_extension/popup.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../../browser_extension/options.js', import.meta.url), 'utf8'),
     readFile(new URL('../../../browser_extension/content-script.js', import.meta.url), 'utf8'),
     readFile(new URL('../app/eced.css', import.meta.url), 'utf8'),
   ]);
@@ -65,6 +66,11 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(popup.includes('currentTabKey'));
   assert.ok(popup.includes("accountSources[currentTabKey]='manual'"));
   assert.ok(popup.includes('detectedByPortal'));
+  assert.ok(popup.includes('showReportResult'));
+  assert.ok(popup.includes("await chrome.runtime.sendMessage({type:'report-active-tab'})"));
+  assert.ok(options.includes('chrome.runtime.getManifest().optional_host_permissions'));
+  assert.ok(options.includes('testConnection(apiBase,pairingToken)'));
+  assert.ok(options.includes('izin listesinde yok'));
 
   assert.ok(worker.includes("parsed.origin !== 'https://eced.csb.gov.tr'"));
   assert.ok(worker.includes("X-Pulse-Token"));
@@ -79,6 +85,10 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(worker.includes("chrome.tabs.onUpdated.addListener"));
   assert.ok(worker.includes('_sender?.tab'));
   assert.ok(worker.includes("accountSources[tabKey]==='manual'"));
+  assert.ok(worker.includes('if (!response.ok)'));
+  assert.ok(worker.includes("'http_error'"));
+  assert.ok(worker.includes("'network_error'"));
+  assert.ok(worker.includes('sendResponse(await sendTabReport(tabs[0]))'));
 
   assert.ok(contentScript.includes("location.origin !== 'https://eced.csb.gov.tr'"));
   assert.ok(contentScript.includes('__encevPulseAccountObserver'));
