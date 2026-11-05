@@ -12,6 +12,7 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
    npm run extension:build
    ```
    `PULSE_API_BASE` değeri, PULSE web ekranında eşleştirme oluştururken gösterilen API adresiyle aynı olmalıdır. Komut, tam HTTPS sunucu alan adını eklentinin isteğe bağlı izin listesine ekler ve `.artifacts/browser-extension` klasörünü üretir. Üretim dışı HTTP yalnızca `127.0.0.1` veya `localhost` için kabul edilir. Parola veya eşleştirme anahtarı pakete yazılmaz.
+**Önemli — yeni tarayıcı eşleştirmesi:** Bu paket `.artifacts/browser-extension` adlı ayrı bir klasörden yüklendiği için, manifestte sabit bir eklenti kimliği anahtarı bulunmadığından Chrome/Edge farklı bir eklenti kimliği atayabilir. Bu nedenle yeni paket için PULSE'ta yeni bir cihaz eşleştirmesi oluşturun. Eski eklentiyi ve eski eşleştirmeyi, yeni eklentiden ilk başarılı PULSE sinyalini görene kadar kaldırmayın/iptal etmeyin. Yeni sinyal doğrulandıktan sonra eski eşleştirmeyi PULSE'tan iptal edip eski eklentiyi kaldırabilirsiniz.
 4. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
 5. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile `.artifacts/browser-extension` klasörünü seçin.
 6. Eklenti seçeneklerinden aynı PULSE API adresini ve tek seferlik eşleştirme anahtarını girin. Eklenti, API bağlantısını doğrulamadan yeni ayarları kaydetmez ve yalnızca manifestteki sunucu hostu için izin ister. Genel `https://*/*` izni kullanılmaz.
