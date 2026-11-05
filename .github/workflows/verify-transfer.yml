@@ -18,6 +18,7 @@ on:
       - feature/notes-module-settings-activation-20261105
       - feature/eced-monitoring-reliability-20261105
       - feature/chat-conversation-isolation-20261105
+      - release/company-internal-2026-11-05
     paths:
       - "apps/**"
       - "drizzle/**"
