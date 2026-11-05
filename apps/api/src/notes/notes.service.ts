@@ -122,7 +122,7 @@ export class NotesService {
     const value = validateNoteInput(input, true);
     if (value.projectId) await this.assertProjectAccess(user.id, value.projectId);
     const taskProjectId = value.taskId ? await this.assertTaskAccess(user.id, value.taskId) : null;
-    if (value.projectId && taskProjectId && value.projectId !== taskProjectId) {
+    if (value.taskId && (value.projectId ?? null) !== (taskProjectId ?? null)) {
       throw invalid('Notun projesi, bağlı görevin projesiyle eşleşmelidir.');
     }
     const client = await this.db.pool.connect();
@@ -162,7 +162,7 @@ export class NotesService {
     const finalTaskId = Object.hasOwn(value,'taskId') ? value.taskId ?? null : current.rows[0].taskId;
     if (finalProjectId) await this.assertProjectAccess(user.id, finalProjectId);
     const taskProjectId = finalTaskId ? await this.assertTaskAccess(user.id, finalTaskId) : null;
-    if (finalProjectId && taskProjectId && finalProjectId !== taskProjectId) {
+    if (finalTaskId && (finalProjectId ?? null) !== (taskProjectId ?? null)) {
       throw invalid('Notun projesi, bağlı görevin projesiyle eşleşmelidir.');
     }
 
