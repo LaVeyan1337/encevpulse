@@ -84,6 +84,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
   const userIds:string[]=[];
   const conversationIds:string[]=[];
   const messageIds:string[]=[];
+  const callIds:string[]=[];
   const taskIds:string[]=[];
   const eventStreams:SseEventReader[]=[];
   let aliceEvents:SseEventReader;
@@ -402,6 +403,71 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       conversationIds.push(directId);
       assert.equal(direct.data.conversation.type,'direct');
 
+      const iceConfig=await api(base,alice,'chat/call-configuration');
+      assert.equal(iceConfig.response.status,200);
+      assert.ok(Array.isArray(iceConfig.data.iceServers));
+      assert.equal(typeof iceConfig.data.relayConfigured,'boolean');
+
+      const groupCall=await api(base,alice,`chat/conversations/${groupId}/calls`,'POST',{mediaType:'audio'});
+      assert.equal(groupCall.response.status,400,'Grup araması ilk sürümde desteklenmediği için açıkça reddedilmeli.');
+
+      const callCreated=await api(base,alice,`chat/conversations/${directId}/calls`,'POST',{mediaType:'audio'});
+      assert.equal(callCreated.response.status,201,JSON.stringify(callCreated.data));
+      const callId=callCreated.data.call.id as string;
+      callIds.push(callId);
+      assert.equal(callCreated.data.call.status,'ringing');
+      assert.equal(callCreated.data.call.mediaType,'audio');
+
+      const callerActive=await api(base,alice,'chat/calls/active');
+      const calleeActive=await api(base,carol,'chat/calls/active');
+      assert.equal(callerActive.data.call.id,callId);
+      assert.equal(calleeActive.data.call.id,callId);
+
+      const busyCall=await api(base,carol,`chat/conversations/${directId}/calls`,'POST',{mediaType:'video'});
+      assert.equal(busyCall.response.status,409,'Etkin çağrısı olan katılımcıya ikinci çağrı başlatılamamalı.');
+
+      const offer=await api(base,alice,`chat/calls/${callId}/signals`,'POST',{
+        signalType:'offer',payload:{type:'offer',sdp:'v=0\\r\\no=- 1 1 IN IP4 127.0.0.1\\r\\ns=ENCEV test offer\\r\\nt=0 0'},
+      });
+      assert.equal(offer.response.status,201,JSON.stringify(offer.data));
+      const remoteOffer=await api(base,carol,`chat/calls/${callId}/signals?afterId=0`);
+      assert.equal(remoteOffer.response.status,200);
+      assert.equal(remoteOffer.data.signals.length,1);
+      assert.equal(remoteOffer.data.signals[0].signalType,'offer');
+
+      const outsiderSignals=await api(base,bob,`chat/calls/${callId}/signals?afterId=0`);
+      assert.equal(outsiderSignals.response.status,404,'Sohbet dışındaki kullanıcı çağrı sinyallerini okuyamamalı.');
+      const callerCannotAccept=await api(base,alice,`chat/calls/${callId}/accept`,'POST',{});
+      assert.equal(callerCannotAccept.response.status,409,'Çağrıyı yalnızca aranan katılımcı kabul edebilir.');
+
+      const acceptedCall=await api(base,carol,`chat/calls/${callId}/accept`,'POST',{});
+      assert.equal(acceptedCall.response.status,201,JSON.stringify(acceptedCall.data));
+      assert.equal(acceptedCall.data.call.status,'accepted');
+      const answer=await api(base,carol,`chat/calls/${callId}/signals`,'POST',{
+        signalType:'answer',payload:{type:'answer',sdp:'v=0\\r\\no=- 2 2 IN IP4 127.0.0.1\\r\\ns=ENCEV test answer\\r\\nt=0 0'},
+      });
+      assert.equal(answer.response.status,201,JSON.stringify(answer.data));
+      const remoteAnswer=await api(base,alice,`chat/calls/${callId}/signals?afterId=${offer.data.signal.id}`);
+      assert.equal(remoteAnswer.data.signals[0].signalType,'answer');
+      const ice=await api(base,alice,`chat/calls/${callId}/signals`,'POST',{
+        signalType:'ice_candidate',payload:{candidate:'candidate:1 1 UDP 2122260223 192.0.2.10 5000 typ host',sdpMid:'0',sdpMLineIndex:0},
+      });
+      assert.equal(ice.response.status,201,JSON.stringify(ice.data));
+      const endedCall=await api(base,alice,`chat/calls/${callId}/end`,'POST',{});
+      assert.equal(endedCall.response.status,201,JSON.stringify(endedCall.data));
+      const noActiveAlice=await api(base,alice,'chat/calls/active');
+      const noActiveCarol=await api(base,carol,'chat/calls/active');
+      assert.equal(noActiveAlice.data.call,null);
+      assert.equal(noActiveCarol.data.call,null);
+
+      const rejectedCall=await api(base,alice,`chat/conversations/${directId}/calls`,'POST',{mediaType:'video'});
+      assert.equal(rejectedCall.response.status,201,JSON.stringify(rejectedCall.data));
+      callIds.push(rejectedCall.data.call.id);
+      const declined=await api(base,carol,`chat/calls/${rejectedCall.data.call.id}/decline`,'POST',{});
+      assert.equal(declined.response.status,201,JSON.stringify(declined.data));
+      const noActiveAfterDecline=await api(base,alice,'chat/calls/active');
+      assert.equal(noActiveAfterDecline.data.call,null);
+
       const leave=await api(base,carol,`chat/conversations/${directId}/members/${userIds[2]}`,'DELETE',{});
       assert.equal(leave.response.status,204);
 
@@ -434,6 +500,8 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       await cleanup.query('ALTER TABLE message_events DISABLE TRIGGER message_events_append_only');
       await cleanup.query('ALTER TABLE conversation_member_events DISABLE TRIGGER conversation_member_events_append_only');
       await cleanup.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
+      await cleanup.query('DELETE FROM chat_call_signals WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+      await cleanup.query('DELETE FROM chat_calls WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM chat_notifications WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM conversation_read_cursors WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM message_task_links WHERE message_id=ANY($1::uuid[])',[messageIds]);
