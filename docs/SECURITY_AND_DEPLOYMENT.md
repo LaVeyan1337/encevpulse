@@ -1,7 +1,7 @@
 # ENCEV PULSE — Güvenlik ve Dağıtım Tasarımı
 
-**Durum:** Güvenlik/dağıtım tasarımı; yerel kimlik doğrulama altyapısı uygulanmıştır, production kimlik ve hosting ayarları henüz yapılmamıştır.
-**Tarih:** 3 Kasım 2026  
+**Durum:** Yerel kimlik doğrulama altyapısı uygulanmıştır. Şirket içi LAN hostu, HTTPS reverse proxy, kurum içi DNS ve istemci sertifika dağıtımı henüz yapılandırılmamıştır.
+**Tarih:** 5 Kasım 2026  
 **Öncelikli kural:** [AGENTS.md](../AGENTS.md) ve [DATA_PROTECTION_POLICY.md](DATA_PROTECTION_POLICY.md) bağlayıcıdır.
 
 ## 1. Kesin dosya sunucusu sınırı
@@ -81,14 +81,19 @@ Bu tasarımda şirket NAS'ına, `192.168.1.55` adresine, SMB paylaşımına veya
 
 ## 7. Dağıtım ve uzaktan erişim
 
-Önerilen ilk dağıtım sade bir internet uygulamasıdır: kullanıcı evden/ofisten HTTPS üzerinden uygulamaya erişir; kimlik, API, veritabanı ve dosya erişimi sunucu tarafında yönetilir. Ev/ofis cihazının şirket NAS'ına doğrudan erişmesi gerekmez ve önerilmez.
+İlk dağıtım hedefi, yeni ücretli sunucu veya bulut hizmeti kiralamadan mevcut bir şirket bilgisayarında/sunucusunda çalışan ve yalnızca kurum ağına açık bir uygulamadır. Kullanıcılar ortak bir HTTPS hostname'i üzerinden erişir. Evden erişim ayrıca kurum VPN'i veya onaylanmış güvenli erişim modeliyle ele alınır; SMB/NAS internete açılmaz.
 
-- Web statik varlıkları ve API güvenli HTTPS reverse proxy arkasında sunulur. Proxy WebSocket upgrade ve uzun bağlantıları destekler.
-- Uygulama servisi ile DB özel ağda konuşur. DB yalnızca uygulama/operasyon bağlantılarına açıktır. Yönetim erişimi MFA ve sınırlı yönetim ağı/kanalıyla yapılır.
-- İlk aşamada bir API örneği yeterli olabilir; kesintisiz çalışma veya yük gereksinimi belirlendiğinde yedek örnek, sağlık kontrolü ve ortak realtime broker planlanır. Birden çok API örneğine geçince her kullanıcının WebSocket olayı örnekler arasında paylaştırılmalıdır.
+- Web derlemesi `apps/web/build/client` altındaki statik SPA dosyalarıdır. Ücretsiz bir reverse proxy (örnek: Caddy) bu dosyaları sunar ve `/api/*` isteklerini aynı hosttaki NestJS API'ye aktarır.
+- NestJS API `127.0.0.1:3000`, PostgreSQL `127.0.0.1:5432` üzerinde kalır. İstemci bilgisayarlar API veya DB portlarına doğrudan erişmez; yalnız HTTPS proxy'ye erişir.
+- Kurum içi DNS adı, uygulama hostunun sabit/reserve edilmiş LAN IP'sine yönelir. Reverse proxy HTTPS sunar. Dahili CA kullanılıyorsa kök sertifika tüm istemci bilgisayarlara güvenilir olarak dağıtılır.
+- Üretimde `APP_ORIGIN` tam HTTPS origin olmalı, `AUTH_COOKIE_SECURE=true` kullanılmalı, `TRUSTED_PROXY_IPS` yalnızca gerçek reverse proxy adreslerini içermelidir.
+- Windows Firewall yalnızca şirketin private/domain ağından HTTPS 443 erişimine izin verecek şekilde yapılandırılır. Router üzerinde internetten erişim sağlayan port yönlendirmesi yapılmaz.
+- Tek host düşük maliyetli başlangıçtır; host kapanır veya ağdan ayrılırsa uygulama da erişilemez olur. Bu mimari yüksek erişilebilirlik veya yedekli sunucu taahhüdü değildir.
 - Node.js dağıtımında uygulama kurulurken desteklenen Active/Maintenance LTS hattı seçilip sürüm sabitlenir; yaşam döngüsü dağıtım öncesi tekrar kontrol edilir. [Node.js release schedule](https://nodejs.org/en/about/previous-releases)
 - Uygulama güncellemeleri sürüm kontrollü, gözden geçirilmiş build ve geri dönüş/roll-forward planıyla yayımlanır. Veritabanı schema değişikliği geriye uyumlu aşamalara bölünür; yedekleme ve geri yükleme planı doğrulanmadan yıkıcı migration yapılmaz.
 - Staging ve test tamamen sentetik yerel veriyle veya şirketçe onaylanmış izole ortamda yürütülür; şirket dosya sunucusuna hiçbir şekilde erişilmez.
+
+Uygulanacak adımlar ve örnek yapılandırma [COMPANY_LAN_DEPLOYMENT.md](COMPANY_LAN_DEPLOYMENT.md) içindedir. Gerçek hostname, LAN IP, DNS, sertifika dağıtımı ve firewall kapsamı belirlenmediğinden şirket içi yayın henüz yapılmış değildir.
 
 ## 8. Yedekleme, kesinti ve felaket kurtarma
 
@@ -145,4 +150,4 @@ Bu başlıklar netleşmeden belirli hosting sağlayıcısı, güvenlik sertifika
 
 ## WebRTC arama altyapısı
 
-Bire bir sohbet aramaları sesli/görüntülü oturum ve REST/SSE sinyalleşmesi kullanır. Kabul edilmiş çağrıda iki katılımcı heartbeat'i ayrı izlenir; bir taraf 120 saniye yanıt vermezse oturum kapatılır ve geçici SDP/ICE payloadları silinir. Production'da HTTPS, STUN ve özellikle ev/ofis NAT'ı için TURN hizmeti gerekir. TURN paylaşımlı gizli anahtarı yalnızca API sunucusunda tutulur; API kullanıcıya süreli HMAC tabanlı TURN kimliği üretir. TURN yapılandırması olmadan her ağda çağrı kurulacağı garanti edilmez. Grup araması ve E2EE henüz uygulanmamıştır. Kurulum ayrıntıları için [WEBRTC_CALLS.md](WEBRTC_CALLS.md) belgesine bakın.
+Bire bir sohbet aramaları sesli/görüntülü oturum ve REST/SSE sinyalleşmesi kullanır. Kabul edilmiş çağrıda iki katılımcı heartbeat'i ayrı izlenir; bir taraf 120 saniye yanıt vermezse oturum kapatılır ve geçici SDP/ICE payloadları silinir. Ücretsiz varsayılan kurulumda HTTPS ve STUN kullanılır; STUN adres keşfine yardım eder, medya taşımaz. TURN zorunlu değildir ve ücretli bir sağlayıcı eklenmez. Katı NAT, güvenlik duvarı veya UDP kısıtlarında bazı ağ çiftleri TURN olmadan bağlanamayabilir; farklı ağlarda güvenilir bağlantı garantisi verilemez. Kurumun zaten işlettiği bir relay varsa TURN ayrıca yapılandırılabilir. Grup araması ve E2EE henüz uygulanmamıştır. Kurulum ayrıntıları için [WEBRTC_CALLS.md](WEBRTC_CALLS.md) belgesine bakın.
