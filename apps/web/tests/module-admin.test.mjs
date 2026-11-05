@@ -25,7 +25,8 @@ test('Sistem yönetimi aktif modülleri yönetir; henüz hazır olmayanlar kapal
     assert.match(migration,new RegExp("'"+key+"'"));
     assert.match(migration,/SET is_enabled = true/);
   }
-  for(const key of ['drive','petitions','institution_guide']) {
+  assert.match(migration,/UPDATE app_modules SET is_enabled = false WHERE module_key = 'petitions'/);
+  for(const key of ['drive','institution_guide']) {
     assert.doesNotMatch(migration,new RegExp("UPDATE app_modules[^;]*"+key));
     assert.match(access,new RegExp("'"+key+"'"));
   }
