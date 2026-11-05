@@ -27,6 +27,7 @@ test('Sistem yönetimi aktif modülleri yönetir; henüz hazır olmayanlar kapal
   }
   assert.match(migration,/UPDATE app_modules SET is_enabled = false WHERE module_key = 'petitions'/);
   assert.match(migration,/institution_guide/);
+  assert.match(access,/const lockedOff=\['drive','petitions'\]/);
   assert.match(migration,/calendar','institution_opinions','eced','institution_guide','notes','settings/);
   for(const key of ['drive']) {
     assert.doesNotMatch(migration,new RegExp("UPDATE app_modules[^;]*"+key));
