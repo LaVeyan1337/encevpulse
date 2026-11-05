@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan kopya üretir', async () => {
-  const [component, styles, workspace, root] = await Promise.all([
+  const [component, styles, workspace, root, migration] = await Promise.all([
     readFile(new URL('../app/components/petitions-workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/petitions.css', import.meta.url), 'utf8'),
     readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/root.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../../drizzle/0021_notes_and_module_activation.sql', import.meta.url), 'utf8'),
   ]);
   assert.match(workspace, /<PetitionsWorkspace/);
   assert.match(workspace, /hasModulePermission\('petitions'\)/);

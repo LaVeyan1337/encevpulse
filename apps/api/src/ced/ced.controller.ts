@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { AccessControlService } from '../access-control/access-control.service.js';
@@ -21,7 +21,15 @@ export class CedController {
 
   @Get('contacts')
   async listInstitutionContacts(@Req() request: Request) {
-    return this.ced.listInstitutionContacts(await this.authorize(request, 'institution_opinions', 'view'));
+    const user=await this.auth.authorizeRequest(request);
+    const [canViewGuide,canViewOpinions]=await Promise.all([
+      this.access.hasPermission(user,'institution_guide','view'),
+      this.access.hasPermission(user,'institution_opinions','view'),
+    ]);
+    if(!canViewGuide&&!canViewOpinions) {
+      throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'Kurum rehberini görüntüleme yetkiniz bulunmuyor.'});
+    }
+    return this.ced.listInstitutionContacts(user);
   }
 
   @Get('projects/:projectId')

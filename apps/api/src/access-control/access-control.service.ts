@@ -10,9 +10,12 @@ export class AccessControlService {
   constructor(@Inject(DatabaseService) private readonly db:DatabaseService) {}
   async assertPermission(user:AuthUser,moduleKey:string,action:ModuleAction):Promise<void> {
     if(!MODULE_KEY.test(moduleKey)||!MODULE_ACTIONS.includes(action)) throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'Bu modüle erişim yetkiniz bulunmuyor.'});
-    if(user.roles.includes('system_admin') &&
-      ((moduleKey==='users'&&['view','create','update','delete','manage'].includes(action)) ||
-       ((moduleKey==='permissions'||moduleKey==='settings')&&['view','manage'].includes(action)))) return;
+    if(user.roles.includes('system_admin')) {
+      const moduleState=await this.db.query<{enabled:boolean}>(
+        'SELECT is_enabled AS enabled FROM app_modules WHERE module_key=$1',[moduleKey],
+      );
+      if(moduleState.rows[0]?.enabled) return;
+    }
     const result=await this.db.query<{allowed:boolean}>(
       `SELECT EXISTS(
          SELECT 1 FROM user_role_assignments ura
@@ -55,8 +58,8 @@ export class AccessControlService {
     );
     const modules=result.rows.map(row=>{
       const actions=new Set(row.actions);
-      if(roleCodes.includes('system_admin')&&['users','permissions','settings'].includes(row.moduleKey)) {
-        actions.add('view');actions.add('manage');
+      if(roleCodes.includes('system_admin')&&row.enabled) {
+        for(const action of MODULE_ACTIONS) actions.add(action);
       }
       return {...row,actions:[...actions]};
     });
@@ -93,6 +96,47 @@ export class AccessControlService {
       })),
       actions:MODULE_ACTIONS,
     };
+  }
+
+  async setModuleEnabled(actor:AuthUser,moduleKey:string,input:unknown) {
+    if(!MODULE_KEY.test(moduleKey)) throw new BadRequestException({code:'INVALID_MODULE_KEY',message:'Modül tanımı geçersiz.'});
+    if(!input||typeof input!=='object'||Array.isArray(input)) throw new BadRequestException({code:'INVALID_MODULE_STATE',message:'Modül durumu geçersiz.'});
+    const value=input as Record<string,unknown>;
+    if(Object.keys(value).length!==1||typeof value.enabled!=='boolean') {
+      throw new BadRequestException({code:'INVALID_MODULE_STATE',message:'Modül durumu geçersiz.'});
+    }
+    const enabled=value.enabled;
+    const lockedOff=['drive'];
+    if(enabled&&lockedOff.includes(moduleKey)) {
+      const messages:Record<string,string>={
+        drive:'Ortak Drive, şirket dosya alanının kaynak yetkilerini koruyan bağlantısı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
+      };
+      throw new ConflictException({code:'MODULE_NOT_READY',message:messages[moduleKey]});
+    }
+    if(!enabled&&['overview','tasks','users','permissions','settings'].includes(moduleKey)) {
+      throw new ConflictException({code:'CORE_MODULE_REQUIRED',message:'Bu temel modül kapatılamaz.'});
+    }
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current=await client.query<{display_name:string;is_enabled:boolean}>(
+        'SELECT display_name,is_enabled FROM app_modules WHERE module_key=$1 FOR UPDATE',[moduleKey],
+      );
+      if(!current.rowCount) throw new NotFoundException({code:'MODULE_NOT_FOUND',message:'Modül bulunamadı.'});
+      if(current.rows[0].is_enabled!==enabled) {
+        await client.query('UPDATE app_modules SET is_enabled=$2 WHERE module_key=$1',[moduleKey,enabled]);
+        await client.query(
+          `INSERT INTO auth_audit_events(actor_user_id,action,details)
+           VALUES($1,$2,$3)`,
+          [actor.id,enabled?'module.enabled':'module.disabled',{moduleKey,displayName:current.rows[0].display_name,enabled}],
+        );
+      }
+      await client.query('COMMIT');
+      return {moduleKey,displayName:current.rows[0].display_name,enabled};
+    } catch(error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {client.release();}
   }
 
   async replaceRoleModulePermissions(actor:AuthUser,roleCode:string,moduleKey:string,input:unknown) {

@@ -15,6 +15,7 @@ on:
       - feature/eced-extension-report-diagnostics-20261105
       - feature/global-chat-call-overlay-20261105
       - feature/eced-chat-hardening-20261105
+      - feature/notes-module-settings-activation-20261105
     paths:
       - "apps/**"
       - "drizzle/**"

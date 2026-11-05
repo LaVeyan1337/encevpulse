@@ -102,11 +102,23 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(adminMonitor.response.status,200,JSON.stringify(adminMonitor.data));
     const adminPermissions=await api(base,admin,'auth/permissions/me');
     assert.equal(adminPermissions.response.status,200);
-    for(const moduleKey of ['eced','petitions']){
-      const module=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey===moduleKey);
-      assert.ok(module?.enabled,`System administrator should see ${moduleKey}.`);
-      assert.ok(module.actions.includes('manage'),`System administrator should manage ${moduleKey}.`);
-    }
+    const ecedModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='eced');
+    assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
+    assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
+    const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
+    assert.equal(petitionsModule?.enabled,true,'The browser-local DOCX template workflow is enabled.');
+    assert.ok(petitionsModule.actions.includes('manage'),'System administrator should fully manage enabled Petitions.');
+    const ownerPermissions=await api(base,ownerA,'auth/permissions/me');
+    assert.equal(ownerPermissions.response.status,200);
+    const ownerPetitions=ownerPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
+    assert.equal(ownerPetitions?.enabled,true);
+    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update'),
+      'Process owners can create and update their local petition drafts.');
+    const employeePermissions=await api(base,employee,'auth/permissions/me');
+    assert.equal(employeePermissions.response.status,200);
+    const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
+    assert.equal(employeePetitions?.enabled,true);
+    assert.deepEqual(employeePetitions.actions,[],'Enabling the module must not grant default document access to all employees.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));

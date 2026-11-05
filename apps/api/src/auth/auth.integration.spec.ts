@@ -74,6 +74,7 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
   const passwordHash = await hasher.hash(PASSWORD);
   let userId = '';
   let adminId = '';
+  let linkedTaskId = '';
   let app: Awaited<ReturnType<typeof NestFactory.create>> | null = null;
   const testStartedAt = new Date();
   const fixtureCutoff = new Date(Date.now() - 60 * 60 * 1000);
@@ -204,11 +205,118 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       assert.equal(matrix.response.status,200);
       assert.ok(matrix.body.roles.some((role:any)=>role.code==='auditor'));
       assert.ok(matrix.body.modules.some((module:any)=>module.moduleKey==='chat'&&module.enabled));
+      assert.ok(matrix.body.modules.some((module:any)=>module.moduleKey==='notes'&&module.enabled));
 
+      const blockedDrive=await api(baseUrl,'modules/drive',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:true}),
+      });
+      assert.equal(blockedDrive.response.status,409);
+      assert.equal(blockedDrive.body.code,'MODULE_NOT_READY');
+      const protectedCore=await api(baseUrl,'modules/settings',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(protectedCore.response.status,409);
+      assert.equal(protectedCore.body.code,'CORE_MODULE_REQUIRED');
       const employeeSession=await login(baseUrl,email,PASSWORD);
+      const nonAdminModuleChange=await api(baseUrl,'modules/calendar',{
+        method:'PUT',headers:{Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(nonAdminModuleChange.response.status,403);
+
+      const calendarOff=await api(baseUrl,'modules/calendar',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(calendarOff.response.status,200);
+      assert.equal(calendarOff.body.enabled,false);
+      const blockedCalendar=await fetch(`${baseUrl}/api/calendar?from=2026-01-01&to=2026-01-08`,{
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie},
+      });
+      assert.equal(blockedCalendar.status,403);
+      const calendarOn=await api(baseUrl,'modules/calendar',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:true}),
+      });
+      assert.equal(calendarOn.response.status,200);
+      assert.equal(calendarOn.body.enabled,true);
+      const petitionsOff=await api(baseUrl,'modules/petitions',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(petitionsOff.response.status,200);
+      assert.equal(petitionsOff.body.enabled,false);
+      const petitionsOn=await api(baseUrl,'modules/petitions',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:true}),
+      });
+      assert.equal(petitionsOn.response.status,200);
+      assert.equal(petitionsOn.body.enabled,true);
+
       const myPermissions=await api(baseUrl,'permissions/me',{headers:{Cookie:employeeSession.cookie}});
       assert.equal(myPermissions.response.status,200);
       assert.ok(myPermissions.body.modules.find((module:any)=>module.moduleKey==='tasks').actions.includes('view'));
+      const notePermission=myPermissions.body.modules.find((module:any)=>module.moduleKey==='notes');
+      assert.equal(notePermission.enabled,true);
+      assert.ok(notePermission.actions.includes('view')&&notePermission.actions.includes('create'));
+      const linkedTaskResponse=await fetch(`${baseUrl}/api/tasks`,{
+        method:'POST',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({title:'Not bağlantı testi görevi',description:'Özel not ile ilişkilendirilecek.',assigneeId:userId,projectId:null,priority:'normal'}),
+      });
+      assert.equal(linkedTaskResponse.status,201);
+      const linkedTask=(await linkedTaskResponse.json()).task;
+      linkedTaskId=linkedTask.id;
+      const createdNoteResponse=await fetch(`${baseUrl}/api/notes`,{
+        method:'POST',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({title:'Özel test notu',body:'Yalnız sahibine görünür.',tags:['test','özel'],projectId:null,taskId:linkedTask.id}),
+      });
+      assert.equal(createdNoteResponse.status,201);
+      const createdNoteBody=await createdNoteResponse.json();
+      const createdNote=createdNoteBody.note;
+      assert.equal(createdNote.title,'Özel test notu');
+      assert.equal(createdNote.taskId,linkedTask.id);
+      assert.equal(createdNote.taskTitle,linkedTask.title);
+      const ownNotes=await fetch(`${baseUrl}/api/notes`,{headers:{Origin:ORIGIN,Cookie:employeeSession.cookie}});
+      assert.equal(ownNotes.status,200);
+      assert.ok((await ownNotes.json()).notes.some((note:any)=>note.id===createdNote.id));
+      const adminNotes=await fetch(`${baseUrl}/api/notes`,{headers:{Origin:ORIGIN,Cookie:adminSession.cookie}});
+      assert.equal(adminNotes.status,200);
+      assert.equal((await adminNotes.json()).notes.some((note:any)=>note.id===createdNote.id),false,'system admins must not see another employee private notes');
+      const privateNoteLookup=await fetch(`${baseUrl}/api/notes/${createdNote.id}`,{headers:{Origin:ORIGIN,Cookie:adminSession.cookie}});
+      assert.equal(privateNoteLookup.status,404);
+      const noteUpdate=await fetch(`${baseUrl}/api/notes/${createdNote.id}`,{
+        method:'PATCH',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({version:1,title:'Güncellenmiş özel not'}),
+      });
+      assert.equal(noteUpdate.status,200);
+      const updatedNote=(await noteUpdate.json()).note;
+      assert.equal(updatedNote.version,2);
+      const staleNoteUpdate=await fetch(`${baseUrl}/api/notes/${createdNote.id}`,{
+        method:'PATCH',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({version:1,title:'Eski sürüm'}),
+      });
+      assert.equal(staleNoteUpdate.status,409);
+      const archiveNote=await fetch(`${baseUrl}/api/notes/${createdNote.id}/archive`,{
+        method:'POST',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({version:2}),
+      });
+      assert.equal(archiveNote.status,201);
+      const archivedNotes=await fetch(`${baseUrl}/api/notes?view=archived`,{headers:{Origin:ORIGIN,Cookie:employeeSession.cookie}});
+      assert.equal(archivedNotes.status,200);
+      assert.ok((await archivedNotes.json()).notes.some((note:any)=>note.id===createdNote.id));
+      const restoreNote=await fetch(`${baseUrl}/api/notes/${createdNote.id}/restore`,{
+        method:'POST',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({version:3}),
+      });
+      assert.equal(restoreNote.status,201);
       const forbiddenMatrix=await api(baseUrl,'permissions',{headers:{Cookie:employeeSession.cookie}});
       assert.equal(forbiddenMatrix.response.status,403);
 
@@ -368,6 +476,33 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
           : { rows: [] as { id: string }[] };
         const cleanupIds = [...adminCreated.rows.map((row) => row.id), ...candidateIds, ...(userId ? [userId] : []), ...(adminId ? [adminId] : [])];
         if (cleanupIds.length) {
+          await client.query('LOCK TABLE user_note_audit_events IN ACCESS EXCLUSIVE MODE');
+          await client.query('ALTER TABLE user_note_audit_events DISABLE TRIGGER user_note_audit_events_append_only');
+          await client.query(
+            'DELETE FROM user_note_audit_events WHERE note_id IN (SELECT id FROM user_notes WHERE owner_user_id = ANY($1::uuid[]))',
+            [cleanupIds],
+          );
+          await client.query('DELETE FROM user_notes WHERE owner_user_id = ANY($1::uuid[])', [cleanupIds]);
+          await client.query('ALTER TABLE user_note_audit_events ENABLE TRIGGER user_note_audit_events_append_only');
+          const fixtureTasks=await client.query<{id:string}>(
+            'SELECT id FROM tasks WHERE created_by=ANY($1::uuid[]) OR assignee_id=ANY($1::uuid[])',
+            [cleanupIds],
+          );
+          const fixtureTaskIds=fixtureTasks.rows.map(row=>row.id);
+          if(fixtureTaskIds.length) {
+            await client.query('DELETE FROM notifications WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('DELETE FROM message_task_links WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('LOCK TABLE task_comment_events IN ACCESS EXCLUSIVE MODE');
+            await client.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
+            await client.query('DELETE FROM task_comment_events WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('ALTER TABLE task_comment_events ENABLE TRIGGER task_comment_events_append_only');
+            await client.query('DELETE FROM task_comments WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('LOCK TABLE task_audit_events IN ACCESS EXCLUSIVE MODE');
+            await client.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
+            await client.query('DELETE FROM task_audit_events WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
+            await client.query('DELETE FROM tasks WHERE id=ANY($1::uuid[])',[fixtureTaskIds]);
+          }
           await client.query('LOCK TABLE auth_audit_events IN ACCESS EXCLUSIVE MODE');
           await client.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
           await client.query('DELETE FROM auth_audit_events WHERE actor_user_id = ANY($1::uuid[]) OR target_user_id = ANY($1::uuid[])', [cleanupIds]);
