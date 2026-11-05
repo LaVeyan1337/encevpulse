@@ -47,5 +47,5 @@ test('giriş ve tüm çalışma ekranları kurumsal marka adını ve doğal ür�
   for (const phrase of prohibitedCopy) {
     assert.ok(!userInterface.includes(phrase), `User-facing copy must not contain: ${phrase}`);
   }
-  assert.doesNotMatch(userInterface, /127\.0\.0\.1|PostgreSQL bağlantısı|API bağlantısı|\/api\/health\//i);
+  assert.doesNotMatch(userInterface, /PostgreSQL bağlantısı|API bağlantısı|yerel geliştirme sunucusu|\/api\/health\//i);
 });
