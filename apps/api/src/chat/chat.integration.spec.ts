@@ -483,6 +483,17 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const noActiveAfterDecline=await api(base,alice,'chat/calls/active');
       assert.equal(noActiveAfterDecline.data.call,null);
 
+      const timeoutCall=await api(base,alice,`chat/conversations/${directId}/calls`,'POST',{mediaType:'audio'});
+      assert.equal(timeoutCall.response.status,201,JSON.stringify(timeoutCall.data));
+      callIds.push(timeoutCall.data.call.id);
+      const timeoutAccepted=await api(base,carol,`chat/calls/${timeoutCall.data.call.id}/accept`,'POST',{});
+      assert.equal(timeoutAccepted.response.status,201,JSON.stringify(timeoutAccepted.data));
+      await pool.query(`UPDATE chat_calls SET callee_heartbeat_at=now()-interval '121 seconds' WHERE id=$1`,[timeoutCall.data.call.id]);
+      const expiredCall=await api(base,alice,'chat/calls/active');
+      assert.equal(expiredCall.data.call,null,'Katılımcılardan biri heartbeat göndermeyi bırakırsa çağrı zaman aşımına uğramalı.');
+      const expiredCallStatus=await pool.query('SELECT status FROM chat_calls WHERE id=$1',[timeoutCall.data.call.id]);
+      assert.equal(expiredCallStatus.rows[0].status,'ended');
+
       const leave=await api(base,carol,`chat/conversations/${directId}/members/${userIds[2]}`,'DELETE',{});
       assert.equal(leave.response.status,204);
 
