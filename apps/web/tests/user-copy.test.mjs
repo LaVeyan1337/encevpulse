@@ -18,7 +18,8 @@ test('giriş ekranı doğal ürün dili kullanır ve geliştirme tanılamaların
   assert.doesNotMatch(userInterface, /EnÇev Çevre Mühendisliği/);
   assert.doesNotMatch(
     userInterface,
-    /İşleriniz için tek bir merkez|çalışma alanı hazırlanıyor|Yerel geliştirme|PostgreSQL|Kimlik sağlayıcısı yapılandırılmadı|İlk geliştirme aşaması|\/api\/health\/|Başvuru yolunu belirleyerek beş ana belge|Sohbet ekleri ve aramalar erişim yetkisiyle korunur\./,
+    /İşleriniz için tek bir merkez|çalışma alanı hazırlanıyor|Yerel geliştirme|PostgreSQL|Kimlik sağlayıcısı yapılandırılmadı|İlk geliştirme aşaması|\/api\/health\/|Başvuru yolunu belirleyerek beş ana belge/,
   );
-  assert.match(petitions, /Bu ekran şablonun yerel kopyasını indirir/);
+  assert.match(petitions, /Sunucuya veya şirket NAS'ına aktarılmaz/);
+  assert.match(chat, /Sohbet ekleri ve aramalar erişim yetkisiyle korunur/);
 });
