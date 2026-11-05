@@ -145,7 +145,7 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
       browser:'Google Chrome',
       tabId:'101',
       tabTitle:'ÇED Başvuru Listesi',
-      url:'https://eced-test.example.gov.tr/Application/List?accountPassword=do-not-store#private',
+      url:'https://eced.csb.gov.tr/Application/List?accountPassword=do-not-store#private',
       activeUiTab:'Başvuru listesi',
       accountName:'Test Kurum Hesabı',
       accountSource:'manual',
@@ -164,7 +164,7 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
       [deviceA.id],
     );
     assert.equal(storedReport.rowCount,1);
-    assert.equal(storedReport.rows[0].portal_origin,'https://eced-test.example.gov.tr');
+    assert.equal(storedReport.rows[0].portal_origin,'https://eced.csb.gov.tr');
     assert.equal(storedReport.rows[0].page_path,'/Application/List');
     assert.equal(storedReport.rows[0].tab_title,'ÇED Başvuru Listesi');
     assert.equal(storedReport.rows[0].account_name,'Test Kurum Hesabı');
@@ -172,9 +172,18 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(storedReport.rows[0].tab_active,true);
     assert.doesNotMatch(storedReport.rows[0].page_path,/accountPassword|private/);
 
+    const rejectedOrigin=await publicApi(base,'eced/reports',tokenA,'POST',{
+      clientId:'test-extension-client',browser:'Google Chrome',tabId:'103',
+      url:'https://eced-test.example.gov.tr/Application/List',
+      accountName:'Sahte Portal Hesabı',accountSource:'manual',sessionState:'active',
+    });
+    assert.equal(rejectedOrigin.response.status,400,'A valid pairing token must not permit reports from an unrelated host.');
+    const rejectedRow=await pool.query('SELECT id FROM eced_browser_reports WHERE device_id=$1 AND tab_id=$2',[deviceA.id,'103']);
+    assert.equal(rejectedRow.rowCount,0,'Rejected origins must not be persisted.');
+
     const unknownReport=await publicApi(base,'eced/reports',tokenA,'POST',{
       clientId:'test-extension-client',browser:'Google Chrome',tabId:'102',
-      url:'https://eced-test.example.gov.tr/Dashboard?ignored=yes',
+      url:'https://eced.csb.gov.tr/Dashboard?ignored=yes',
       accountName:'',sessionState:'active',accountSource:'unknown',
     });
     assert.equal(unknownReport.response.status,202);
@@ -216,7 +225,7 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     const revokedHealth=await publicApi(base,'eced/extension/health',tokenA);
     assert.equal(revokedHealth.response.status,403);
     const revokedReport=await publicApi(base,'eced/reports',tokenA,'POST',{
-      url:'https://eced-test.example.gov.tr/',
+      url:'https://eced.csb.gov.tr/',
     });
     assert.equal(revokedReport.response.status,403);
     const remainingClaims=await pool.query('SELECT id FROM eced_account_claims WHERE device_id=$1',[deviceA.id]);
