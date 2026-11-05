@@ -102,6 +102,19 @@ export class AuthController {
     return this.access.replaceRoleModulePermissions(user,roleCode,moduleKey,body);
   }
 
+  @Put('modules/:moduleKey')
+  async setModuleEnabled(
+    @Req() request:Request,
+    @Param('moduleKey') moduleKey:string,
+    @Body() body:unknown,
+    @Res({passthrough:true}) response:Response,
+  ) {
+    response.setHeader('Cache-Control','no-store');
+    const user=await this.auth.authorizeRequest(request,true);
+    this.assertSystemAdmin(user);
+    return this.access.setModuleEnabled(user,moduleKey,body);
+  }
+
   @Get('roles')
   async roles(@Req() request: Request) {
     return this.auth.listRoles(request);
