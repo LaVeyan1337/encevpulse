@@ -21,6 +21,7 @@ test('not girişi eksik veya sınır dışı alanları reddeder',()=>{
   assert.throws(()=>validateNoteInput({title:'Başlık',body:'',tags:Array(13).fill('etiket')},true));
   assert.throws(()=>validateNoteInput({title:'Başlık',body:'',tags:['x'.repeat(33)]},true));
   assert.throws(()=>validateNoteInput({title:'Başlık',body:'',tags:[],projectId:'not-a-uuid'},true));
+  assert.throws(()=>validateNoteInput({title:'Başlık',body:'',tags:[],taskId:'not-a-uuid'},true));
   assert.throws(()=>validateNoteInput({title:'Başlık',version:0},false));
 });
 
