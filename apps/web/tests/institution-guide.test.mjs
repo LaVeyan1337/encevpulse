@@ -19,7 +19,12 @@ test('Kurum Rehberi ayrı, salt-okunur ve proje erişimiyle sınırlandırılmı
   assert.match(workspace,/<InstitutionGuideWorkspace/);
   assert.match(workspace,/hasModulePermission\('institution_guide'\)/);
   assert.ok(component.includes("request('ced/contacts')"));
-  assert.match(component,/institutionName,contactPerson,title,department/);
+  assert.ok(component.includes('contact.institutionName'));
+  assert.ok(component.includes('contact.contactPerson'));
+  assert.ok(component.includes('contact.department'));
+  assert.ok(component.includes('contact.email'));
+  assert.ok(component.includes('contact.phone'));
+
   assert.match(component,/mailto:/);
   assert.match(component,/tel:/);
   assert.match(component,/Kurum Görüşleri/);
