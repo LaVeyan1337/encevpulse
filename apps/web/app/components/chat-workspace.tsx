@@ -736,21 +736,21 @@ export function ChatWorkspace({
     const currentReply=replyTo?.id??null;
     const replySnapshot=currentReply?messages.find(item=>item.id===currentReply)??null:null;
     setDraft('');setReplyTo(null);
+
+    // A committed POST is the send result. A later list refresh must never turn
+    // a saved message into a visible "send failed" state or restore its draft.
+    let posted:Record<string,any>;
     try {
-      await request('chat/conversations/'+targetConversationId+'/messages','POST',{
+      posted=await request('chat/conversations/'+targetConversationId+'/messages','POST',{
         body:value,replyToId:currentReply,clientRequestId,
       });
-      if(selectedConversationIdRef.current===targetConversationId){
-        setSendState('sent');
-        await loadMessages(targetConversationId,true,true);
-      }else composerDraftsRef.current.delete(targetConversationId);
-      await loadConversations();
     } catch(cause) {
+      const reason=cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.';
       if(selectedConversationIdRef.current===targetConversationId){
         setDraft(current=>current||value);
         setReplyTo(current=>current??replySnapshot);
         setSendState('failed');
-        setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
+        setError(reason);
       }else{
         const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null};
         composerDraftsRef.current.set(targetConversationId,{
@@ -759,7 +759,53 @@ export function ChatWorkspace({
           replyTo:saved.replyTo??replySnapshot,
         });
       }
-    } finally {setSending(false);}
+      setSending(false);
+      return;
+    }
+
+    if(selectedConversationIdRef.current===targetConversationId){
+      setSendState('sent');
+      const savedMessage=posted?.message;
+      if(typeof savedMessage?.id==='string'){
+        const me=people.find(person=>person.id===currentUserId);
+        const optimistic:Message={
+          id:savedMessage.id,
+          conversationId:targetConversationId,
+          senderId:currentUserId,
+          senderName:me?.displayName??'Siz',
+          senderAvatarKey:me?.avatarKey??'',
+          body:value,
+          replyToId:currentReply,
+          replyBody:replySnapshot?.body??null,
+          replySenderName:replySnapshot?.senderName??null,
+          version:Number(savedMessage.version)||1,
+          createdAt:typeof savedMessage.createdAt==='string'?savedMessage.createdAt:new Date().toISOString(),
+          editedAt:null,
+          deletedAt:null,
+          pinnedAt:null,
+          isMine:true,
+          reactions:[],
+          readBy:[],
+          linkedTaskId:null,
+          attachments:[],
+        };
+        setMessages(current=>current.some(item=>item.id===optimistic.id)?current:[...current,optimistic]);
+      }
+      try {
+        await loadMessages(targetConversationId,true,true);
+      } catch {
+        setError('Mesaj sunucuya kaydedildi; ancak sohbet geçmişi yenilenemedi. Gönderdiğiniz metin korunuyor.');
+      }
+    }else{
+      composerDraftsRef.current.delete(targetConversationId);
+    }
+
+    try {
+      await loadConversations();
+    } catch {
+      setError(current=>current||'Mesaj gönderildi; sohbet listesi yenilenemedi. Sayfayı yenilediğinizde kayıt görünür.');
+    }
+    setSending(false);
   }
 
   async function startVoiceRecording(){
