@@ -281,17 +281,17 @@ function extractTokens(xml: string): string[] {
 }
 
 function replaceWordText(xml: string, values: Record<string, string>): string {
-  return xml.replace(/(<w:t\\b[^>]*>)([\\s\\S]*?)(<\\/w:t>)/g, (_whole, opening: string, encoded: string, closing: string) => {
+  return xml.replace(/(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g, (_whole, opening: string, encoded: string, closing: string) => {
     const plain = decodeXml(encoded);
-    const tokenPattern = /\\{\\{\\s*([A-Z][A-Z0-9_]*)\\s*\\}\\}/g;
+    const tokenPattern = /\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}/g;
     let cursor = 0;
     let output = '';
     for (const match of plain.matchAll(tokenPattern)) {
       output += escapeXml(plain.slice(cursor, match.index));
       const key = match[1];
-      if (!Object.hasOwn(values, key)) throw new Error(`Şablondaki ${key} alanı için değer bulunamadı.`);
-      const clean = values[key].replace(/\\u0000/g, '');
-      output += clean.split(/\\r\\n|\\r|\\n/).map(escapeXml)
+      if (!Object.hasOwn(values, key)) throw new Error(\`Şablondaki \${key} alanı için değer bulunamadı.\`);
+      const clean = values[key].replace(/\u0000/g, '');
+      output += clean.split(/\r\n|\r|\n/).map(escapeXml)
         .join('</w:t><w:br/><w:t xml:space="preserve">');
       cursor = (match.index ?? 0) + match[0].length;
     }
@@ -301,14 +301,14 @@ function replaceWordText(xml: string, values: Record<string, string>): string {
 }
 
 function plainWordText(xml: string): string {
-  const paragraphs = [...xml.matchAll(/<w:p\\b[\\s\\S]*?<\\/w:p>/g)];
+  const paragraphs = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)];
   return paragraphs.map(paragraph => {
-    const parts = [...paragraph[0].matchAll(/<w:t\\b[^>]*>([\\s\\S]*?)<\\/w:t>|<w:br\\b[^>]*\\/>|<w:tab\\b[^>]*\\/>/g)];
+    const parts = [...paragraph[0].matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/>|<w:tab\b[^>]*\/>/g)];
     return parts.map(part => {
       if (part[1] !== undefined) return decodeXml(part[1]);
-      return part[0].startsWith('<w:br') ? '\\n' : '\\t';
+      return part[0].startsWith('<w:br') ? '\n' : '\t';
     }).join('');
-  }).join('\\n').replace(/[ \\t]+\\n/g, '\\n').trim();
+  }).join('\n').replace(/[ \t]+\n/g, '\n').trim();
 }
 
 export function inspectDocxTemplate(input: Buffer): InspectedDocx {
