@@ -73,6 +73,11 @@ export class ChatController {
     return this.calls.endCall(await this.authorize(request,'chat','update',true),id);
   }
 
+  @Post('calls/:id/heartbeat')
+  async heartbeatCall(@Req() request:Request,@Param('id') id:string) {
+    return this.calls.heartbeat(await this.authorize(request,'chat','update',true),id);
+  }
+
   @Post('calls/:id/signals')
   async sendCallSignal(@Req() request:Request,@Param('id') id:string,@Body() body:unknown) {
     return this.calls.sendSignal(await this.authorize(request,'chat','update',true),id,body);
