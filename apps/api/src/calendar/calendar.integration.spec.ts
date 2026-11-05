@@ -90,8 +90,8 @@ test('takvim API: kişisel, ortak ve proje etkinlikleri; kapsam, tarih izdüşü
     const base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
     const [alice, bob, employee] = await Promise.all(names.map((name) => signIn(base, name)));
 
-    const denied = await api(base, employee, 'calendar?from=2026-12-01&to=2027-01-01');
-    assert.equal(denied.response.status, 403);
+    const employeeCalendar = await api(base, employee, 'calendar?from=2026-12-01&to=2027-01-01');
+    assert.equal(employeeCalendar.response.status, 200, JSON.stringify(employeeCalendar.data));
 
     const projectResult = await api(base, alice, 'projects', 'POST', {
       name: 'Calendar fixture project',
