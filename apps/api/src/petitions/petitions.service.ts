@@ -1,12 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
 import {
-  DOCX_FIELDS, DOCX_CONTENT_TYPE, MAX_DOCX_BYTES, fieldDefinitions,
+  DOCX_FIELDS, MAX_DOCX_BYTES, fieldDefinitions,
   inspectDocxTemplate, renderDocxTemplate,
 } from './docx-template.js';
-import type { DocxFieldDefinition } from './docx-template.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PROJECT_TYPES: Record<string,string> = {
@@ -20,8 +18,6 @@ export interface PetitionUploadFile {
   originalname: string;
   size: number;
 }
-
-export interface PetitionTemplateField extends DocxFieldDefinition {}
 
 @Injectable()
 export class PetitionsService {
