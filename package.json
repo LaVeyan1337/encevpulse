@@ -12,7 +12,8 @@
     "dev:web": "npm run dev --workspace @encev-pulse/web",
     "build": "npm run build --workspace @encev-pulse/api && npm run build --workspace @encev-pulse/web",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "extension:build": "node scripts/build-extension.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
