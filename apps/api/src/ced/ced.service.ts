@@ -1064,7 +1064,7 @@ function validateDirectoryContact(value: Record<string, unknown>) {
     sourceReference: boundedText(value.sourceReference ?? '',0,500,'Kaynak referansı'),
     verifiedAt: optionalDate(value.verifiedAt,'Kaynak teyit tarihi'),
   };
-  if(draft.email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(draft.email)) throw invalid('E-posta adresi geçersiz.');
+  if(draft.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) throw invalid('E-posta adresi geçersiz.');
   if(draft.website) {
     try {
       const url=new URL(draft.website);
