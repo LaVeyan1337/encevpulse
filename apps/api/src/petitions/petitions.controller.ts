@@ -80,6 +80,7 @@ export class PetitionsController {
   }
 
   @Post('templates/:templateId/archive')
+  @HttpCode(HttpStatus.OK)
   async archiveTemplate(@Req() request:Request,@Param('templateId') templateId:string) {
     return this.petitions.archiveTemplate(await this.authorize(request,'manage',true),templateId);
   }
