@@ -121,7 +121,7 @@ export class PetitionsService {
   async createTemplateVersion(user: AuthUser, templateId: string, file: PetitionUploadFile | undefined) {
     assertUuid(templateId,'Şablon');
     const inspected = inspectUpload(file);
-    const inspection = inspectDocxTemplate(file.buffer);
+    const inspection = inspectDocxTemplate(inspected.file.buffer);
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -143,7 +143,7 @@ export class PetitionsService {
       const versionRow = await client.query<{id:string}>(
         `INSERT INTO petition_template_versions(template_id,version,file_name,content_sha256,byte_size,content,field_keys,created_by)
          VALUES($1,$2,$3,$4,$5,$6,$7::text[],$8) RETURNING id`,
-        [templateId,version,inspected.fileName,inspection.sha256,inspection.size,file.buffer,inspection.fieldKeys,user.id],
+        [templateId,version,inspected.fileName,inspection.sha256,inspection.size,inspected.file.buffer,inspection.fieldKeys,user.id],
       );
       await client.query(
         `UPDATE petition_template_families SET updated_at=now() WHERE id=$1`,
