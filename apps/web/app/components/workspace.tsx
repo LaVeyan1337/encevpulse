@@ -1759,6 +1759,9 @@ export function Workspace({
             <InstitutionGuideWorkspace
               request={request}
               canOpenOpinions={hasModulePermission('institution_opinions')}
+              canCreate={hasModulePermission('institution_guide','create')}
+              canUpdate={hasModulePermission('institution_guide','update')}
+              canDelete={hasModulePermission('institution_guide','delete')}
               onOpenOpinions={()=>setSection('institution_opinions')}
             />
           )}
