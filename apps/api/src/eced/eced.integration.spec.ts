@@ -106,19 +106,18 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
     assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
     const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(petitionsModule?.enabled,true,'The browser-local DOCX template workflow is enabled.');
-    assert.ok(petitionsModule.actions.includes('manage'),'System administrator should fully manage enabled Petitions.');
+    assert.equal(petitionsModule?.enabled,false,'Petitions stays unavailable until shared template, field merge, preview and approval flows are complete.');
+    assert.deepEqual(petitionsModule.actions,[],'A disabled module must not expose actions even to administrators.');
     const ownerPermissions=await api(base,ownerA,'auth/permissions/me');
     assert.equal(ownerPermissions.response.status,200);
     const ownerPetitions=ownerPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(ownerPetitions?.enabled,true);
-    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update'),
-      'Process owners can create and update their local petition drafts.');
+    assert.equal(ownerPetitions?.enabled,false);
+    assert.deepEqual(ownerPetitions.actions,[]);
     const employeePermissions=await api(base,employee,'auth/permissions/me');
     assert.equal(employeePermissions.response.status,200);
     const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(employeePetitions?.enabled,true);
-    assert.deepEqual(employeePetitions.actions,[],'Enabling the module must not grant default document access to all employees.');
+    assert.equal(employeePetitions?.enabled,false);
+    assert.deepEqual(employeePetitions.actions,[],'Disabled Petitions must remain unavailable to every role.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
