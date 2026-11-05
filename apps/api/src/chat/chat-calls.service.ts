@@ -76,6 +76,10 @@ export class ChatCallsService {
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
                WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.callee_user_id AND member.left_at IS NULL))`,
       );
+      await client.query(
+        `DELETE FROM chat_call_signals
+         WHERE call_id IN (SELECT id FROM chat_calls WHERE status IN ('declined','ended','missed','cancelled'))`,
+      );
       const busy=await client.query(
         `SELECT id FROM chat_calls WHERE status IN ('ringing','accepted')
           AND (caller_user_id=ANY($1::uuid[]) OR callee_user_id=ANY($1::uuid[]))
@@ -115,6 +119,10 @@ export class ChatCallsService {
     await this.db.query(
       `UPDATE chat_calls SET status='ended',ended_at=now()
        WHERE status='accepted' AND (caller_heartbeat_at<now()-interval '120 seconds' OR callee_heartbeat_at IS NULL OR callee_heartbeat_at<now()-interval '120 seconds')`,
+    );
+    await this.db.query(
+      `DELETE FROM chat_call_signals
+       WHERE call_id IN (SELECT id FROM chat_calls WHERE status IN ('declined','ended','missed','cancelled'))`,
     );
     const result=await this.db.query(
       `SELECT call_row.id,call_row.conversation_id AS "conversationId",
@@ -164,6 +172,7 @@ export class ChatCallsService {
       [callId,user.id],
     );
     if(!result.rowCount)throw new ConflictException({code:'CHAT_CALL_NOT_DECLINABLE',message:'Gelen arama artık reddedilebilir durumda değil.'});
+    await this.db.query('DELETE FROM chat_call_signals WHERE call_id=$1',[callId]);
     return {ok:true};
   }
 
@@ -177,6 +186,7 @@ export class ChatCallsService {
       [callId,user.id],
     );
     if(!result.rowCount)throw new ConflictException({code:'CHAT_CALL_NOT_ACTIVE',message:'Arama zaten sona ermiş.'});
+    await this.db.query('DELETE FROM chat_call_signals WHERE call_id=$1',[callId]);
     return {call:result.rows[0]};
   }
 
