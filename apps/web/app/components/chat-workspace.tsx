@@ -307,6 +307,16 @@ export function ChatWorkspace({
     };
   },[selectedId,loadConversations,loadDetail,loadMessages]);
 
+  useEffect(()=>()=> {
+    const recorder=recorderRef.current;
+    if(recorder&&recorder.state!=='inactive'){
+      recorder.onstop=null;
+      recorder.stop();
+    }
+    recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+    if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+  },[]);
+
   useEffect(()=>{
     selectedConversationIdRef.current=selectedId;
     setPendingFiles([]);
@@ -382,7 +392,7 @@ export function ChatWorkspace({
       await request('chat/conversations/'+targetConversationId+'/attachments','POST',form);
       setSendState('sent');
       if(selectedConversationIdRef.current===targetConversationId){
-        setDraft(current=>current===caption?'':current);
+        setDraft(current=>current.trim()===caption?'':current);
         setPendingFiles([]);
         setReplyTo(null);
         await Promise.all([loadMessages(targetConversationId,true,true),loadConversations()]);
@@ -396,7 +406,7 @@ export function ChatWorkspace({
   async function sendMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value=draft.trim();
-    if(!canCreate||!selectedId||sending)return;
+    if(!canCreate||!selectedId||sending||recording)return;
     if(pendingFiles.length){
       await uploadAttachments([...pendingFiles],value,selectedId,replyTo?.id??null);
       return;
