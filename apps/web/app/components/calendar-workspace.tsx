@@ -500,9 +500,7 @@ export function CalendarWorkspace({
       <header className="calendar-toolbar">
         <div className="calendar-heading">
           <div>
-            <span className="calendar-eyebrow">PLANLAMA</span>
             <h1>Takvim</h1>
-            <p>Etkinlikler, görev tarihleri ve proje kilometre taşları</p>
           </div>
 
         </div>
@@ -787,7 +785,6 @@ export function CalendarWorkspace({
             {entriesForDay(selectedDate).length === 0 && !loading && (
               <div className="calendar-empty">
                 <strong>Bu gün için kayıt yok</strong>
-                <span>Toplantı veya etkinlik planlamak için yukarıdaki işlemleri kullanın.</span>
               </div>
             )}
             {loading && <div className="calendar-loading" role="status">Günün kayıtları alınıyor…</div>}
