@@ -91,3 +91,30 @@
 :root[data-theme='light'] .status-revision,:root[data-theme='light'] .status-revision_requested{color:#9a641d;background:rgba(240,189,112,.1)}
 :root[data-theme='light'] .status-other_request{color:#6546a6;background:rgba(163,137,229,.1)}
 @media(max-width:640px){.opinions-header-actions{width:100%}.opinions-header-actions button{flex:1}.opinions-editor-grid{grid-template-columns:1fr}}
+
+/* Institution contact directory and editable default drafts */
+.opinions-view-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:4px;background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;width:max-content;max-width:100%}
+.opinions-view-tabs button{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 13px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--text-secondary);font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.opinions-view-tabs button[aria-pressed=true]{background:var(--surface-raised);border-color:var(--border-strong);color:var(--text);box-shadow:var(--shadow-sm)}
+.opinions-view-tabs button span{display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--surface-muted);color:var(--text-muted);font-size:10px}
+.opinions-defaults-button{min-height:42px;padding:0 13px;border:1px solid var(--border-strong);border-radius:11px;background:var(--surface-raised);color:var(--text);font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.opinions-defaults-button:disabled{opacity:.5;cursor:wait}
+.opinions-delete-button{min-height:33px;padding:0 10px;border:1px solid rgba(210,92,92,.35);border-radius:8px;background:rgba(210,92,92,.09);color:var(--danger,#d56c6c);font:inherit;font-size:11px;font-weight:750;cursor:pointer}
+.opinions-delete-button:disabled{opacity:.5}
+.opinions-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border:1px solid rgba(47,160,126,.24);border-radius:10px;background:rgba(47,160,126,.09);color:var(--text);font-size:12px}
+.opinions-notice button{border:0;background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.institution-directory{display:grid;gap:15px;min-width:0}
+.institution-directory>header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.institution-directory>header h3{margin:0;color:var(--text);font-size:17px;font-weight:800}
+.institution-directory>header p{margin:5px 0 0;color:var(--text-muted);font-size:12px}
+.institution-directory>header>span{color:var(--text-muted);font-size:11px;white-space:nowrap}
+.institution-directory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.institution-contact-card{display:grid;gap:13px;min-width:0;padding:16px;border:1px solid var(--border-strong);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.institution-contact-kicker{display:block;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.025em;overflow-wrap:anywhere}
+.institution-contact-card h4{margin:6px 0 3px;color:var(--text);font-size:15px;font-weight:800;overflow-wrap:anywhere}
+.institution-contact-card p{margin:0;color:var(--text-muted);font-size:11px}
+.institution-contact-links{display:grid;gap:6px;min-width:0}
+.institution-contact-links a,.institution-contact-links span{color:var(--text-secondary);font-size:12px;overflow-wrap:anywhere;text-decoration:none}
+.institution-contact-links a:hover{color:var(--accent-hover);text-decoration:underline}
+.institution-contact-card footer{padding-top:10px;border-top:1px solid var(--border);color:var(--text-muted);font-size:10px}
+@media(max-width:760px){.institution-directory-grid{grid-template-columns:1fr}.opinions-view-tabs{width:100%}.opinions-view-tabs button{flex:1;justify-content:center}.opinions-header-actions{align-items:stretch}.opinions-defaults-button,.opinions-add-button{flex:1}}
