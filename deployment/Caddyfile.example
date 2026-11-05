@@ -7,6 +7,8 @@
 # The API and PostgreSQL remain bound to host loopback. Do not expose ports
 # 3000 or 5432 to the LAN. Use a company-issued certificate where available.
 # "tls internal" requires distributing Caddy's root CA certificate to clients.
+# If company IT provides a certificate/key pair, replace "tls internal" with:
+# tls C:/secure/path/fullchain.pem C:/secure/path/private-key.pem
 
 {$PULSE_HOSTNAME} {
     tls internal
