@@ -28,6 +28,11 @@ const reactions=['👍','❤️','😂','🎉','👀','🙏','✅','🔥'];
 const roleLabel=(role:string)=>({owner:'Sohbet sahibi',admin:'Yönetici',member:'Üye'}[role]??role);
 const timeLabel=(value:string)=>new Intl.DateTimeFormat('tr-TR',{hour:'2-digit',minute:'2-digit'}).format(new Date(value));
 const dateLabel=(value:string)=>new Intl.DateTimeFormat('tr-TR',{day:'numeric',month:'short'}).format(new Date(value));
+const fileSizeLabel=(bytes:number)=>{
+  if(bytes<1024)return bytes+' B';
+  if(bytes<1024*1024)return (bytes/1024).toFixed(0)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+};
 
 export function ChatWorkspace({
   request,
@@ -96,6 +101,7 @@ export function ChatWorkspace({
   const [taskDraftProjectId,setTaskDraftProjectId]=useState('');
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const attachmentInputRef=useRef<HTMLInputElement|null>(null);
+  const selectedConversationIdRef=useRef<string|null>(selectedId);
   const recorderRef=useRef<MediaRecorder|null>(null);
   const recordingStreamRef=useRef<MediaStream|null>(null);
   const recordingChunksRef=useRef<Blob[]>([]);
@@ -302,6 +308,22 @@ export function ChatWorkspace({
   },[selectedId,loadConversations,loadDetail,loadMessages]);
 
   useEffect(()=>{
+    selectedConversationIdRef.current=selectedId;
+    setPendingFiles([]);
+    setRecordingError('');
+    if(recorderRef.current&&recorderRef.current.state!=='inactive'){
+      recorderRef.current.onstop=null;
+      recorderRef.current.stop();
+    }
+    recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+    recordingStreamRef.current=null;
+    recorderRef.current=null;
+    if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+    recordingTimeoutRef.current=null;
+    setRecording(false);
+  },[selectedId]);
+
+  useEffect(()=>{
     const element=scrollRef.current;
     if(!element)return;
     const restore=pendingScrollRestore.current;
@@ -343,10 +365,43 @@ export function ChatWorkspace({
     }finally{setLoadingOlder(false);}
   }
 
+  async function uploadAttachments(files:File[],caption:string,targetConversationId=selectedId,replyMessageId=replyTo?.id??null) {
+    if(!canCreate||!targetConversationId||files.length===0||sending)return;
+    if(files.length>5){setError('Bir mesajda en fazla 5 dosya gönderebilirsiniz.');return;}
+    if(files.some(file=>file.size<1||file.size>12*1024*1024)||files.reduce((total,file)=>total+file.size,0)>24*1024*1024){
+      setError('Her dosya en fazla 12 MB, bir mesajdaki toplam ekler en fazla 24 MB olabilir.');
+      return;
+    }
+    const form=new FormData();
+    form.append('caption',caption);
+    if(replyMessageId)form.append('replyToId',replyMessageId);
+    form.append('clientRequestId',crypto.randomUUID());
+    for(const file of files)form.append('files',file,file.name);
+    setSending(true);setSendState('idle');setError('');
+    try{
+      await request('chat/conversations/'+targetConversationId+'/attachments','POST',form);
+      setSendState('sent');
+      if(selectedConversationIdRef.current===targetConversationId){
+        setDraft(current=>current===caption?'':current);
+        setPendingFiles([]);
+        setReplyTo(null);
+        await Promise.all([loadMessages(targetConversationId,true,true),loadConversations()]);
+      }else await loadConversations();
+    }catch(cause){
+      setSendState('failed');
+      setError(cause instanceof Error?cause.message:'Dosya gönderilemedi. Seçtiğiniz dosyalar korunmuştur.');
+    }finally{setSending(false);}
+  }
+
   async function sendMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value=draft.trim();
-    if(!canCreate||!selectedId||!value||sending)return;
+    if(!canCreate||!selectedId||sending)return;
+    if(pendingFiles.length){
+      await uploadAttachments([...pendingFiles],value,selectedId,replyTo?.id??null);
+      return;
+    }
+    if(!value)return;
     setSending(true);setSendState('idle');setError('');
     const clientRequestId=crypto.randomUUID();
     const currentReply=replyTo?.id??null;
@@ -363,6 +418,62 @@ export function ChatWorkspace({
       setSendState('failed');
       setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
     } finally {setSending(false);}
+  }
+
+  async function startVoiceRecording(){
+    if(!canCreate||!selectedId||sending||recording)return;
+    setRecordingError('');
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+      setRecordingError('Bu tarayıcı ses kaydını desteklemiyor. Güncel Chrome veya Edge kullanın.');
+      return;
+    }
+    const targetConversationId=selectedId;
+    const replyMessageId=replyTo?.id??null;
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      if(selectedConversationIdRef.current!==targetConversationId){
+        stream.getTracks().forEach(track=>track.stop());
+        return;
+      }
+      const candidates=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'];
+      const mimeType=candidates.find(type=>MediaRecorder.isTypeSupported(type));
+      const recorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream);
+      recordingStreamRef.current=stream;
+      recorderRef.current=recorder;
+      recordingChunksRef.current=[];
+      recorder.ondataavailable=event=>{if(event.data.size)recordingChunksRef.current.push(event.data);};
+      recorder.onerror=()=>setRecordingError('Ses kaydı sırasında bir hata oluştu.');
+      recorder.onstop=()=>{
+        if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current=null;
+        stream.getTracks().forEach(track=>track.stop());
+        recordingStreamRef.current=null;
+        recorderRef.current=null;
+        setRecording(false);
+        const blob=new Blob(recordingChunksRef.current,{type:recorder.mimeType||'audio/webm'});
+        recordingChunksRef.current=[];
+        if(!blob.size){setRecordingError('Ses kaydı boş olduğu için gönderilmedi.');return;}
+        if(blob.size>12*1024*1024){setRecordingError('Ses kaydı 12 MB sınırını aştı. Daha kısa bir kayıt deneyin.');return;}
+        const normalizedMime=(blob.type||'audio/webm').split(';')[0].toLowerCase();
+        const extension=normalizedMime==='audio/ogg'?'ogg':normalizedMime==='audio/mp4'?'m4a':'webm';
+        const file=new File([blob],'sesli-mesaj-'+Date.now()+'.'+extension,{type:normalizedMime});
+        void uploadAttachments([file],'',targetConversationId,replyMessageId);
+      };
+      recorder.start(1000);
+      setRecording(true);
+      recordingTimeoutRef.current=window.setTimeout(()=>stopVoiceRecording(),120000);
+    }catch(cause){
+      recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+      recordingStreamRef.current=null;
+      recorderRef.current=null;
+      setRecording(false);
+      setRecordingError(cause instanceof Error?cause.message:'Mikrofon erişimi sağlanamadı.');
+    }
+  }
+
+  function stopVoiceRecording(){
+    const recorder=recorderRef.current;
+    if(recorder&&recorder.state!=='inactive')recorder.stop();
   }
 
   async function openSearchResult(result:Record<string,any>) {
