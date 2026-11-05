@@ -1313,6 +1313,7 @@ export function ChatWorkspace({
           </div>
         )}
         
+        <div className="chat-context-footer"><span>Sohbet ekleri ve aramalar erişim yetkisiyle korunur.</span></div>
       </aside>
 
       {activeCall&&typeof document!=='undefined'&&createPortal(
