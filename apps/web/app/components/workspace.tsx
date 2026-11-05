@@ -835,7 +835,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : (user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar');
 
   return (
     <div className="workspace-shell">
@@ -1000,7 +1000,7 @@ export function Workspace({
               }}
             >
               <Icon name="users" />
-              <span>Kullanıcılar</span>
+              <span>{user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar'}</span>
             </button>
           )}
         </nav>
