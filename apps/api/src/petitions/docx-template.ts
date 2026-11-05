@@ -301,11 +301,14 @@ function replaceWordText(xml: string, values: Record<string, string>): string {
 }
 
 function plainWordText(xml: string): string {
-  const paragraphs = [...xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)];
+  const paragraphs = [...xml.matchAll(/<w:p\\b[\\s\\S]*?<\\/w:p>/g)];
   return paragraphs.map(paragraph => {
-    const runs = [...paragraph[0].matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)];
-    return runs.map(run => decodeXml(run[1])).join('');
-  }).join('\n').replace(/[ \t]+\n/g, '\n').trim();
+    const parts = [...paragraph[0].matchAll(/<w:t\\b[^>]*>([\\s\\S]*?)<\\/w:t>|<w:br\\b[^>]*\\/>|<w:tab\\b[^>]*\\/>/g)];
+    return parts.map(part => {
+      if (part[1] !== undefined) return decodeXml(part[1]);
+      return part[0].startsWith('<w:br') ? '\\n' : '\\t';
+    }).join('');
+  }).join('\\n').replace(/[ \\t]+\\n/g, '\\n').trim();
 }
 
 export function inspectDocxTemplate(input: Buffer): InspectedDocx {
