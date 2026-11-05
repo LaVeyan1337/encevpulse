@@ -14,6 +14,7 @@ on:
       - feature/chat-webrtc-calls-20261105
       - feature/eced-extension-report-diagnostics-20261105
       - feature/global-chat-call-overlay-20261105
+      - feature/eced-chat-hardening-20261105
     paths:
       - "apps/**"
       - "drizzle/**"
@@ -77,6 +78,10 @@ jobs:
         run: npm run typecheck
       - name: Production builds
         run: npm run build
+      - name: Validate exact-origin extension package
+        env:
+          PULSE_API_BASE: https://pulse-ci.invalid/api
+        run: npm run extension:build
       - name: Package validated source (exclude temporary CI workflow)
         if: success()
         run: |
