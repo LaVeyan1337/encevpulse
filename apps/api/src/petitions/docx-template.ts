@@ -281,15 +281,22 @@ function extractTokens(xml: string): string[] {
 }
 
 function replaceWordText(xml: string, values: Record<string, string>): string {
-  return xml.replace(/(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/g, (_whole, opening: string, encoded: string, closing: string) => {
-    let plain = decodeXml(encoded);
-    plain = plain.replace(/\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}/g, (_token, key: string) => {
+  return xml.replace(/(<w:t\\b[^>]*>)([\\s\\S]*?)(<\\/w:t>)/g, (_whole, opening: string, encoded: string, closing: string) => {
+    const plain = decodeXml(encoded);
+    const tokenPattern = /\\{\\{\\s*([A-Z][A-Z0-9_]*)\\s*\\}\\}/g;
+    let cursor = 0;
+    let output = '';
+    for (const match of plain.matchAll(tokenPattern)) {
+      output += escapeXml(plain.slice(cursor, match.index));
+      const key = match[1];
       if (!Object.hasOwn(values, key)) throw new Error(`Şablondaki ${key} alanı için değer bulunamadı.`);
-      const clean = values[key].replace(/\u0000/g, '');
-      return clean.split(/\r\n|\r|\n/).map(escapeXml)
+      const clean = values[key].replace(/\\u0000/g, '');
+      output += clean.split(/\\r\\n|\\r|\\n/).map(escapeXml)
         .join('</w:t><w:br/><w:t xml:space="preserve">');
-    });
-    return opening + plain.split(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);)/i).join('&amp;') + closing;
+      cursor = (match.index ?? 0) + match[0].length;
+    }
+    output += escapeXml(plain.slice(cursor));
+    return opening + output + closing;
   });
 }
 
