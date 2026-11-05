@@ -490,10 +490,11 @@ export function ChatWorkspace({
       const incoming=event.streams[0];
       if(incoming)setRemoteStream(incoming);
     };
+    const callId=activeCallIdRef.current;
     peer.onicecandidate=event=>{
-      if(!event.candidate)return;
+      if(!event.candidate||!callId)return;
       const candidate=event.candidate.toJSON();
-      void request('chat/calls/'+activeCallIdRef.current+'/signals','POST',{
+      void request('chat/calls/'+callId+'/signals','POST',{
         signalType:'ice_candidate',payload:candidate,
       }).catch(()=>setCallError('Ağ bağlantı adayı gönderilemedi.'));
     };
@@ -517,7 +518,11 @@ export function ChatWorkspace({
   useEffect(()=>()=> {
     const callId=activeCallIdRef.current;
     if(callId)void request('chat/calls/'+callId+'/end','POST',{}).catch(()=>undefined);
-    closeLocalCall();
+    if(callPollTimerRef.current!==null)window.clearInterval(callPollTimerRef.current);
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current=null;
+    localStreamRef.current?.getTracks().forEach(track=>track.stop());
+    localStreamRef.current=null;
   },[request]);
 
   async function sendCallSignal(callId:string,signalType:'offer'|'answer'|'ice_candidate',payload:Record<string,unknown>){
