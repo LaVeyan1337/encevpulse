@@ -453,6 +453,14 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
           : { rows: [] as { id: string }[] };
         const cleanupIds = [...adminCreated.rows.map((row) => row.id), ...candidateIds, ...(userId ? [userId] : []), ...(adminId ? [adminId] : [])];
         if (cleanupIds.length) {
+          await client.query('LOCK TABLE user_note_audit_events IN ACCESS EXCLUSIVE MODE');
+          await client.query('ALTER TABLE user_note_audit_events DISABLE TRIGGER user_note_audit_events_append_only');
+          await client.query(
+            'DELETE FROM user_note_audit_events WHERE note_id IN (SELECT id FROM user_notes WHERE owner_user_id = ANY($1::uuid[]))',
+            [cleanupIds],
+          );
+          await client.query('DELETE FROM user_notes WHERE owner_user_id = ANY($1::uuid[])', [cleanupIds]);
+          await client.query('ALTER TABLE user_note_audit_events ENABLE TRIGGER user_note_audit_events_append_only');
           await client.query('LOCK TABLE auth_audit_events IN ACCESS EXCLUSIVE MODE');
           await client.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
           await client.query('DELETE FROM auth_audit_events WHERE actor_user_id = ANY($1::uuid[]) OR target_user_id = ANY($1::uuid[])', [cleanupIds]);
