@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { Script } from 'node:vm';
 
 test('e-ÇED screen and API use scoped pairing, conservative account states and a portal origin allowlist', async () => {
   const [component, workspace, controller, service, migration, manifestText, worker, popup, options, contentScript, styles] = await Promise.all([
@@ -17,6 +18,15 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
     readFile(new URL('../app/eced.css', import.meta.url), 'utf8'),
   ]);
   const manifest = JSON.parse(manifestText);
+
+  for (const [name, source] of Object.entries({
+    'service-worker.js':worker,
+    'popup.js':popup,
+    'options.js':options,
+    'content-script.js':contentScript,
+  })) {
+    assert.doesNotThrow(() => new Script(source, {filename:name}), name + ' must parse');
+  }
 
   assert.ok(workspace.includes('<EcedWorkspace'));
   assert.ok(workspace.includes("hasModulePermission('eced')"));
