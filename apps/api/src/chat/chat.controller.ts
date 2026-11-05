@@ -199,6 +199,6 @@ export class ChatController {
 
 
 function contentDisposition(mode:'inline'|'attachment',filename:string):string {
-  const safe=filename.replace(/[\\r\\n"]/g,'_').replace(/[^\\x20-\\x7e]/g,'_').slice(0,160)||'dosya';
+  const safe=filename.replace(/[\r\n"]/g,'_').replace(/[^\x20-\x7e]/g,'_').slice(0,160)||'dosya';
   return mode+`; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
