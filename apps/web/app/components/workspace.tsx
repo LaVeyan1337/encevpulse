@@ -383,7 +383,7 @@ export function Workspace({
       setPeople(peopleResult.people as Person[]);
       if(hasModulePermission('projects')) {
         try {
-          const projectResult=await request('tasks/projects');
+          const projectResult=await request('projects');
           setProjects(projectResult.projects as Project[]);
           setProjectError('');
         } catch(projectCause) {
