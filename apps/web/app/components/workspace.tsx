@@ -7,6 +7,7 @@ import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
 import { EcedWorkspace, EcedAccountOverview } from './eced-workspace';
 import { CedWorkspace } from './ced-workspace';
 import { PetitionsWorkspace } from './petitions-workspace';
+import { NotesWorkspace } from './notes-workspace';
 import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
@@ -159,7 +160,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'institution_opinions' | 'eced' | 'petitions' | 'people' | 'chat' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'institution_opinions' | 'eced' | 'petitions' | 'notes' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -309,7 +310,7 @@ export function Workspace({
 
   useEffect(()=>{
     if(hasModulePermission(section))return;
-    const next=(['overview','tasks','projects','calendar','institution_opinions','eced','petitions','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
+    const next=(['overview','tasks','projects','calendar','institution_opinions','eced','petitions','notes','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
     if(next[0])setSection(next[0]);
   },[section,hasModulePermission]);
 
@@ -834,7 +835,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
 
   return (
     <div className="workspace-shell">
@@ -974,6 +975,19 @@ export function Workspace({
           >
             <Icon name="folder" />
             <span>Dilekçeler</span>
+          </button>
+          )}
+          {hasModulePermission('notes') && (
+          <button
+            type="button"
+            className={section === 'notes' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('notes');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Notlarım</span>
           </button>
           )}
           {hasModulePermission('users') && (
@@ -1741,6 +1755,16 @@ export function Workspace({
             <PetitionsWorkspace
               projects={projects.map(({id,name,status})=>({id,name,status}))}
               canCreate={hasModulePermission('petitions','create')}
+            />
+          )}
+
+          {section === 'notes' && hasModulePermission('notes') && (
+            <NotesWorkspace
+              request={request}
+              projects={projects.map(({id,name,status})=>({id,name,status}))}
+              canCreate={hasModulePermission('notes','create')}
+              canUpdate={hasModulePermission('notes','update')}
+              canDelete={hasModulePermission('notes','delete')}
             />
           )}
 
