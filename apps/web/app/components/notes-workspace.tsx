@@ -48,7 +48,7 @@ export function NotesWorkspace({
     let cancelled=false;
     if(!canViewTasks){setTaskOptions([]);return;}
     request('tasks?view=all&limit=100')
-      .then(result=>{if(!cancelled)setTaskOptions(Array.isArray(result.tasks)?result.tasks as Task:[]);})
+      .then(result=>{if(!cancelled)setTaskOptions(Array.isArray(result.tasks)?result.tasks as Task[]:[]);})
       .catch(()=>{if(!cancelled)setTaskOptions([]);});
     return ()=>{cancelled=true;};
   },[request,canViewTasks]);
