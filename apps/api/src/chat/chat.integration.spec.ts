@@ -292,7 +292,9 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const forgedUpload=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,forgedForm);
       assert.equal(forgedUpload.response.status,400,'MIME bildirimi uzantı ve dosya imzası kontrolünü atlamamalı.');
 
-      const removeAttachmentMessage=await api(base,bob,`chat/messages/${attachmentMessageId}`,'DELETE',{version:1});
+      const forbiddenDelete=await api(base,bob,`chat/messages/${attachmentMessageId}`,'DELETE',{version:1});
+      assert.equal(forbiddenDelete.response.status,403,'Başka kullanıcının ekli mesajı silinememeli.');
+      const removeAttachmentMessage=await api(base,alice,`chat/messages/${attachmentMessageId}`,'DELETE',{version:1});
       assert.equal(removeAttachmentMessage.response.status,204);
       const removedContent=await fetch(attachmentUrl,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
       assert.equal(removedContent.status,404,'Silinen mesajın ek içeriği sunulmamalı.');
