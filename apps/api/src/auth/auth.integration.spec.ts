@@ -248,15 +248,24 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       const notePermission=myPermissions.body.modules.find((module:any)=>module.moduleKey==='notes');
       assert.equal(notePermission.enabled,true);
       assert.ok(notePermission.actions.includes('view')&&notePermission.actions.includes('create'));
+      const linkedTaskResponse=await fetch(`${baseUrl}/api/tasks`,{
+        method:'POST',
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
+        body:JSON.stringify({title:'Not bağlantı testi görevi',description:'Özel not ile ilişkilendirilecek.',assigneeId:userId,projectId:null,priority:'normal'}),
+      });
+      assert.equal(linkedTaskResponse.status,201);
+      const linkedTask=(await linkedTaskResponse.json()).task;
       const createdNoteResponse=await fetch(`${baseUrl}/api/notes`,{
         method:'POST',
         headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
-        body:JSON.stringify({title:'Özel test notu',body:'Yalnız sahibine görünür.',tags:['test','özel'],projectId:null}),
+        body:JSON.stringify({title:'Özel test notu',body:'Yalnız sahibine görünür.',tags:['test','özel'],projectId:null,taskId:linkedTask.id}),
       });
       assert.equal(createdNoteResponse.status,201);
       const createdNoteBody=await createdNoteResponse.json();
       const createdNote=createdNoteBody.note;
       assert.equal(createdNote.title,'Özel test notu');
+      assert.equal(createdNote.taskId,linkedTask.id);
+      assert.equal(createdNote.taskTitle,linkedTask.title);
       const ownNotes=await fetch(`${baseUrl}/api/notes`,{headers:{Origin:ORIGIN,Cookie:employeeSession.cookie}});
       assert.equal(ownNotes.status,200);
       assert.ok((await ownNotes.json()).notes.some((note:any)=>note.id===createdNote.id));
