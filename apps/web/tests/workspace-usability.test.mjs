@@ -137,7 +137,7 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.chat,/async function startCall/);
   assert.match(source.chat,/async function acceptCall/);
   assert.match(source.chat,/processCallSignals/);
-  assert.match(source.chat,/chat\/calls\/\+activeCall\.id\+'\/heartbeat/);
+  assert.ok(source.chat.includes("request('chat/calls/'+activeCall.id+'/heartbeat'"));
   assert.match(source.chat,/chat-call-video-stage/);
   assert.match(source.chatStyles,/\.chat-call-backdrop/);
   assert.match(source.chatStyles,/\.chat-call-video-stage/);
