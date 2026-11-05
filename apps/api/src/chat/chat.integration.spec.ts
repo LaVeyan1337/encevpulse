@@ -256,7 +256,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
         form.append('caption','Flora saha fotoğrafı');
         form.append('replyToId',firstMessageId);
         form.append('clientRequestId',uploadRequestId);
-        form.append('files',new Blob([pngFixture],{type:'image/png'}),'flora-saha.png');
+        form.append('files',new Blob([new Uint8Array(pngFixture)],{type:'image/png'}),'flora-saha.png');
         return form;
       };
       const uploaded=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,buildImageForm());
