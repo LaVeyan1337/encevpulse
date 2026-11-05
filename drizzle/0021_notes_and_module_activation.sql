@@ -3,7 +3,7 @@
 -- Petitions remains disabled until approved DOCX field mapping and workflow states are implemented.
 UPDATE app_modules
 SET is_enabled = true
-WHERE module_key IN ('calendar','institution_opinions','eced','notes','settings');
+WHERE module_key IN ('calendar','institution_opinions','eced','institution_guide','notes','settings');
 
 -- Migration 0013 enabled Petitions before its DOCX field mapping and approval flow
 -- existed. Keep its data and role grants, but hide the incomplete workspace until ready.
@@ -29,6 +29,12 @@ ON CONFLICT DO NOTHING;
 
 -- Notes are private to their owner regardless of role; the same CRUD capability is
 -- therefore safe to grant across roles without exposing another user's records.
+-- The standalone read-only guide uses the same project-scoped directory records as opinions.
+INSERT INTO role_module_permissions(role_id,module_key,permission_key)
+SELECT r.id,'institution_guide','view'
+FROM roles r
+ON CONFLICT DO NOTHING;
+
 INSERT INTO role_module_permissions(role_id,module_key,permission_key)
 SELECT r.id,'notes',p.permission_key
 FROM roles r
