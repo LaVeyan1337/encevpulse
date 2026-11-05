@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { validateChatAttachmentFiles, type UploadedChatFile } from './chat-attachments.js';
+import { CHAT_ATTACHMENT_USER_QUOTA_BYTES, validateChatAttachmentFiles, type UploadedChatFile } from './chat-attachments.js';
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
@@ -270,6 +270,14 @@ export class ChatService {
           throw new ConflictException({code:'MESSAGE_ATTACHMENT_IDEMPOTENCY_CONFLICT',message:'Bu gönderim kimliği farklı dosyalarla daha önce kullanılmış.'});
         }
       } else {
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext('chat-attachments-user:'||$1::text))`,[user.id]);
+        const usage=await client.query<{bytes:string}>(`SELECT COALESCE(sum(byte_size),0)::text AS bytes
+          FROM chat_attachments WHERE uploaded_by=$1 AND deleted_at IS NULL`,[user.id]);
+        const storedBytes=Number(usage.rows[0]?.bytes??'0');
+        const requestedBytes=files.reduce((total,file)=>total+file.byteSize,0);
+        if(!Number.isSafeInteger(storedBytes)||storedBytes+requestedBytes>CHAT_ATTACHMENT_USER_QUOTA_BYTES) {
+          throw invalid('Sohbet ekleri için kullanıcı başına 1 GB saklama sınırı doldu.');
+        }
         for(const file of files) {
           await client.query(
             `INSERT INTO chat_attachments(message_id,conversation_id,uploaded_by,original_name,mime_type,byte_size,sha256,content)
