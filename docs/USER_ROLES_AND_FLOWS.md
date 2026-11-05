@@ -22,7 +22,7 @@ Uygulamada rol izinleri modül ve eylem düzeyinde PostgreSQL'de tutulur. Geçer
 
 - İzin anahtarı: view, create, update, delete veya manage. manage ilgili modülde tüm eylemleri kapsar ve tek başına atanır.
 - Bir kullanıcının birden fazla rolü varsa izinler birleşir (OR). Bir rolden izin kaldırılması, başka bir rolden gelen yetkiyi iptal etmez.
-- Modül kapalıysa rol izni bulunsa da erişim reddedilir. Takvim, Drive, Kurum Rehberi, Kurum Görüşleri, Dilekçeler, e-ÇED, Notlarım ve Sistem Ayarları başlangıçta kapalıdır; süreç sahipleri kabul etmeden açılmaz.
+- Modül kapalıysa rol izni bulunsa da erişim reddedilir. Ortak Drive, bağımsız Kurum Rehberi ve Dilekçeler; kaynak dosya yetkisi, bağımsız kurum CRUD akışı ve gerçek alan doldurmalı Word üretimi tamamlanmadığı için kapalıdır. Kurum iletişim listesi, Kurum Görüşleri içindeki proje kapsamlı görünümde kullanılabilir. Takvim, Kurum Görüşleri, e-ÇED eklenti izleme ve Notlarım mevcut gerçek akışlarıyla etkinleştirilmiştir; otomatik yasal süre ve portal doğrulaması gibi eksik işlevler ayrıca tamamlanmış sayılmaz. Başlangıç izinleri süreç sahiplerince onaylanmalıdır.
 - system_admin rolünün Kullanıcılar, Rol/Modül İzinleri ve Sistem Ayarları yönetimi emniyet yetkisi kaldırılamaz. Bu rol iş verilerindeki tüm kayıtları otomatik görmez.
 - Modül yetkisi kayıt sahipliğinin yerine geçmez: görevler atama/oluşturan/proje üyeliği; projeler sahip/üye; sohbetler aktif konuşma üyeliğiyle ayrıca sınırlandırılır.
 - Çalışan hesabı oluşturma ekranı varsayılan employee seçer. Başka rol ilk kez seçildiğinde employee otomatik eklenmez; yönetici isterse ayrıca seçebilir. API roleCodes alanını hiç göndermezse eski entegrasyon uyumluluğu için employee varsayılanı uygulanır; açıkça boş rol listesi reddedilir.
