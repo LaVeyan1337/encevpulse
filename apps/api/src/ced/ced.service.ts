@@ -116,13 +116,13 @@ export class CedService {
        JOIN ced_institution_opinions opinion ON opinion.contact_id=contact.id AND opinion.archived_at IS NULL
        JOIN projects p ON p.id=opinion.project_id AND p.archived_at IS NULL AND p.status<>'archived'
        WHERE contact.archived_at IS NULL
-         AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+         AND ($2::boolean OR p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
            SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
          ))
        GROUP BY contact.id
        ORDER BY contact.institution_name,contact.contact_person
        LIMIT 1000`,
-      [user.id],
+      [user.id,user.roles.includes('system_admin')],
     );
     return { contacts: result.rows };
   }
