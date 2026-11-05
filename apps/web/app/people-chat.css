@@ -432,7 +432,8 @@
  .chat-thread{display:none}
  .chat-context{display:none}
  .chat-mobile-thread-open .chat-rail{display:none}
- .chat-mobile-thread-open .chat-thread{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;min-height:0;height:100%;overflow:hidden}
+ .chat-mobile-thread-open .chat-thread{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+ .chat-mobile-thread-open .chat-message-scroll{flex:1}
  .chat-thread-header{display:flex;gap:10px;padding:8px 10px}
  .chat-mobile-back{display:grid;place-items:center;flex:0 0 34px;width:34px;height:38px;border:0;border-radius:50%;background:transparent;color:var(--text);font-size:30px;line-height:1;cursor:pointer}
  .chat-thread-title{min-width:0;flex:1}
