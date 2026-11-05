@@ -556,7 +556,7 @@ export function CalendarWorkspace({
                     <button
                       type="button"
                       className="calendar-day-select"
-                      onClick={() => showDayPanel(day)}
+                      onClick={(clickEvent) => { clickEvent.stopPropagation(); showDayPanel(day); }}
                       aria-label={formatDate(day) + ', ' + entries.length + ' kayıt'}
                       aria-pressed={day === selectedDate}
                     >
