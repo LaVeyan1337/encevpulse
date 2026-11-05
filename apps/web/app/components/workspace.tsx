@@ -1020,7 +1020,7 @@ export function Workspace({
         </nav>
 
         <div className="sidebar-bottom">
-          <span className="sidebar-caption">EnÇev Çevre Mühendisliği</span>
+          <span className="sidebar-caption">ENÇEV ENERJİ</span>
         </div>
       </aside>
 
