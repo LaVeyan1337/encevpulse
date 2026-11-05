@@ -59,6 +59,7 @@ export function ChatWorkspace({
 }) {
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [selectedId,setSelectedId]=useState<string|null>(null);
+  const [mobileThreadOpen,setMobileThreadOpen]=useState(false);
   const [detail,setDetail]=useState<ChatDetail|null>(null);
   const [messages,setMessages]=useState<Message[]>([]);
   const [hasMoreMessages,setHasMoreMessages]=useState(false);
@@ -138,6 +139,7 @@ export function ChatWorkspace({
 
   const openConversation=useCallback(async(id:string)=>{
     setSelectedId(id);
+    setMobileThreadOpen(true);
     setError('');
     setDetail(null);
     setMessages([]);
@@ -547,7 +549,7 @@ export function ChatWorkspace({
   const canManage=Boolean(canUpdate&&(detail?.myRole==='owner'||detail?.myRole==='admin'));
 
   return (
-    <section className="chat-workspace" aria-label="Şirket içi sohbet">
+    <section className={"chat-workspace"+(mobileThreadOpen?" chat-mobile-thread-open":"")} aria-label="Şirket içi sohbet">
       <aside className="chat-rail">
         <div className="chat-rail-heading">
           <div><span className="eyebrow">EKİP İLETİŞİMİ</span><h2>Sohbetler</h2></div>
@@ -598,6 +600,7 @@ export function ChatWorkspace({
         {selected&&detail?(
           <>
             <header className="chat-thread-header">
+              <button type="button" className="chat-mobile-back" onClick={()=>setMobileThreadOpen(false)} aria-label="Sohbet listesine dön">‹</button>
               <div className="chat-thread-title">
                 {selected.type==='group'
                   ? <span className="chat-thread-avatar">✦</span>
