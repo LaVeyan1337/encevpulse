@@ -119,3 +119,19 @@
 :root[data-theme='light'] .calendar-scope-switch button{color:#526d89}
 :root[data-theme='light'] .calendar-scope-switch button[aria-pressed='true']{color:#fff}
 @media(max-width:560px){.calendar-scope-switch{width:100%}.calendar-scope-switch>span{padding-left:5px}.calendar-scope-switch button{flex:1;padding-inline:8px}}
+
+/* Contextual daily plan drawer */
+.calendar-day-cell{cursor:pointer}
+.calendar-day-drawer{display:grid;gap:18px;min-width:0}
+.calendar-day-drawer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.calendar-day-action-primary,.calendar-day-action-secondary{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 14px;border-radius:12px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:transform .16s ease,border-color .16s ease,background .16s ease}
+.calendar-day-action-primary{color:#fff;background:linear-gradient(135deg,#168b70,#08775e);border:1px solid rgba(59,190,153,.5);box-shadow:0 8px 22px rgba(4,118,91,.2)}
+.calendar-day-action-secondary{color:var(--text);background:var(--surface-raised);border:1px solid var(--border-strong)}
+.calendar-day-action-primary:hover,.calendar-day-action-secondary:hover{transform:translateY(-1px);border-color:var(--accent)}
+.calendar-day-drawer-list{display:grid;gap:10px;min-width:0}
+.calendar-day-drawer-row{display:grid;gap:6px;min-width:0;padding:12px;background:var(--surface-raised);border:1px solid var(--border);border-radius:12px}
+.calendar-day-drawer-row .calendar-entry{width:100%;min-width:0}
+.calendar-day-drawer-row>small{color:var(--text-muted);font-size:11px}
+.calendar-day-drawer-summary{display:flex;align-items:center;gap:9px;padding-top:13px;border-top:1px solid var(--border);color:var(--text-secondary);font-size:12px}
+.calendar-day-drawer-summary strong{color:var(--text);font-size:20px;font-variant-numeric:tabular-nums}
+@media(max-width:560px){.calendar-day-drawer-actions{grid-template-columns:1fr}.calendar-day-action-primary,.calendar-day-action-secondary{min-height:44px}}
