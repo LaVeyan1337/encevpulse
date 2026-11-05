@@ -982,7 +982,14 @@ export function ChatWorkspace({
                     />}
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
-              <div className="chat-thread-actions"><span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span><button type="button" className="chat-icon-button" onClick={()=>{setSideTab('members');setMobileContextOpen(true);}} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
+              <div className="chat-thread-actions">
+                <span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span>
+                {canCreate&&selected.type==='direct'&&!activeCall&&<>
+                  <button type="button" className="chat-icon-button chat-call-header-button" onClick={()=>void startCall('audio')} disabled={callBusy} aria-label="Sesli arama başlat" title="Sesli arama">☎</button>
+                  <button type="button" className="chat-icon-button chat-call-header-button" onClick={()=>void startCall('video')} disabled={callBusy} aria-label="Görüntülü arama başlat" title="Görüntülü arama">▣</button>
+                </>}
+                <button type="button" className="chat-icon-button" onClick={()=>{setSideTab('members');setMobileContextOpen(true);}} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button>
+              </div>
             </header>
             {detail.pinned.length>0&&(
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>
@@ -1165,9 +1172,50 @@ export function ChatWorkspace({
             {detail.pinned.length===0?<p>Henüz sabitlenmiş mesaj yok.</p>:detail.pinned.map(item=><button type="button" key={item.id} onClick={()=>{const target=document.getElementById('message-'+item.id);target?.scrollIntoView({behavior:'smooth',block:'center'});}}><strong>{item.senderName}</strong><span>{item.body}</span><time>{dateLabel(item.createdAt)}</time></button>)}
           </div>
         )}
-        <div className="chat-context-footer"><span>Dosya ekleri bu sürümde güvenlik ve saklama politikası netleşene kadar kapalıdır.</span></div>
+        <div className="chat-context-footer"><span>Sohbet ekleri ve aramalar erişim yetkisiyle korunur.</span></div>
       </aside>
 
+      {activeCall&&(
+        <div className="chat-call-backdrop">
+          {activeCall.status==='ringing'&&!activeCall.isCaller?(
+            <section className="chat-call-card chat-incoming-call" role="dialog" aria-modal="true" aria-label="Gelen arama">
+              <div className="chat-call-avatar">{activeCall.mediaType==='video'?'▣':'☎'}</div>
+              <span className="chat-call-kicker">GELEN {activeCall.mediaType==='video'?'GÖRÜNTÜLÜ':'SESLİ'} ARAMA</span>
+              <h2>{activeCall.peerName||'ENCEV PULSE kullanıcısı'}</h2>
+              <p>Bu sohbetten gelen aramayı kabul edebilir veya reddedebilirsiniz.</p>
+              <div className="chat-call-actions">
+                <button type="button" className="chat-call-decline" onClick={()=>void declineCall()} disabled={callBusy}>Reddet</button>
+                <button type="button" className="chat-call-accept" onClick={()=>void acceptCall()} disabled={callBusy}>{callBusy?'Bağlanıyor…':'Kabul et'}</button>
+              </div>
+            </section>
+          ):(
+            <section className="chat-call-card chat-active-call" role="dialog" aria-modal="true" aria-label="Aktif arama">
+              <header><div><span className="chat-call-kicker">{activeCall.mediaType==='video'?'GÖRÜNTÜLÜ ARAMA':'SESLİ ARAMA'}</span><h2>{activeCall.peerName||'Sohbet katılımcısı'}</h2><p>{activeCall.status==='ringing'?'Aranıyor…':remoteStream?'Bağlantı kuruldu':'Bağlantı kuruluyor…'}</p></div><span className="chat-call-state-dot"/></header>
+              {activeCall.mediaType==='video'?(
+                <div className="chat-call-video-stage">
+                  <video ref={remoteVideoRef} autoPlay playsInline className="chat-call-remote-video"/>
+                  {localStream&&<video ref={localVideoRef} autoPlay playsInline muted className="chat-call-local-video"/>}
+                  {!remoteStream&&<div className="chat-call-video-placeholder">Karşı tarafın görüntüsü bekleniyor…</div>}
+                </div>
+              ):(
+                <div className="chat-call-audio-stage">
+                  <div className="chat-call-avatar">☎</div>
+                  <audio ref={remoteAudioRef} autoPlay/>
+                  <span>{remoteStream?'Ses bağlantısı etkin':'Karşı tarafın sesi bekleniyor…'}</span>
+                </div>
+              )}
+              {!relayConfigured&&<p className="chat-call-network-note">TURN sunucusu ayarlı değil. Aynı ağda arama çalışabilir; farklı ev/ofis ağlarında bağlantı garanti değildir.</p>}
+              {callError&&<p className="chat-call-error" role="alert">{callError}</p>}
+              <div className="chat-call-actions">
+                <button type="button" className={!microphoneEnabled?'is-off':''} onClick={toggleMicrophone} disabled={!localStream} aria-label={microphoneEnabled?'Mikrofonu kapat':'Mikrofonu aç'}>{microphoneEnabled?'🎙 Mikrofon':'Mikrofon kapalı'}</button>
+                {activeCall.mediaType==='video'&&<button type="button" className={!cameraEnabled?'is-off':''} onClick={toggleCamera} disabled={!localStream} aria-label={cameraEnabled?'Kamerayı kapat':'Kamerayı aç'}>{cameraEnabled?'▣ Kamera':'Kamera kapalı'}</button>}
+                <button type="button" className="chat-call-decline" onClick={()=>void endCall()} disabled={callBusy}>{callBusy?'Kapatılıyor…':'Aramayı bitir'}</button>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+      {callError&&!activeCall&&<div className="chat-error" role="alert">{callError}<button type="button" onClick={()=>setCallError('')}>×</button></div>}
       {error&&<div className="chat-error" role="alert">{error}<button type="button" onClick={()=>setError('')}>×</button></div>}
 
       {canCreateTask&&taskDraftMessage&&(
