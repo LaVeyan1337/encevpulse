@@ -961,7 +961,7 @@ export function Workspace({
               setMobileNavOpen(false);
             }}
           >
-            <Icon name="book-open" />
+            <Icon name="folder" />
             <span>Kurum Rehberi</span>
           </button>
           )}
