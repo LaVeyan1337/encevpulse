@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { deflateRawSync } from 'node:zlib';
 import { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import test from 'node:test';
