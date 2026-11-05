@@ -32,11 +32,11 @@ CREATE INDEX petition_template_audit_time_idx
   ON petition_template_audit_events(template_id,created_at DESC);
 
 CREATE FUNCTION prevent_petition_template_audit_mutation()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $petition_template_audit$
 BEGIN
   RAISE EXCEPTION 'petition template audit events are append-only';
 END;
-$;
+$petition_template_audit$;
 
 CREATE TRIGGER petition_template_audit_events_append_only
 BEFORE UPDATE OR DELETE ON petition_template_audit_events
