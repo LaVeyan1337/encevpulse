@@ -51,7 +51,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(migration.includes('CREATE TABLE eced_browser_reports'));
   assert.ok(migration.includes('CREATE TABLE eced_account_claims'));
 
-  assert.deepEqual(manifest.optional_host_permissions, ['https://eced.csb.gov.tr/*']);
+  assert.deepEqual(manifest.optional_host_permissions, ['https://eced.csb.gov.tr/*','http://127.0.0.1/*','http://localhost/*']);
   assert.ok(!manifest.optional_host_permissions.includes('http://*/*'));
   assert.ok(!manifest.optional_host_permissions.includes('https://*/*'));
   assert.ok(manifest.permissions.includes('scripting'));
@@ -74,6 +74,9 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(worker.includes('chrome.tabs.onRemoved'));
   assert.ok(worker.includes("cfg.accountSources[tabKey] === 'portal'"));
   assert.ok(worker.includes('portal-account-observed'));
+  assert.ok(worker.includes('attachObserversToAllowedTabs'));
+  assert.ok(worker.includes("chrome.runtime.onStartup.addListener"));
+  assert.ok(worker.includes("chrome.tabs.onUpdated.addListener"));
   assert.ok(worker.includes('_sender?.tab'));
   assert.ok(worker.includes("accountSources[tabKey]==='manual'"));
 
