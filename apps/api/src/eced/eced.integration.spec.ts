@@ -102,11 +102,11 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(adminMonitor.response.status,200,JSON.stringify(adminMonitor.data));
     const adminPermissions=await api(base,admin,'auth/permissions/me');
     assert.equal(adminPermissions.response.status,200);
-    for(const moduleKey of ['eced','petitions']){
-      const module=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey===moduleKey);
-      assert.ok(module?.enabled,`System administrator should see ${moduleKey}.`);
-      assert.ok(module.actions.includes('manage'),`System administrator should manage ${moduleKey}.`);
-    }
+    const ecedModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='eced');
+    assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
+    assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
+    const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
+    assert.equal(petitionsModule?.enabled,false,'Petitions must remain disabled until the field-mapped approval workflow is ready.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
