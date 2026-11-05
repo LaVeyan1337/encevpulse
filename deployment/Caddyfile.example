@@ -1,0 +1,29 @@
+# Caddy reverse proxy for ENCEV PULSE (Windows host)
+#
+# Set these environment variables in the Caddy service process:
+#   PULSE_HOSTNAME = the exact internal DNS name approved by company IT
+#   PULSE_WEB_ROOT = C:/Code/encev-pulse/apps/web/build/client
+#
+# The API and PostgreSQL remain bound to host loopback. Do not expose ports
+# 3000 or 5432 to the LAN. Use a company-issued certificate where available.
+# "tls internal" requires distributing Caddy's root CA certificate to clients.
+
+{$PULSE_HOSTNAME} {
+    tls internal
+
+    encode zstd gzip
+
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:3000 {
+            # Keep SSE chat invalidation events low-latency.
+            flush_interval -1
+        }
+    }
+
+    handle {
+        root * {$PULSE_WEB_ROOT}
+        try_files {path} /index.html
+        file_server
+    }
+}
