@@ -17,7 +17,9 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 5. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile `.artifacts/browser-extension` klasörünü seçin.
 6. Eklenti seçeneklerinden aynı PULSE API adresini ve tek seferlik eşleştirme anahtarını girin. Eklenti, API bağlantısını doğrulamadan yeni ayarları kaydetmez ve yalnızca manifestteki sunucu hostu için izin ister. Genel `https://*/*` izni kullanılmaz.
 7. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. Kurulum/güncelleme sonrasında eklenti açık ve izinli portal sekmelerine yeniden bağlanmayı dener; tarayıcı yeniden başladığında da aynı işlem yapılır.
-8. Portal sekmesindeki eklenti penceresi açıldığında bağlantı sinyali otomatik test edilir. **Seçimlerimi kaydet ve sinyal gönder** düğmesi hesap etiketi/oturum seçimini kaydeder ve tekrar rapor gönderir. PULSE API yanıtı doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin.
+8. Portal sekmesindeki eklenti penceresi açıldığında bağlantı sinyali otomatik test edilir. **Seçimlerimi kaydet ve sinyal gönder** düğmesi hesap etiketi/oturum seçimini kaydeder ve tekrar rapor gönderir. PULSE API yanıtı doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin. Rapor isteği 10 saniyede zaman aşımına uğrar; sunucunun yalnızca HTTP 2xx dönmesi başarı sayılmaz, API'nin `queued: true` kabul yanıtı da doğrulanır. Birden fazla açık portal sekmesi sınırlı paralellikle raporlanır.
+
+Canlı sinyal, son rapordan itibaren 90 saniye içinde taze kabul edilir. Tarayıcı alarmının gecikmesi tek başına cihazı hemen eski duruma düşürmez.
 
 ## Hesap tanıma
 
