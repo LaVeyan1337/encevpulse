@@ -52,7 +52,7 @@ export class PetitionsService {
     const name = boundedText(body.name,2,160,'Şablon adı');
     const description = boundedText(body.description ?? '',0,1000,'Açıklama');
     const inspected = inspectUpload(file);
-    const inspection = inspectDocxTemplate(file.buffer);
+    const inspection = inspectDocxTemplate(inspected.file.buffer);
 
     const client = await this.db.pool.connect();
     try {
@@ -66,7 +66,7 @@ export class PetitionsService {
       const versionRow = await client.query<{id:string}>(
         `INSERT INTO petition_template_versions(template_id,version,file_name,content_sha256,byte_size,content,field_keys,created_by)
          VALUES($1,1,$2,$3,$4,$5,$6::text[],$7) RETURNING id`,
-        [templateId,inspected.fileName,inspection.sha256,inspection.size,file.buffer,inspection.fieldKeys,user.id],
+        [templateId,inspected.fileName,inspection.sha256,inspection.size,inspected.file.buffer,inspection.fieldKeys,user.id],
       );
       await client.query(
         `INSERT INTO petition_template_audit_events(template_id,actor_user_id,action,details)
@@ -458,7 +458,7 @@ export class PetitionsService {
   }
 }
 
-function inspectUpload(file: PetitionUploadFile | undefined): {fileName:string} {
+function inspectUpload(file: PetitionUploadFile | undefined): {file:PetitionUploadFile;fileName:string} {
   if (!file || !Buffer.isBuffer(file.buffer)) throw invalid('Bir Word şablonu seçin.');
   if (file.size < 22 || file.size > MAX_DOCX_BYTES || file.buffer.length !== file.size) {
     throw invalid('Word şablonu boş olamaz ve 12 MB sınırını aşamaz.');
@@ -466,7 +466,7 @@ function inspectUpload(file: PetitionUploadFile | undefined): {fileName:string} 
   if (!file.originalname.toLocaleLowerCase('tr-TR').endsWith('.docx')) throw invalid('Yalnızca .docx Word dosyası yüklenebilir.');
   const fileName = safeFileName(file.originalname);
   if (!fileName.toLocaleLowerCase('tr-TR').endsWith('.docx')) throw invalid('Word dosya adı geçersiz.');
-  return {fileName};
+  return {file,fileName};
 }
 function objectInput(value: unknown): Record<string,unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('Gönderilen veriler geçersiz.');
