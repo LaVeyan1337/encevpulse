@@ -107,8 +107,8 @@ test('Projeler çalışma alanı gerçek liste, detay, üyelik ve yaşam döngü
   assert.match(styles, /\.project-detail-hero/);
   assert.match(styles, /\.project-tabs/);
   assert.match(api, /@Get\('projects'\)/);
-  assert.match(workspace, /request\('projects'\)/);
-  assert.doesNotMatch(workspace, /request\('tasks\/projects'\)/);
+  assert.match(workspace, /request\('tasks\/projects'\)/);
+  assert.match(api, /@Get\('tasks\/projects'\)/);
   assert.match(api, /@Patch\('projects:\/id'\)|@Patch\('projects\/:id'\)/);
   assert.match(api, /@Post\('projects\/:id\/archive'\)/);
   assert.match(api, /@Post\('projects\/:id\/restore'\)/);
