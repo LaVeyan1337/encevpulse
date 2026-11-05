@@ -472,13 +472,24 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
           );
           await client.query('DELETE FROM user_notes WHERE owner_user_id = ANY($1::uuid[])', [cleanupIds]);
           await client.query('ALTER TABLE user_note_audit_events ENABLE TRIGGER user_note_audit_events_append_only');
-          if(linkedTaskId) {
-            await client.query('DELETE FROM notifications WHERE task_id=$1',[linkedTaskId]);
+          const fixtureTasks=await client.query<{id:string}>(
+            'SELECT id FROM tasks WHERE created_by=ANY($1::uuid[]) OR assignee_id=ANY($1::uuid[])',
+            [cleanupIds],
+          );
+          const fixtureTaskIds=fixtureTasks.rows.map(row=>row.id);
+          if(fixtureTaskIds.length) {
+            await client.query('DELETE FROM notifications WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('DELETE FROM message_task_links WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('LOCK TABLE task_comment_events IN ACCESS EXCLUSIVE MODE');
+            await client.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
+            await client.query('DELETE FROM task_comment_events WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
+            await client.query('ALTER TABLE task_comment_events ENABLE TRIGGER task_comment_events_append_only');
+            await client.query('DELETE FROM task_comments WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
             await client.query('LOCK TABLE task_audit_events IN ACCESS EXCLUSIVE MODE');
             await client.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
-            await client.query('DELETE FROM task_audit_events WHERE task_id=$1',[linkedTaskId]);
+            await client.query('DELETE FROM task_audit_events WHERE task_id=ANY($1::uuid[])',[fixtureTaskIds]);
             await client.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
-            await client.query('DELETE FROM tasks WHERE id=$1',[linkedTaskId]);
+            await client.query('DELETE FROM tasks WHERE id=ANY($1::uuid[])',[fixtureTaskIds]);
           }
           await client.query('LOCK TABLE auth_audit_events IN ACCESS EXCLUSIVE MODE');
           await client.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
