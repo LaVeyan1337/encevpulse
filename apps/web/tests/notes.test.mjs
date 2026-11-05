@@ -28,8 +28,11 @@ test('Notlarım gerçek API kullanır ve her sorguyu oturum sahibine sınırlar'
   assert.match(service,/t\\.created_by=\\$2 OR t\\.assignee_id=\\$2/);
   assert.match(component,/İlgili görev/);
   assert.match(component,/request\\('tasks\\?view=all/);
+  assert.match(component,/taskId:note\.taskId/);
+  assert.match(component,/Göreve bağlamadan kaydet/);
   assert.match(controller,/this\.access\.assertPermission/);
   assert.match(migration,/CREATE TABLE user_notes/);
+  assert.match(migration,/ADD COLUMN task_id uuid REFERENCES tasks/);
   assert.match(migration,/CREATE TABLE user_note_audit_events/);
   assert.match(root,/import '\.\/notes\.css'/);
   assert.doesNotMatch(component,/192\.168\.1\.55|smb:\/\/|file:\/\//i);
