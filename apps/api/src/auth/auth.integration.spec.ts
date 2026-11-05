@@ -74,6 +74,7 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
   const passwordHash = await hasher.hash(PASSWORD);
   let userId = '';
   let adminId = '';
+  let linkedTaskId = '';
   let app: Awaited<ReturnType<typeof NestFactory.create>> | null = null;
   const testStartedAt = new Date();
   const fixtureCutoff = new Date(Date.now() - 60 * 60 * 1000);
@@ -255,6 +256,7 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       });
       assert.equal(linkedTaskResponse.status,201);
       const linkedTask=(await linkedTaskResponse.json()).task;
+      linkedTaskId=linkedTask.id;
       const createdNoteResponse=await fetch(`${baseUrl}/api/notes`,{
         method:'POST',
         headers:{Origin:ORIGIN,Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken,'Content-Type':'application/json'},
@@ -470,6 +472,14 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
           );
           await client.query('DELETE FROM user_notes WHERE owner_user_id = ANY($1::uuid[])', [cleanupIds]);
           await client.query('ALTER TABLE user_note_audit_events ENABLE TRIGGER user_note_audit_events_append_only');
+          if(linkedTaskId) {
+            await client.query('DELETE FROM notifications WHERE task_id=$1',[linkedTaskId]);
+            await client.query('LOCK TABLE task_audit_events IN ACCESS EXCLUSIVE MODE');
+            await client.query('ALTER TABLE task_audit_events DISABLE TRIGGER task_audit_events_append_only');
+            await client.query('DELETE FROM task_audit_events WHERE task_id=$1',[linkedTaskId]);
+            await client.query('ALTER TABLE task_audit_events ENABLE TRIGGER task_audit_events_append_only');
+            await client.query('DELETE FROM tasks WHERE id=$1',[linkedTaskId]);
+          }
           await client.query('LOCK TABLE auth_audit_events IN ACCESS EXCLUSIVE MODE');
           await client.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');
           await client.query('DELETE FROM auth_audit_events WHERE actor_user_id = ANY($1::uuid[]) OR target_user_id = ANY($1::uuid[])', [cleanupIds]);
