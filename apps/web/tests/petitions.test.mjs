@@ -17,6 +17,7 @@ test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan
   assert.match(component, /new Blob\(\[bytes\]/);
   assert.match(component, /Şablonun özgün baytları değiştirilmeden kopya olarak indirildi/);
   assert.match(component, /Tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir/);
+  assert.match(component, /Sunucuya veya şirket NAS'ına aktarılmaz/);
   assert.match(component, /https:\/\/raw\.githubusercontent\.com\/LaVeyan1337\/12312/);
   assert.doesNotMatch(component, /fetch\(/);
   assert.match(component, /globalThis\.crypto\?\.subtle/);
@@ -28,7 +29,7 @@ test('Dilekçeler web sürümü yalnızca tarayıcı içindeki DOCX şablonundan
   assert.match(styles, /\.petition-export-button/);
   assert.match(styles, /\.petition-template-buttons/);
   assert.doesNotMatch(component, /192\.168\.1\.55|file:\/\/|fetch\(/);
-  assert.match(component, /Ortak Word kilidi ve bekleme sırası web’e aktarılmadı/);
+  assert.doesNotMatch(component, /Ortak Word kilidi ve bekleme sırası web’e aktarılmadı/);
   assert.match(styles, /\.petition-template-panel/);
   assert.match(root, /import '\.\/petitions\.css';/);
 });
