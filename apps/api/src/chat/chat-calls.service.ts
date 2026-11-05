@@ -271,6 +271,15 @@ export class ChatCallsService {
 
   async listSignals(user:AuthUser,callId:string,afterIdInput?:string) {
     assertUuid(callId);
+    const accessible=await this.db.query(
+      `SELECT 1 FROM chat_calls call_row
+       JOIN conversation_members member ON member.conversation_id=call_row.conversation_id
+         AND member.user_id=$2 AND member.left_at IS NULL
+       WHERE call_row.id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
+       LIMIT 1`,
+      [callId,user.id],
+    );
+    if(!accessible.rowCount)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
     const afterId=afterIdInput===undefined?'0':afterIdInput;
     if(!/^(0|[1-9][0-9]{0,18})$/.test(afterId))throw invalid('Arama sinyali imleci geçersiz.');
     if(BigInt(afterId)>BigInt('9223372036854775807'))throw invalid('Arama sinyali imleci geçersiz.');
