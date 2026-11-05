@@ -25,10 +25,10 @@ test('chat uploads normalize Windows paths and retain only a safe base filename'
 test('chat uploads reject mismatched MIME signatures and active-content file types',()=>{
   assert.throws(()=>validateChatAttachmentFiles([
     uploaded('fake.png','image/png',Buffer.from('<script>alert(1)</script>')),
-  ]),/i);
+  ]),/uzantısı veya içeriği desteklenen türle eşleşmiyor/);
   assert.throws(()=>validateChatAttachmentFiles([
     uploaded('payload.svg','image/svg+xml',Buffer.from('<svg/>')),
-  ]),/i);
+  ]),/Bu dosya türüne izin verilmiyor/);
 });
 
 test('chat uploads enforce per-file, per-message and file-count limits',()=>{
