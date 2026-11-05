@@ -75,7 +75,7 @@ export class ChatController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(ChatUploadGuard)
   @UseInterceptors(FilesInterceptor('files',5,{
-    limits:{files:5,fileSize:12*1024*1024,fields:3,fieldSize:5000},
+    limits:{files:5,fileSize:12*1024*1024,fields:3,fieldSize:5000,parts:8},
   }))
   async sendAttachments(
     @Req() request: ChatUploadRequest,
