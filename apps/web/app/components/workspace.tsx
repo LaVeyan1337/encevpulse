@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Drawer } from './drawer';
 import { ChatWorkspace } from './chat-workspace';
 import { PeopleDirectory } from './people-directory';
+import { CalendarWorkspace } from './calendar-workspace';
+import { InstitutionOpinionsWorkspace } from './institution-opinions-workspace';
+import { InstitutionGuideWorkspace } from './institution-guide-workspace';
+import { EcedWorkspace, EcedAccountOverview } from './eced-workspace';
+import { CedWorkspace } from './ced-workspace';
+import { PetitionsWorkspace } from './petitions-workspace';
+import { NotesWorkspace } from './notes-workspace';
+import { EmployeeAvatar } from './avatars';
 import { CommentListSkeleton, OverviewSkeleton, ProjectDetailSkeleton, ProjectGridSkeleton, TaskBoardSkeleton, TimelineSkeleton } from './skeletons';
 
 export interface User {
@@ -10,6 +18,7 @@ export interface User {
   email: string;
   displayName: string;
   roles: string[];
+  modulePermissions?:Array<{moduleKey:string;displayName:string;enabled:boolean;actions:string[]}>;
   jobTitle?: string;
   department?: string;
   avatarKey?: string;
@@ -47,12 +56,14 @@ export interface Person {
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'archived';
+const projectTypeLabels:Record<string,string>={res:'RES',ges:'GES',maden:'Maden',yk_ges:'YK GES',storage:'Depolama',other:'Diğer'};
 
 export interface Project {
   id: string;
   name: string;
   description: string;
   status: ProjectStatus;
+  projectType: 'res'|'ges'|'maden'|'yk_ges'|'storage'|'other';
   taskCount: number;
   completedTaskCount: number;
   memberCount: number;
@@ -108,10 +119,12 @@ export interface Summary {
 
 export interface Notification {
   id: string;
-  eventType: 'task.assigned' | 'task.comment';
-  taskId: string;
+  eventType: 'task.assigned' | 'task.comment' | 'chat.message';
+  taskId: string | null;
+  conversationId: string | null;
   taskTitle: string;
   actorName: string | null;
+  preview: string | null;
   createdAt: string;
   readAt: string | null;
 }
@@ -148,7 +161,7 @@ export interface TaskActivityItem {
 
 export type TaskStatus = 'open' | 'in_progress' | 'waiting' | 'done';
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
-export type Section = 'overview' | 'tasks' | 'projects' | 'people' | 'chat' | 'users';
+export type Section = 'overview' | 'tasks' | 'projects' | 'calendar' | 'institution_opinions' | 'institution_guide' | 'eced' | 'petitions' | 'notes' | 'people' | 'chat' | 'users';
 
 const columns: { value: TaskStatus; label: string }[] = [
   { value: 'open', label: 'Açık' },
@@ -234,6 +247,12 @@ export function Workspace({
   children?: ReactNode;
 }) {
   const [section, setSection] = useState<Section>('overview');
+  const hasModulePermission=useCallback((moduleKey:string,action='view')=>{
+    const snapshot=user.modulePermissions;
+    if(!snapshot)return false;
+    const module=snapshot.find(item=>item.moduleKey===moduleKey);
+    return Boolean(module?.enabled&&(module.actions.includes(action)||module.actions.includes('manage')));
+  },[user.modulePermissions,user.roles]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hasMoreTasks, setHasMoreTasks] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -248,13 +267,14 @@ export function Workspace({
   const [people, setPeople] = useState<Person[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [chatStartUserId, setChatStartUserId] = useState<string | null>(null);
+  const [chatStartConversationId, setChatStartConversationId] = useState<string | null>(null);
   const [projectView, setProjectView] = useState<'active' | 'archived'>('active');
   const [projectDetail, setProjectDetail] = useState<ProjectDetails | null>(null);
   const [projectDetailOpen, setProjectDetailOpen] = useState(false);
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectError, setProjectError] = useState('');
   const [projectEditing, setProjectEditing] = useState(false);
-  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members'>('overview');
+  const [projectTab, setProjectTab] = useState<'overview' | 'tasks' | 'members' | 'opinions' | 'ced'>('overview');
   const [projectRestoreStatus, setProjectRestoreStatus] = useState<'' | 'planning' | 'active' | 'on_hold' | 'completed'>('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -289,6 +309,12 @@ export function Workspace({
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(()=>{
+    if(hasModulePermission(section))return;
+    const next=(['overview','tasks','projects','calendar','institution_opinions','eced','petitions','notes','people','chat','users'] as Section[]).filter(item=>hasModulePermission(item));
+    if(next[0])setSection(next[0]);
+  },[section,hasModulePermission]);
+
   const taskListPath = useCallback(
     (offset: number) => {
       const parts = [
@@ -306,6 +332,7 @@ export function Workspace({
 
   const request = useCallback(
     async (path: string, method = 'GET', data?: unknown) => {
+      const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
       const response = await fetch(`/api/${path}`, {
         method,
         credentials: 'same-origin',
@@ -313,8 +340,8 @@ export function Workspace({
         headers:
           data === undefined
             ? {}
-            : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-        ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+            : { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), 'X-CSRF-Token': csrfToken },
+        ...(data === undefined ? {} : { body: isFormData ? data : JSON.stringify(data) }),
       });
       if (response.status === 401) {
         onExpired();
@@ -335,18 +362,12 @@ export function Workspace({
     setLoading(true);
     setError('');
     try {
-      const [
-        taskResult,
-        summaryResult,
-        peopleResult,
-        notificationResult,
-        activityResult,
-      ] = await Promise.all([
-        request(taskListPath(0)),
-        request('tasks/summary'),
-        request('tasks/people'),
-        request('notifications'),
-        request('tasks/activity'),
+      const [taskResult,summaryResult,peopleResult,notificationResult,activityResult]=await Promise.all([
+        hasModulePermission('tasks')?request(taskListPath(0)):Promise.resolve({tasks:[],page:{hasMore:false}}),
+        hasModulePermission('tasks')?request('tasks/summary'):Promise.resolve({summary:{assignedTotal:0,open:0,completed:0,overdue:0,upcoming:0},upcoming:[]}),
+        hasModulePermission('people')?request('tasks/people'):Promise.resolve({people:[]}),
+        hasModulePermission('notifications')?request('notifications'):Promise.resolve({notifications:[],unreadCount:0}),
+        hasModulePermission('tasks')?request('tasks/activity'):Promise.resolve({activity:[]}),
       ]);
       setTasks(taskResult.tasks as Task[]);
       setHasMoreTasks(Boolean(taskResult.page?.hasMore));
@@ -360,14 +381,16 @@ export function Workspace({
       });
       setUpcoming(summaryResult.upcoming as Task[]);
       setPeople(peopleResult.people as Person[]);
-      try {
-        const projectResult = await request('tasks/projects');
-        setProjects(projectResult.projects as Project[]);
-        setProjectError('');
-      } catch (projectCause) {
-        setProjects([]);
-        setProjectError(projectCause instanceof Error ? projectCause.message : 'Projeler yüklenemedi.');
-      }
+      if(hasModulePermission('projects')) {
+        try {
+          const projectResult=await request('tasks/projects');
+          setProjects(projectResult.projects as Project[]);
+          setProjectError('');
+        } catch(projectCause) {
+          setProjects([]);
+          setProjectError(projectCause instanceof Error?projectCause.message:'Projeler yüklenemedi.');
+        }
+      } else {setProjects([]);setProjectError('');}
       setNotifications(notificationResult.notifications as Notification[]);
       setUnreadCount(Number(notificationResult.unreadCount) || 0);
       setActivity(activityResult.activity as Activity[]);
@@ -376,11 +399,24 @@ export function Workspace({
     } finally {
       setLoading(false);
     }
-  }, [request, taskListPath]);
+  }, [request, taskListPath, hasModulePermission]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    if ((section !== 'people' && section !== 'chat' && section !== 'projects') || !hasModulePermission('people')) return;
+    let cancelled = false;
+    request('tasks/people')
+      .then((result) => {
+        if (!cancelled && Array.isArray(result.people)) setPeople(result.people as Person[]);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Çalışan listesi yenilenemedi.');
+      });
+    return () => { cancelled = true; };
+  }, [section, request, hasModulePermission]);
+
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSettledQuery(query), 250);
@@ -453,7 +489,7 @@ export function Workspace({
   async function openNotification(notification: Notification) {
     setError('');
     try {
-      if (!notification.readAt) {
+      if (!notification.readAt && hasModulePermission('notifications','update')) {
         await request(`notifications/${notification.id}/read`, 'POST', {});
         setNotifications((items) =>
           items.map((item) =>
@@ -462,10 +498,18 @@ export function Workspace({
         );
         setUnreadCount((count) => Math.max(0, count - 1));
       }
+      setNotificationsOpen(false);
+      if (notification.eventType === 'chat.message' && notification.conversationId) {
+        setChatStartConversationId(notification.conversationId);
+        setChatStartUserId(null);
+        setSection('chat');
+        return;
+      }
+      if (!notification.taskId) throw new Error('Bildirim kaydının hedef görevi bulunamadı.');
+      if(!hasModulePermission('tasks','view'))throw new Error('Bu görev bildirimini açmak için görev görüntüleme izniniz bulunmuyor.');
       const result = await request(`tasks/${notification.taskId}`);
       setSelected(result.task as Task);
       setSection('tasks');
-      setNotificationsOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Bildirim açılamadı.');
     }
@@ -489,6 +533,7 @@ export function Workspace({
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(!hasModulePermission('tasks',selected?'update':'create'))return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError('');
@@ -525,7 +570,7 @@ export function Workspace({
   }
 
   async function moveTask(task: Task, status: TaskStatus) {
-    if (task.status === status) return;
+    if (!hasModulePermission('tasks','update')||task.status === status) return;
     setError('');
     try {
       const res = await request(`tasks/${task.id}`, 'PATCH', { status, version: task.version });
@@ -539,6 +584,7 @@ export function Workspace({
   }
 
   async function archiveTask(task: Task, restore = false) {
+    if(!hasModulePermission('tasks',restore?'update':'delete'))return;
     setError('');
     try {
       await request(`tasks/${task.id}/${restore ? 'restore' : 'archive'}`, 'POST', {
@@ -554,7 +600,7 @@ export function Workspace({
 
   async function submitTaskComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !commentDraft.trim()) return;
+    if (!hasModulePermission('tasks','create')||!selected || !commentDraft.trim()) return;
     setCommentBusy(true);
     setCommentError('');
     try {
@@ -570,7 +616,7 @@ export function Workspace({
   }
 
   async function saveTaskComment(comment: TaskComment) {
-    if (!selected || !editingCommentBody.trim()) return;
+    if (!hasModulePermission('tasks','update')||!selected || !editingCommentBody.trim()) return;
     setCommentBusy(true);
     setCommentError('');
     try {
@@ -589,7 +635,7 @@ export function Workspace({
   }
 
   async function removeTaskComment(comment: TaskComment) {
-    if (!selected) return;
+    if (!hasModulePermission('tasks','delete')||!selected) return;
     if (!window.confirm('Bu yorumu silmek istediğinizden emin misiniz? Yorum metni kaldırılacaktır.')) return;
     setCommentBusy(true);
     setCommentError('');
@@ -612,18 +658,21 @@ export function Workspace({
   async function loadProjects(nextView: 'active' | 'archived') {
     setProjectView(nextView);
     setLoading(true);
-    setError('');
+    setProjectError('');
     try {
       const result = await request(`projects?view=${nextView}`);
       setProjects(Array.isArray(result.projects) ? result.projects as Project[] : []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Projeler alınamadı.');
+      setProjectError(cause instanceof Error ? cause.message : 'Projeler alınamadı.');
     } finally {
       setLoading(false);
     }
   }
 
-  const clearChatStart = useCallback(() => setChatStartUserId(null), []);
+  const clearChatStart = useCallback(() => {
+    setChatStartUserId(null);
+    setChatStartConversationId(null);
+  }, []);
 
   async function openChatTask(taskId: string) {
     try {
@@ -636,13 +685,13 @@ export function Workspace({
     }
   }
 
-  async function openProject(projectId: string) {
+  async function openProject(projectId: string, initialTab?: 'overview' | 'opinions' | 'ced') {
     setProjectDetailOpen(true);
     setProjectLoading(true);
     setProjectEditing(false);
     setProjectError('');
     setProjectDetail(null);
-    setProjectTab('overview');
+    setProjectTab(initialTab ?? (hasModulePermission('eced') ? 'ced' : 'overview'));
     setProjectRestoreStatus('');
     try {
       const result = await request(`projects/${projectId}`);
@@ -656,7 +705,7 @@ export function Workspace({
 
   async function saveProjectDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectDetail) return;
+    if (!hasModulePermission('projects','update')||!projectDetail) return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setProjectError('');
@@ -666,6 +715,7 @@ export function Workspace({
         name: form.get('name'),
         description: form.get('description'),
         status: form.get('status'),
+        projectType: form.get('projectType') || 'other',
         ownerId: form.get('ownerId'),
         startsOn: form.get('startsOn') || null,
         targetOn: form.get('targetOn') || null,
@@ -684,7 +734,7 @@ export function Workspace({
   }
 
   async function toggleProjectArchive() {
-    if (!projectDetail) return;
+    if (!projectDetail || !hasModulePermission('projects',projectDetail.project.archivedAt?'update':'delete')) return;
     const archived = Boolean(projectDetail.project.archivedAt) || projectDetail.project.status === 'archived';
     const legacyArchive = archived && !projectDetail.project.statusBeforeArchive;
     if (legacyArchive && !projectRestoreStatus) {
@@ -727,6 +777,7 @@ export function Workspace({
 
   async function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(!hasModulePermission('projects','create'))return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setProjectError('');
@@ -735,6 +786,7 @@ export function Workspace({
       await request('projects', 'POST', {
         name: form.get('name'),
         description: form.get('description'),
+        projectType: form.get('projectType') || 'other',
         status: form.get('status') || 'planning',
         startsOn: form.get('startsOn') || null,
         targetOn: form.get('targetOn') || null,
@@ -784,7 +836,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : 'Kullanıcılar';
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'institution_guide' ? 'Kurum Rehberi' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : (user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar');
 
   return (
     <div className="workspace-shell">
@@ -809,6 +861,7 @@ export function Workspace({
         </a>
 
         <nav aria-label="Ana gezinme" className="workspace-nav">
+          {hasModulePermission('overview') && (
           <button
             type="button"
             className={section === 'overview' ? 'nav-item selected' : 'nav-item'}
@@ -820,6 +873,8 @@ export function Workspace({
             <Icon name="home" />
             <span>Genel Bakış</span>
           </button>
+          )}
+          {hasModulePermission('tasks') && (
           <button
             type="button"
             className={section === 'tasks' ? 'nav-item selected' : 'nav-item'}
@@ -831,6 +886,21 @@ export function Workspace({
             <Icon name="check" />
             <span>Görevler</span>
           </button>
+          )}
+          {hasModulePermission('calendar') && (
+          <button
+            type="button"
+            className={section === 'calendar' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('calendar');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="calendar-days" />
+            <span>Takvim &amp; Yasal Süreçler</span>
+          </button>
+          )}
+          {hasModulePermission('people') && (
           <button
             type="button"
             className={section === 'people' ? 'nav-item selected' : 'nav-item'}
@@ -842,6 +912,8 @@ export function Workspace({
             <Icon name="users" />
             <span>Çalışanlar</span>
           </button>
+          )}
+          {hasModulePermission('chat') && (
           <button
             type="button"
             className={section === 'chat' ? 'nav-item selected' : 'nav-item'}
@@ -853,6 +925,8 @@ export function Workspace({
             <Icon name="message" />
             <span>Sohbet</span>
           </button>
+          )}
+          {hasModulePermission('projects') && (
           <button
             type="button"
             className={section === 'projects' ? 'nav-item selected' : 'nav-item'}
@@ -864,7 +938,73 @@ export function Workspace({
             <Icon name="folder" />
             <span>Projeler</span>
           </button>
-          {user.roles.includes('system_admin') && (
+          )}
+          {hasModulePermission('institution_opinions') && (
+          <button
+            type="button"
+            className={section === 'institution_opinions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('institution_opinions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Kurum Görüşleri</span>
+          </button>
+          )}
+          {hasModulePermission('institution_guide') && (
+          <button
+            type="button"
+            className={section === 'institution_guide' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('institution_guide');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Kurum Rehberi</span>
+          </button>
+          )}
+          {hasModulePermission('eced') && (
+          <button
+            type="button"
+            className={section === 'eced' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('eced');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="calendar-days" />
+            <span>e-ÇED Takip</span>
+          </button>
+          )}
+          {hasModulePermission('petitions') && (
+          <button
+            type="button"
+            className={section === 'petitions' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('petitions');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Dilekçeler</span>
+          </button>
+          )}
+          {hasModulePermission('notes') && (
+          <button
+            type="button"
+            className={section === 'notes' ? 'nav-item selected' : 'nav-item'}
+            onClick={() => {
+              setSection('notes');
+              setMobileNavOpen(false);
+            }}
+          >
+            <Icon name="folder" />
+            <span>Notlarım</span>
+          </button>
+          )}
+          {hasModulePermission('users') && (
             <button
               type="button"
               className={section === 'users' ? 'nav-item selected' : 'nav-item'}
@@ -874,7 +1014,7 @@ export function Workspace({
               }}
             >
               <Icon name="users" />
-              <span>Kullanıcılar</span>
+              <span>{user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar'}</span>
             </button>
           )}
         </nav>
@@ -945,7 +1085,7 @@ export function Workspace({
           </button>
 
           {/* Notifications button & popover */}
-          <div className="notification-menu">
+{hasModulePermission('notifications') && <div className="notification-menu">
             <button
               className="notification-button"
               type="button"
@@ -979,32 +1119,48 @@ export function Workspace({
                       <span className="notification-title">{notification.taskTitle}</span>
                       <span className="notification-description">
                         {notification.actorName ?? 'Bir kullanıcı'}{' '}
-                        {notification.eventType === 'task.comment' ? 'göreve yorum ekledi' : 'görevi size atadı'}
+                        {notification.eventType === 'chat.message'
+                          ? 'sohbete yeni mesaj gönderdi'
+                          : notification.eventType === 'task.comment'
+                            ? 'göreve yorum ekledi'
+                            : 'görevi size atadı'}
                       </span>
+                      {notification.preview && <span className="notification-preview">{notification.preview}</span>}
                       <time>{dateTimeLabel(notification.createdAt)}</time>
                     </button>
                   ))
                 )}
               </section>
             )}
-          </div>
+          </div>}
 
           {/* User Profile Menu */}
           <details className="user-menu">
             <summary>
-              <span className="user-avatar">
-                {user.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-              </span>
+              <EmployeeAvatar avatarKey={user.avatarKey} name={user.displayName} size="sm"/>
               <span className="user-menu-name">{user.displayName}</span>
               <span className="chevron">⌄</span>
             </summary>
             <div className="user-menu-popover">
               <div className="user-profile-summary">
                 <strong>{user.displayName}</strong>
+                <span>{user.jobTitle || 'Görev belirtilmedi'} · {user.department || 'Birim belirtilmedi'}</span>
                 <span>{user.email}</span>
-                <span className="user-role-tag">
-                  {user.roles.includes('system_admin') ? 'Sistem Yöneticisi' : 'Çalışan'}
-                </span>
+                <div className="user-profile-roles">
+                  {user.roles.map((role) => (
+                    <span className="user-role-tag" key={role}>
+                      {({
+                        employee:'Çalışan',
+                        team_lead:'Ekip sorumlusu',
+                        project_manager:'Proje yöneticisi',
+                        process_owner:'Süreç sahibi',
+                        document_steward:'Belge sorumlusu',
+                        auditor:'Denetçi',
+                        system_admin:'Sistem yöneticisi',
+                      } as Record<string,string>)[role] ?? role}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="user-menu-divider" />
               <button
@@ -1036,7 +1192,7 @@ export function Workspace({
               <p className="eyebrow">ENCEV PULSE</p>
               <h1>{sectionTitle}</h1>
             </div>
-            {section === 'projects' && (
+            {section === 'projects' && hasModulePermission('projects','create') && (
               <div className="heading-actions">
                 <button
                   type="button"
@@ -1047,16 +1203,16 @@ export function Workspace({
                 </button>
               </div>
             )}
-            {section === 'tasks' && (
+            {section === 'tasks' && (hasModulePermission('tasks','create')||hasModulePermission('projects','create')) && (
               <div className="heading-actions">
-                <button
+                {hasModulePermission('projects','create')&&<button
                   type="button"
                   className="secondary-button compact-button"
                   onClick={() => setProjectFormOpen(true)}
                 >
                   Proje oluştur
-                </button>
-                <button
+                </button>}
+                {hasModulePermission('tasks','create')&&<button
                   type="button"
                   className="primary-button compact-button"
                   onClick={() => {
@@ -1065,7 +1221,7 @@ export function Workspace({
                   }}
                 >
                   Görev oluştur
-                </button>
+                </button>}
               </div>
             )}
           </div>
@@ -1168,6 +1324,8 @@ export function Workspace({
                   <strong>{summary.completed}</strong>
                 </button>
               </div>
+
+              {hasModulePermission('eced') && <EcedAccountOverview request={request} onOpen={() => setSection('eced')} />}
 
               <div className="overview-dual-grid">
                 {/* Upcoming tasks */}
@@ -1371,7 +1529,7 @@ export function Workspace({
                   <Icon name="check" />
                   <strong>Görev bulunamadı</strong>
                   <span>Seçili filtrelerle eşleşen kayıt bulunmuyor.</span>
-                  <button
+                  {hasModulePermission('tasks','create')&&<button
                     type="button"
                     className="primary-button compact-button"
                     onClick={() => {
@@ -1380,7 +1538,7 @@ export function Workspace({
                     }}
                   >
                     Yeni görev oluştur
-                  </button>
+                  </button>}
                 </div>
               ) : layout === 'board' ? (
                 /* Kanban Board View */
@@ -1393,11 +1551,13 @@ export function Workspace({
                         key={column.value}
                         className={`kanban-column${isDragOver ? ' kanban-column-dragover' : ''}`}
                         onDragOver={(event) => {
+                           if(!hasModulePermission('tasks','update'))return;
                           event.preventDefault();
                           setDragOverColumn(column.value);
                         }}
                         onDragLeave={() => setDragOverColumn(null)}
                         onDrop={(event) => {
+                           if(!hasModulePermission('tasks','update'))return;
                           event.preventDefault();
                           setDragOverColumn(null);
                           const taskId = event.dataTransfer.getData('text/plain');
@@ -1417,7 +1577,7 @@ export function Workspace({
                             <div
                               key={task.id}
                               className="task-card"
-                              draggable
+                              draggable={hasModulePermission('tasks','update')}
                               onDragStart={(event) => {
                                 event.dataTransfer.setData('text/plain', task.id);
                               }}
@@ -1438,9 +1598,7 @@ export function Workspace({
                                 <span className="task-card-title">{task.title}</span>
                                 <div className="task-card-meta">
                                   <span className="task-card-assignee">
-                                    <span className="assignee-avatar-sm">
-                                      {task.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                                    </span>
+                                    <EmployeeAvatar avatarKey={people.find((person) => person.id === task.assigneeId)?.avatarKey} name={task.assigneeName} size="sm"/>
                                     <span>{task.assigneeName}</span>
                                   </span>
                                   {task.dueOn && (
@@ -1513,9 +1671,7 @@ export function Workspace({
                           </td>
                           <td>
                             <span className="table-assignee">
-                              <span className="assignee-avatar-sm">
-                                {task.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                              </span>
+                              <EmployeeAvatar avatarKey={people.find((person) => person.id === task.assigneeId)?.avatarKey} name={task.assigneeName} size="sm"/>
                               <span>{task.assigneeName}</span>
                             </span>
                           </td>
@@ -1569,25 +1725,107 @@ export function Workspace({
             </section>
           )}
 
+          {section === 'calendar' && hasModulePermission('calendar') && (
+            <CalendarWorkspace
+              request={request}
+              people={people}
+              projects={projects}
+              currentUserId={user.id}
+              canCreate={hasModulePermission('calendar','create')}
+              canUpdate={hasModulePermission('calendar','update')}
+              canDelete={hasModulePermission('calendar','delete')}
+              canViewTasks={hasModulePermission('tasks')}
+              canViewProjects={hasModulePermission('projects')}
+              canViewCed={hasModulePermission('eced')}
+              canViewOpinions={hasModulePermission('institution_opinions')}
+              onTaskOpen={(taskId) => void openChatTask(taskId)}
+              onProjectOpen={(projectId) => void openProject(projectId)}
+            />
+          )}
+
+          {section === 'institution_opinions' && hasModulePermission('institution_opinions') && (
+            <InstitutionOpinionsWorkspace
+              request={request}
+              projects={projects}
+              canCreate={hasModulePermission('institution_opinions','create')}
+              canUpdate={hasModulePermission('institution_opinions','update')}
+              canDelete={hasModulePermission('institution_opinions','delete')}
+              canOpenProject={hasModulePermission('projects')}
+              onOpenProject={(projectId) => { void openProject(projectId, 'opinions'); }}
+            />
+          )}
+
+          {section === 'institution_guide' && hasModulePermission('institution_guide') && (
+            <InstitutionGuideWorkspace
+              request={request}
+              canOpenOpinions={hasModulePermission('institution_opinions')}
+              onOpenOpinions={()=>setSection('institution_opinions')}
+            />
+          )}
+
+          {section === 'eced' && hasModulePermission('eced') && (
+            <EcedWorkspace
+              request={request}
+              currentUserId={user.id}
+              canCreate={hasModulePermission('eced','create')}
+              canUpdate={hasModulePermission('eced','update')}
+              canDelete={hasModulePermission('eced','delete')}
+            />
+          )}
+
+          {section === 'petitions' && hasModulePermission('petitions') && (
+            <PetitionsWorkspace
+              projects={projects.map(({id,name,status})=>({id,name,status}))}
+              canCreate={hasModulePermission('petitions','create')}
+            />
+          )}
+
+          {section === 'notes' && hasModulePermission('notes') && (
+            <NotesWorkspace
+              request={request}
+              projects={projects.map(({id,name,status})=>({id,name,status}))}
+              canCreate={hasModulePermission('notes','create')}
+              canUpdate={hasModulePermission('notes','update')}
+              canDelete={hasModulePermission('notes','delete')}
+              canViewTasks={hasModulePermission('tasks','view')}
+            />
+          )}
+
           {section === 'people' && (
             <PeopleDirectory
               people={people}
+              currentUserId={user.id}
+              canMessage={hasModulePermission('chat','view')&&hasModulePermission('chat','create')}
               onMessage={(person) => {
                 setChatStartUserId(person.id);
+                setChatStartConversationId(null);
                 setSection('chat');
               }}
             />
           )}
 
-          {section === 'chat' && (
-            <ChatWorkspace
-              request={request}
-              people={people}
-              currentUserId={user.id}
-              startUserId={chatStartUserId}
-              onStartConsumed={clearChatStart}
-              onTaskOpen={(taskId) => void openChatTask(taskId)}
-            />
+          {hasModulePermission('chat') && (
+            <div
+              className={section === 'chat' ? 'chat-workspace-host' : 'chat-workspace-host is-background'}
+              aria-hidden={section !== 'chat'}
+            >
+              <ChatWorkspace
+                request={request}
+                people={people}
+                currentUserId={user.id}
+                projects={projects.filter((project) => project.status !== 'archived' && !project.archivedAt).map(({id,name,status}) => ({id,name,status}))}
+                startUserId={chatStartUserId}
+                initialConversationId={chatStartConversationId}
+                onStartConsumed={clearChatStart}
+                onTaskOpen={(taskId) => void openChatTask(taskId)}
+                canCreate={hasModulePermission('chat','create')}
+                canUpdate={hasModulePermission('chat','update')}
+                canDelete={hasModulePermission('chat','delete')}
+                canCreateTask={hasModulePermission('chat','create')&&hasModulePermission('tasks','create')}
+                canViewTasks={hasModulePermission('tasks','view')}
+                isActive={section === 'chat'}
+              />
+            </div>
           )}
 
           {/* Project Workspace */}
@@ -1611,7 +1849,7 @@ export function Workspace({
                   <Icon name="folder" />
                   <strong>{projectView === 'active' ? 'Henüz proje bulunmuyor' : 'Arşivlenmiş proje yok'}</strong>
                   <span>{projectView === 'active' ? 'Oluşturduğunuz veya üyesi olduğunuz projeler burada görünür.' : 'Arşivlenen projeler bu alanda listelenir.'}</span>
-                  {projectView === 'active' && (
+                  {projectView === 'active' && hasModulePermission('projects','create') && (
                     <button type="button" className="primary-button compact-button" onClick={() => setProjectFormOpen(true)}>İlk projeyi oluştur</button>
                   )}
                 </div>
@@ -1630,7 +1868,10 @@ export function Workspace({
                         aria-label={`${project.name} projesini aç`}
                       >
                         <div className="project-card-top">
-                          <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                          <div className="project-card-tags">
+                            <span className={`project-status-badge project-status-${project.status}`}>{projectStatusLabel(project.status)}</span>
+                            <span className={`project-kind-tag project-kind-${project.projectType||'other'}`}>{projectTypeLabels[project.projectType]??'Diğer'}</span>
+                          </div>
                           <span className="project-card-code">#{project.id.slice(0, 6).toUpperCase()}</span>
                         </div>
                         <h2>{project.name}</h2>
@@ -1648,7 +1889,7 @@ export function Workspace({
                         </div>
                         <div className="project-card-footer">
                           <span className="project-card-owner">
-                            <span className="assignee-avatar-sm">{(project.ownerName || 'S').trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                            <EmployeeAvatar avatarKey={people.find((person) => person.id === project.ownerId)?.avatarKey} name={project.ownerName || 'Proje sahibi'} size="sm"/>
                             <span>{project.ownerName || 'Sahip bilgisi yok'}</span>
                           </span>
                           <span>{Number(project.memberCount ?? 0)} üye</span>
@@ -1663,7 +1904,7 @@ export function Workspace({
           )}
 
           {/* User Management Section (Admin Only) */}
-          {section === 'users' && children}
+          {hasModulePermission('users') && section === 'users' && children}
         </main>
       </div>
 
@@ -1829,20 +2070,20 @@ export function Workspace({
         footer={
           selected && (
             <>
-              <button
+              {hasModulePermission('tasks',selected.archivedAt?'update':'delete')&&<button
                 type="button"
                 className="secondary-button"
                 onClick={() => void archiveTask(selected, Boolean(selected.archivedAt))}
               >
                 {selected.archivedAt ? 'Arşivden çıkar' : 'Arşivle'}
-              </button>
-              <button
+              </button>}
+              {hasModulePermission('tasks','update')&&<button
                 type="button"
                 className="primary-button"
                 onClick={() => setTaskFormOpen(true)}
               >
                 Görevi düzenle
-              </button>
+              </button>}
             </>
           )
         }
@@ -1853,7 +2094,7 @@ export function Workspace({
             <div className="drawer-quick-actions">
               <span className="quick-actions-label">Durum:</span>
               <div className="quick-status-buttons">
-                {columns.map((col) => (
+                {columns.map((col) => hasModulePermission('tasks','update') ? (
                   <button
                     key={col.value}
                     type="button"
@@ -1862,7 +2103,7 @@ export function Workspace({
                   >
                     {col.label}
                   </button>
-                ))}
+                ) : null)}
               </div>
             </div>
 
@@ -1885,9 +2126,7 @@ export function Workspace({
               <div>
                 <dt>Sorumlu</dt>
                 <dd className="detail-person">
-                  <span className="assignee-avatar-sm">
-                    {selected.assigneeName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}
-                  </span>
+                  <EmployeeAvatar avatarKey={people.find((person) => person.id === selected.assigneeId)?.avatarKey} name={selected.assigneeName} size="sm"/>
                   <span>{selected.assigneeName}</span>
                 </dd>
               </div>
@@ -1956,9 +2195,9 @@ export function Workspace({
                         {comment.updatedAt !== comment.createdAt && !comment.deletedAt && (
                           <span className="task-comment-edited">Düzenlendi</span>
                         )}
-                        {comment.isMine && !comment.deletedAt && !selected.archivedAt && (
+                        {comment.isMine && !comment.deletedAt && !selected.archivedAt && (hasModulePermission('tasks','update')||hasModulePermission('tasks','delete')) && (
                           <div className="task-comment-actions">
-                            <button
+                            {hasModulePermission('tasks','update')&&<button
                               type="button"
                               onClick={() => {
                                 setEditingCommentId(comment.id);
@@ -1966,12 +2205,12 @@ export function Workspace({
                                 setCommentError('');
                               }}
                               disabled={commentBusy}
-                            >Düzenle</button>
-                            <button
+                            >Düzenle</button>}
+                            {hasModulePermission('tasks','delete')&&<button
                               type="button"
                               onClick={() => void removeTaskComment(comment)}
                               disabled={commentBusy}
-                            >Sil</button>
+                            >Sil</button>}
                           </div>
                         )}
                       </div>
@@ -2005,7 +2244,7 @@ export function Workspace({
                 </div>
               )}
 
-              {!selected.archivedAt ? (
+              {!selected.archivedAt && hasModulePermission('tasks','create') ? (
                 <form className="task-comment-compose" onSubmit={submitTaskComment}>
                   <label htmlFor="task-comment-draft">Yorum ekle</label>
                   <textarea
@@ -2024,9 +2263,9 @@ export function Workspace({
                     </button>
                   </div>
                 </form>
-              ) : (
+              ) : selected.archivedAt ? (
                 <p className="muted-line">Arşivlenmiş görevlerde yorum eklenemez.</p>
-              )}
+              ) : null}
             </section>
           </div>
         )}
@@ -2071,6 +2310,14 @@ export function Workspace({
               required
               autoFocus
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="project-type">Proje türü</label>
+            <select id="project-type" name="projectType" defaultValue="other">
+              <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+              <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+            </select>
           </div>
 
           <div className="form-group">
@@ -2134,19 +2381,19 @@ export function Workspace({
             projectEditing ? (
               <>
                 <button type="button" className="secondary-button" onClick={() => setProjectEditing(false)}>Vazgeç</button>
-                <button type="submit" form="project-edit-form" className="primary-button" disabled={busy}>
+                {hasModulePermission('projects','update')&&<button type="submit" form="project-edit-form" className="primary-button" disabled={busy}>
                   {busy ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
-                </button>
+                </button>}
               </>
             ) : (
               <>
                 <button type="button" className="secondary-button" onClick={() => setProjectDetailOpen(false)}>Kapat</button>
                 {(projectDetail.project.createdBy === user.id || projectDetail.project.ownerId === user.id || user.roles.includes('system_admin')) && (
                   <>
-                    <button type="button" className="secondary-button" onClick={() => void toggleProjectArchive()} disabled={busy}>
+                    {hasModulePermission('projects',projectDetail.project.archivedAt||projectDetail.project.status==='archived'?'update':'delete')&&<button type="button" className="secondary-button" onClick={() => void toggleProjectArchive()} disabled={busy}>
                       {projectDetail.project.archivedAt || projectDetail.project.status === 'archived' ? 'Arşivden çıkar' : 'Projeyi arşivle'}
-                    </button>
-                    {!projectDetail.project.archivedAt && projectDetail.project.status !== 'archived' && (
+                    </button>}
+                    {!projectDetail.project.archivedAt && projectDetail.project.status !== 'archived' && hasModulePermission('projects','update') && (
                       <button type="button" className="primary-button" onClick={() => {
                         setProjectError('');
                         setProjectEditing(true);
@@ -2172,6 +2419,13 @@ export function Workspace({
               <div className="form-group">
                 <label htmlFor="project-edit-description">Proje amacı ve kapsamı</label>
                 <textarea id="project-edit-description" name="description" defaultValue={projectDetail.project.description} maxLength={4000} rows={4} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="project-edit-type">Proje türü</label>
+                <select id="project-edit-type" name="projectType" defaultValue={projectDetail.project.projectType ?? 'other'}>
+                  <option value="res">RES</option><option value="ges">GES</option><option value="maden">Maden</option>
+                  <option value="yk_ges">Yardımcı Kaynak GES (YK GES)</option><option value="storage">Depolama tesisi</option><option value="other">Diğer</option>
+                </select>
               </div>
               <div className="form-pair">
                 <div className="form-group">
@@ -2223,6 +2477,7 @@ export function Workspace({
                   <span className={'project-status-badge project-status-' + projectDetail.project.status}>
                     {projectStatusLabel(projectDetail.project.status)}
                   </span>
+                  <span className={`project-kind-tag project-kind-${projectDetail.project.projectType||'other'}`}>{projectTypeLabels[projectDetail.project.projectType]??'Diğer'}</span>
                   {projectDetail.project.archivedAt && <span className="project-archived-tag">Arşivlenmiş</span>}
                   <h3>{projectDetail.project.name}</h3>
                   <p>{projectDetail.project.description || 'Bu proje için açıklama eklenmemiş.'}</p>
@@ -2270,6 +2525,8 @@ export function Workspace({
                 <button type="button" role="tab" aria-selected={projectTab === 'overview'} onClick={() => setProjectTab('overview')}>Genel bakış</button>
                 <button type="button" role="tab" aria-selected={projectTab === 'tasks'} onClick={() => setProjectTab('tasks')}>Görevler <span>{projectDetail.tasks.length}</span></button>
                 <button type="button" role="tab" aria-selected={projectTab === 'members'} onClick={() => setProjectTab('members')}>Üyeler <span>{projectDetail.members.length}</span></button>
+                {hasModulePermission('eced') && <button type="button" role="tab" aria-selected={projectTab === 'ced'} onClick={() => setProjectTab('ced')}>ÇED Süreci</button>}
+                {hasModulePermission('institution_opinions') && <button type="button" role="tab" aria-selected={projectTab === 'opinions'} onClick={() => setProjectTab('opinions')}>Kurum Görüşleri</button>}
               </div>
 
               {projectTab === 'overview' && (
@@ -2324,12 +2581,41 @@ export function Workspace({
                   <div className="project-member-list">
                     {projectDetail.members.map((member) => (
                       <div className="project-member-row" key={member.id}>
-                        <span className="user-avatar">{member.displayName.trim().slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                        <EmployeeAvatar avatarKey={people.find((person) => person.id === member.id)?.avatarKey} name={member.displayName} size="md"/>
                         <div><strong>{member.displayName}</strong><span>{member.username}</span></div>
                         {member.isOwner && <span className="project-owner-label">Proje sahibi</span>}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {projectTab === 'ced' && hasModulePermission('eced') && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <CedWorkspace
+                    projectId={projectDetail.project.id}
+                    request={request}
+                    canCreate={hasModulePermission('eced','create')}
+                    canUpdate={hasModulePermission('eced','update')}
+                    canViewOpinions={hasModulePermission('institution_opinions')}
+                    canCreateOpinions={hasModulePermission('institution_opinions','create')}
+                    canUpdateOpinions={hasModulePermission('institution_opinions','update')}
+                  />
+                </div>
+              )}
+
+              {projectTab === 'opinions' && hasModulePermission('institution_opinions') && (
+                <div className="project-tab-panel" role="tabpanel">
+                  <InstitutionOpinionsWorkspace
+                    request={request}
+                    projects={projects}
+                    projectId={projectDetail.project.id}
+                    canCreate={hasModulePermission('institution_opinions','create')}
+                    canUpdate={hasModulePermission('institution_opinions','update')}
+                    canDelete={hasModulePermission('institution_opinions','delete')}
+                    canOpenProject={false}
+                    onOpenProject={()=>{}}
+                  />
                 </div>
               )}
             </div>
@@ -2423,7 +2709,7 @@ export function Workspace({
   );
 }
 
-function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' }) {
+function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' | 'calendar-days' }) {
   let path = null;
   if (name === 'home') {
     path = (
@@ -2452,6 +2738,14 @@ function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message
       <>
         <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 0 1 10.5 7h2A7.5 7.5 0 0 1 20 14.5z" />
         <path d="M8 12h8M8 15h5" />
+      </>
+    );
+  } else if (name === 'calendar-days') {
+    path = (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 10h18" />
+        <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
       </>
     );
   } else if (name === 'folder') {

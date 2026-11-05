@@ -121,10 +121,12 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
   const authService = await readFile(new URL('../../api/src/auth/auth.service.ts', import.meta.url), 'utf8');
   const authController = await readFile(new URL('../../api/src/auth/auth.controller.ts', import.meta.url), 'utf8');
   const chatController = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
-  const migration = await readFile(new URL('../../drizzle/0006_people_and_chat.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../../drizzle/0006_people_and_chat.sql', import.meta.url), 'utf8');
 
   assert.match(workspace, /<PeopleDirectory/);
   assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /hasModulePermission\('chat'\)/);
+  assert.match(workspace, /if\(!snapshot\)return false/);
   assert.match(workspace, /setChatStartUserId\(person.id\)/);
   assert.match(people, /Çalışan rehberi/);
   assert.match(people, /Meslek|Birim/);
@@ -137,7 +139,6 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
   assert.match(chat, /chat\/messages/);
   assert.match(chat, /clientRequestId/);
   assert.match(chat, /create-task/);
-  assert.match(chat, /conversation_member/);
   assert.match(authService, /job_title/);
   assert.match(authService, /department/);
   assert.match(authService, /avatar_key/);
@@ -151,4 +152,86 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
   assert.match(migration, /CREATE TABLE messages/);
   assert.match(migration, /CREATE TABLE message_reactions/);
   assert.match(migration, /CREATE TABLE conversation_read_cursors/);
+});
+
+
+test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet başlatır', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const directory = await readFile(new URL('../app/components/people-directory.tsx', import.meta.url), 'utf8');
+  const avatars = await readFile(new URL('../app/components/avatars.tsx', import.meta.url), 'utf8');
+  const admin = await readFile(new URL('../app/routes/home.tsx', import.meta.url), 'utf8');
+
+  assert.match(workspace, /<PeopleDirectory/);
+  assert.match(workspace, /<ChatWorkspace/);
+  assert.match(workspace, /hasModulePermission\('chat'\)/);
+  assert.match(workspace, /if\(!snapshot\)return false/);
+  assert.match(workspace, /setChatStartUserId\(person\.id\)/);
+  assert.match(directory, /Çalışan rehberi/);
+  assert.match(directory, /Birim filtresi/);
+  assert.match(directory, /onMessage\(person\)/);
+  assert.match(directory, /jobTitle/);
+  assert.match(directory, /department/);
+  assert.match(avatars, /panda/);
+  assert.match(avatars, /penguin/);
+  assert.match(admin, /new-job-title/);
+  assert.match(admin, /new-department/);
+  assert.match(admin, /Sistem rolleri/);
+  assert.match(admin, /users\/\$\{editingUserId\}\/profile/);
+  assert.match(admin, /Rol \/ İşlem İzinleri/);
+  assert.match(admin, /Modül Durumu/);
+  assert.match(admin, /api\/auth\/permissions\//);
+});
+
+test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı kullanır', async () => {
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../app/people-chat.css', import.meta.url), 'utf8');
+  const motion = await readFile(new URL('../app/motion.css', import.meta.url), 'utf8');
+  const api = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
+
+  assert.match(chat, /chat\/conversations/);
+  assert.match(chat, /chat\/search\?q=/);
+  assert.match(chat, /replyToId/);
+  assert.match(chat, /reactions/);
+  assert.match(chat, /create-task/);
+  assert.match(chat, /Mesajdan görev/);
+  assert.match(chat, /taskDraftAssigneeId/);
+  assert.match(chat, /taskDraftProjectId/);
+  assert.match(chat, /Gruptan ayrıl/);
+  assert.match(chat, /Sohbet sahibi/);
+  assert.match(chat, /members\/(?:\$\{member\.id\}|'\s*\+\s*member\.id\s*\+\s*')\/role/);
+  assert.match(chat, /new EventSource\('\/api\/chat\/events'\)/);
+  assert.match(chat, /conversation\.updated/);
+  assert.match(chat, /15000/);
+  assert.match(chat, /Gönderim başarısız/);
+  assert.match(chat, /Sohbet ekleri ve aramalar erişim yetkisiyle korunur/);
+  assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);
+  assert.match(styles, /\.people-card/);
+  assert.match(motion, /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?\.chat-message/);
+  assert.match(api, /@Post\('conversations\/\:id\/messages'\)/);
+  assert.match(api, /@Patch\('messages\/\:id'\)/);
+  assert.match(api, /@Post\('messages\/\:id\/create-task'\)/);
+  assert.match(api, /@Patch\('conversations\/\:id\/members\/\:userId\/role'\)/);
+});
+
+
+test('Üst bildirim menüsü sohbet bildirimini okuyup doğru konuşmayı açar', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const service = await readFile(new URL('../../api/src/tasks/tasks.service.ts', import.meta.url), 'utf8');
+  assert.match(workspace, /eventType === 'chat\.message'/);
+  assert.match(workspace, /hasModulePermission\('notifications'\)/);
+  assert.match(service, /includeChat/);
+  assert.match(service, /includeTasks/);
+  assert.match(workspace, /hasModulePermission\('notifications','update'\)/);
+  assert.match(workspace, /setChatStartConversationId\(notification\.conversationId\)/);
+  assert.match(workspace, /initialConversationId=\{chatStartConversationId\}/);
+  assert.match(workspace, /notification\.preview/);
+  assert.match(service, /'chat\.message'::text AS "eventType"/);
+  assert.match(service, /UPDATE chat_notifications cn SET read_at/);
+});
+
+test('Takvim çalışma alanı navigasyonda yalnızca modül izniyle görünür', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /hasModulePermission\('calendar'\)/);
+  assert.match(workspace, /setSection\('calendar'\)/);
+  assert.match(workspace, /Takvim &amp; Yasal Süreçler/);
 });

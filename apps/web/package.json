@@ -1,0 +1,28 @@
+{
+  "name": "@encev-pulse/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev",
+    "prebuild": "node -e \"import('node:fs').then(fs => { fs.mkdirSync('build/server/assets', { recursive: true }); fs.mkdirSync('build/client/assets', { recursive: true }); });\"",
+    "build": "react-router build",
+    "test": "tsx --test tests/theme.test.ts tests/user-copy.test.mjs tests/health-client.test.mjs tests/workspace.test.mjs tests/ced.test.mjs tests/eced.test.mjs tests/petitions.test.mjs tests/workspace-usability.test.mjs tests/nas-boundary.test.mjs tests/notes.test.mjs tests/module-admin.test.mjs tests/institution-guide.test.mjs",
+    "typecheck": "react-router typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-router/node": "^7.9.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.9.5",
+    "isbot": "^5"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^7.9.5",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "typescript": "^6.0.0",
+    "vite": "^7.1.12"
+  }
+}

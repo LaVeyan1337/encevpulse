@@ -1,0 +1,22 @@
+{
+  "name": "encev-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB \"npm run start:dev --workspace @encev-pulse/api\" \"npm run dev --workspace @encev-pulse/web\"",
+    "dev:api": "npm run start:dev --workspace @encev-pulse/api",
+    "dev:web": "npm run dev --workspace @encev-pulse/web",
+    "build": "npm run build --workspace @encev-pulse/api && npm run build --workspace @encev-pulse/web",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "extension:build": "node scripts/build-extension.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.6"
+  }
+}

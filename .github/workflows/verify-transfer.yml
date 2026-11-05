@@ -1,0 +1,104 @@
+name: Temporary transfer verification
+
+on:
+  push:
+    branches:
+      - transfer/encev-pulse-source-20261103
+      - feature/calendar-foundation-20261103
+      - feature/ced-case-management-20261103
+      - feature/institution-opinions-and-visual-clarity-20261104
+      - feature/workspace-usability-chat-calendar-20261104
+      - feature/ced-project-flow-opinions-20261104
+      - feature/whatsapp-calendar-opinion-directory-20261105
+      - feature/chat-media-audio-20261105
+      - feature/chat-webrtc-calls-20261105
+      - feature/eced-extension-report-diagnostics-20261105
+      - feature/global-chat-call-overlay-20261105
+      - feature/eced-chat-hardening-20261105
+      - feature/notes-module-settings-activation-20261105
+      - feature/eced-monitoring-reliability-20261105
+      - feature/chat-conversation-isolation-20261105
+      - release/company-internal-2026-11-05
+    paths:
+      - "apps/**"
+      - "drizzle/**"
+      - "package.json"
+      - "package-lock.json"
+      - "docs/**"
+      - "browser_extension/**"
+      - ".github/workflows/verify-transfer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: encev_pulse_dev
+          POSTGRES_USER: encev_dev
+          POSTGRES_PASSWORD: ci-only-password-not-a-user-secret
+          TZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U encev_dev -d encev_pulse_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout isolated source branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Create disposable CI-only environment
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_PASSWORD=ci-only-password-not-a-user-secret
+          DB_HOST=127.0.0.1
+          DB_PORT=5432
+          DB_NAME=encev_pulse_dev
+          DB_USER=encev_dev
+          API_PORT=3000
+          APP_ORIGIN=http://127.0.0.1:5173
+          AUTH_COOKIE_SECURE=false
+          AUTH_RATE_LIMIT_SECRET=ci-only-rate-limit-secret-not-for-deployment
+          TRUSTED_PROXY_IPS=
+          EOF
+      - name: Apply migrations to disposable PostgreSQL
+        run: npm run db:migrate --workspace @encev-pulse/api
+      - name: Run API and web tests
+        run: npm test
+      - name: TypeScript checks
+        run: npm run typecheck
+      - name: Production builds
+        run: npm run build
+      - name: Validate exact-origin extension package
+        env:
+          PULSE_API_BASE: https://pulse-ci.invalid/api
+        run: npm run extension:build
+      - name: Package validated source (exclude temporary CI workflow)
+        if: success()
+        run: |
+          mkdir -p /tmp/encev-pulse-export
+          git archive HEAD | tar -x -C /tmp/encev-pulse-export
+          rm -rf /tmp/encev-pulse-export/.github
+          cd /tmp/encev-pulse-export
+          zip -qr /tmp/encev-pulse-validated-source.zip .
+      - name: Upload validated source archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: encev-pulse-validated-source
+          path: /tmp/encev-pulse-validated-source.zip
+          if-no-files-found: error
+          retention-days: 1

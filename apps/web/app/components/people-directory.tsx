@@ -25,11 +25,15 @@ const roleLabels: Record<string,string> = {
 export function PeopleDirectory({
   people,
   loading = false,
+  currentUserId,
   onMessage,
+  canMessage = true,
 }: {
   people: DirectoryPerson[];
   loading?: boolean;
+  currentUserId: string;
   onMessage: (person: DirectoryPerson) => void;
+  canMessage?: boolean;
 }) {
   const [query,setQuery]=useState('');
   const [department,setDepartment]=useState('all');
@@ -103,9 +107,11 @@ export function PeopleDirectory({
               </div>
               <div className="people-card-footer">
                 <span title={person.email||''}>{person.email||'E-posta yok'}</span>
-                <button type="button" onClick={()=>onMessage(person)}>
-                  <span aria-hidden="true">↗</span> Sohbet
-                </button>
+                {person.id===currentUserId
+                  ? <span className="people-self-label">Siz</span>
+                  : canMessage ? <button type="button" onClick={()=>onMessage(person)}>
+                      <span aria-hidden="true">↗</span> Sohbet
+                    </button> : null}
               </div>
             </article>
           ))}
