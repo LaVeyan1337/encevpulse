@@ -157,11 +157,20 @@ async function reportAllTabs() {
 async function schedule() {
   await chrome.alarms.create(ALARM_NAME, {periodInMinutes:MIN_REPORT_INTERVAL_MINUTES});
 }
-chrome.runtime.onInstalled.addListener(() => { void schedule(); });
-chrome.runtime.onStartup.addListener(() => { void schedule(); void attachObserversToAllowedTabs(); void reportAllTabs(); });
+async function initializeBrowserState() {
+  await schedule();
+  await attachObserversToAllowedTabs();
+  await reportAllTabs();
+}
+chrome.runtime.onInstalled.addListener(() => { void initializeBrowserState(); });
+chrome.runtime.onStartup.addListener(() => { void initializeBrowserState(); });
 chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM_NAME) void reportAllTabs(); });
 chrome.tabs.onActivated.addListener(async info => {
-  try { await sendTabReport(await chrome.tabs.get(info.tabId)); } catch {}
+  try {
+    const tab = await chrome.tabs.get(info.tabId);
+    await attachPortalObserver(tab);
+    await sendTabReport(tab);
+  } catch {}
 });
 chrome.tabs.onUpdated.addListener((tabId,changeInfo,tab) => {
   if (changeInfo.url) {
@@ -213,6 +222,7 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
         sendResponse(reportStatus(false, 'tab_unavailable', 'Etkin tarayıcı sekmesi bulunamadı.'));
         return;
       }
+      await attachPortalObserver(tabs[0]);
       sendResponse(await sendTabReport(tabs[0]));
     }).catch(() => sendResponse(reportStatus(false, 'browser_error', 'Tarayıcı sekmesi sorgulanamadı.')));
     return true;
