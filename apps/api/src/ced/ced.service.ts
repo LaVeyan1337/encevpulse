@@ -551,7 +551,7 @@ export class CedService {
   async updateOpinion(user: AuthUser, opinionId: string, input: unknown) {
     assertUuid(opinionId, 'Kurum görüşü');
     const value = objectInput(input);
-    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     assertVersion(value.version);
     if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
     const client = await this.db.pool.connect();
