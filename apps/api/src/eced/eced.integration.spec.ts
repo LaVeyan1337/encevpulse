@@ -106,7 +106,8 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
     assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
     const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(petitionsModule?.enabled,false,'Petitions must remain disabled until the field-mapped approval workflow is ready.');
+    assert.equal(petitionsModule?.enabled,true,'The browser-local DOCX template workflow is enabled.');
+    assert.ok(petitionsModule.actions.includes('manage'),'System administrator should fully manage enabled Petitions.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
