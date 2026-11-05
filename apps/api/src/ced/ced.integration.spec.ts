@@ -28,6 +28,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
   const hash = await hasher.hash('Yerel-CED-Test-Parolasi-2026!');
   const userIds: string[] = [];
   const projectIds: string[] = [];
+  const directoryContactIds: string[] = [];
   let caseId = '';
   let ptdCaseId = '';
   let finalPtdCaseId = '';
@@ -86,6 +87,68 @@ test('ÇED API: route-specific milestones, document completion and project acces
     await app.listen(0, '127.0.0.1');
     const base = 'http://127.0.0.1:' + (app.getHttpServer().address() as AddressInfo).port;
     const [projectManager, processOwner, outsider, employee] = await Promise.all(names.map((name) => signIn(base, name)));
+
+    const directoryDraft = {
+      institutionName: 'Kurum Rehberi Test ' + suffix,
+      institutionType: 'Kamu kurumu',
+      website: 'https://example.gov.tr',
+      contactPerson: 'Test Yetkilisi',
+      title: 'Uzman',
+      department: 'Çevre',
+      phone: '+90 312 000 00 00',
+      email: 'rehber.' + suffix + '@example.gov.tr',
+      address: 'Ankara',
+      sourceLabel: 'Resmî internet sitesi',
+      sourceReference: 'https://example.gov.tr/iletisim',
+      verifiedAt: '2026-11-04',
+    };
+    const directoryCreate = await api(base, processOwner, 'ced/directory', 'POST', directoryDraft);
+    assert.equal(directoryCreate.response.status, 201, JSON.stringify(directoryCreate.data));
+    const directoryContactId = directoryCreate.data.contact.id as string;
+    directoryContactIds.push(directoryContactId);
+    assert.equal(directoryCreate.data.contact.version, 1);
+    assert.equal(directoryCreate.data.contact.sourceLabel, directoryDraft.sourceLabel);
+    assert.equal(directoryCreate.data.contact.verifiedAt, directoryDraft.verifiedAt);
+
+    const employeeDirectory = await api(base, employee, 'ced/directory');
+    assert.equal(employeeDirectory.response.status, 200);
+    assert.ok(employeeDirectory.data.contacts.some((entry: {id:string})=>entry.id===directoryContactId),
+      'Çalışanlar paylaşılan kurum rehberini görüntüleyebilir.');
+    const employeeCannotEditDirectory = await api(base, employee, 'ced/directory/'+directoryContactId, 'PATCH', {});
+    assert.equal(employeeCannotEditDirectory.response.status, 403,
+      'Kurum rehberinde görüntüleme yetkisi düzenleme yetkisi vermez.');
+
+    const duplicateDirectory = await api(base, processOwner, 'ced/directory', 'POST', directoryDraft);
+    assert.equal(duplicateDirectory.response.status, 409, 'Aynı kurum ve iletişim kişisi için ikinci kayıt açılmamalı.');
+
+    const directoryUpdate = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'PATCH', {
+      ...directoryDraft,
+      institutionName: directoryDraft.institutionName + ' Güncel',
+      sourceLabel: 'Telefon teyidi',
+      sourceReference: '05.11.2026 tarihli telefon görüşmesi',
+      verifiedAt: '2026-11-05',
+      expectedVersion: 1,
+    });
+    assert.equal(directoryUpdate.response.status, 200, JSON.stringify(directoryUpdate.data));
+    assert.equal(directoryUpdate.data.contact.version, 2);
+    assert.equal(directoryUpdate.data.contact.sourceLabel, 'Telefon teyidi');
+
+    const staleDirectoryUpdate = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'PATCH', {
+      ...directoryDraft, expectedVersion: 1,
+    });
+    assert.equal(staleDirectoryUpdate.response.status, 409, 'Eski sürümle gelen güncelleme kaydı ezmemeli.');
+
+    const directoryArchive = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'DELETE', {});
+    assert.equal(directoryArchive.response.status, 204);
+    const directoryAfterArchive = await api(base, processOwner, 'ced/directory');
+    assert.equal(directoryAfterArchive.response.status, 200);
+    assert.ok(!directoryAfterArchive.data.contacts.some((entry: {id:string})=>entry.id===directoryContactId),
+      'Arşivlenen kayıt aktif rehber listesinden çıkmalı.');
+    const directoryAudit = await pool.query<{count:string}>(
+      'SELECT count(*)::text AS count FROM institution_directory_audit_events WHERE contact_id=$1',
+      [directoryContactId],
+    );
+    assert.equal(directoryAudit.rows[0].count, '3', 'Oluşturma, güncelleme ve arşivleme denetim kaydı bırakmalı.');
 
     const denied = await api(base, employee, 'ced/projects/00000000-0000-4000-8000-000000000001');
     assert.equal(denied.response.status, 403);
@@ -396,6 +459,12 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('DELETE FROM project_members WHERE project_id=ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM projects WHERE id=ANY($1::uuid[])', [projectIds]);
         await cleanup.query('ALTER TABLE project_audit_events ENABLE TRIGGER project_audit_events_append_only');
+      }
+      if (directoryContactIds.length) {
+        await cleanup.query('ALTER TABLE institution_directory_audit_events DISABLE TRIGGER institution_directory_audit_events_append_only');
+        await cleanup.query('DELETE FROM institution_directory_audit_events WHERE contact_id=ANY($1::uuid[])', [directoryContactIds]);
+        await cleanup.query('DELETE FROM ced_institution_contacts WHERE id=ANY($1::uuid[])', [directoryContactIds]);
+        await cleanup.query('ALTER TABLE institution_directory_audit_events ENABLE TRIGGER institution_directory_audit_events_append_only');
       }
       if (userIds.length) {
         await cleanup.query('DELETE FROM ced_institution_contacts WHERE created_by=ANY($1::uuid[]) OR updated_by=ANY($1::uuid[])', [userIds]);
