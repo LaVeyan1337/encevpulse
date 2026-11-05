@@ -195,17 +195,11 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
   const selectedProject=projects.find(item=>item.id===selectedProjectId);
   return <section className="petitions-workspace" aria-label="Dilekçeler">
     <header className="petitions-intro">
-      <div><span className="petitions-kicker">WORD BELGE ÇALIŞMA ALANI</span><h2>Dilekçeler</h2>
-        <p>Seçtiğiniz Word örneğinden proje için ayrı ve özgün biçimi korunmuş taslak kopyası oluşturun.</p></div>
+      <h2>Dilekçeler</h2>
     </header>
     {error&&<div className="petitions-alert" role="alert">{error}</div>}
     {notice&&<div className="petitions-notice" role="status"><span>{notice}</span><button type="button" onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
-
-    <div className="petitions-capability-grid">
-      <article><span className="petitions-capability-icon">▤</span><div><strong>Word biçimi korunur</strong><p>Şablonun sayfa düzeni, logo, görseller, başlık ve altbilgileri yeniden oluşturulmaz; dosya baytları aynen kopyalanır.</p></div></article>
-      <article><span className="petitions-capability-icon">⌂</span><div><strong>Tarayıcıda yerel saklama</strong><p>Şablon yalnızca bu bilgisayarın bu tarayıcı profiline kaydedilir. Sunucuya veya şirket NAS'ına aktarılmaz.</p></div></article>
-      <article><span className="petitions-capability-icon">↗</span><div><strong>Proje bazlı dosya adı</strong><p>Seçtiğiniz proje, taslak dosyasının adına eklenir. Word belgesinin içindeki alanlar otomatik değiştirilmez.</p></div></article>
-    </div>
+    <p className="petitions-limit-note">Bu ekran şablonun yerel kopyasını indirir; Word içindeki alanları otomatik doldurmaz.</p>
 
     <section className="petition-template-panel">
       <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>Mevcut dolu örneği ya da kurumunuzca onaylanmış bir DOCX belgesini seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
