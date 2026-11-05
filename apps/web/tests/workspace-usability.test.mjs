@@ -24,6 +24,10 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     cedService: '../../api/src/ced/ced.service.ts',
     chat: '../app/components/chat-workspace.tsx',
     chatStyles: '../app/people-chat.css',
+    chatCallsService: '../../api/src/chat/chat-calls.service.ts',
+    chatCallsController: '../../api/src/chat/chat.controller.ts',
+    chatCallsMigration: '../../../drizzle/0020_chat_webrtc_calls.sql',
+    chatCallsDocs: '../../../docs/WEBRTC_CALLS.md',
     chatService: '../../api/src/chat/chat.service.ts',
     chatController: '../../api/src/chat/chat.controller.ts',
     chatUploadGuard: '../../api/src/chat/chat-upload.guard.ts',
@@ -127,6 +131,30 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.chat,/visibleConversations\.map/);
   assert.match(source.chatStyles,/\.chat-message\.own \.chat-message-content/);
   assert.match(source.chatStyles,/\.chat-list-filters/);
+  assert.match(source.chat,/RTCPeerConnection/);
+  assert.match(source.chat,/getUserMedia/);
+  assert.match(source.chat,/MediaRecorder/);
+  assert.match(source.chat,/async function startCall/);
+  assert.match(source.chat,/async function acceptCall/);
+  assert.match(source.chat,/processCallSignals/);
+  assert.match(source.chat,/chat\/calls\/\+activeCall\.id\+'\/heartbeat/);
+  assert.match(source.chat,/chat-call-video-stage/);
+  assert.match(source.chatStyles,/\.chat-call-backdrop/);
+  assert.match(source.chatStyles,/\.chat-call-video-stage/);
+  assert.match(source.chatCallsController,/@Post\('calls\/:id\/heartbeat'\)/);
+  assert.match(source.chatCallsController,/@Post\('calls\/:id\/signals'\)/);
+  assert.match(source.chatCallsService,/async startCall/);
+  assert.match(source.chatCallsService,/async acceptCall/);
+  assert.match(source.chatCallsService,/async heartbeat/);
+  assert.match(source.chatCallsService,/createHmac\('sha1'/);
+  assert.match(source.chatCallsService,/CHAT_TURN_SHARED_SECRET/);
+  assert.match(source.chatCallsService,/CHAT_CALL_BUSY/);
+  assert.match(source.chatCallsMigration,/CREATE TABLE chat_calls/);
+  assert.match(source.chatCallsMigration,/CREATE TABLE chat_call_signals/);
+  assert.match(source.chatCallsMigration,/last_heartbeat_at/);
+  assert.match(source.chatCallsDocs,/E2EE/);
+  assert.match(source.chatCallsDocs,/TURN/);
+
   assert.match(source.chat,/uploadAttachments/);
   assert.match(source.chat,/startVoiceRecording/);
   assert.match(source.chat,/MediaRecorder/);
