@@ -25,7 +25,7 @@ test('Sistem yönetimi hazır modülleri yönetir; NAS bağlantısı kapalı tut
     assert.match(migration,/SET is_enabled = true/);
   }
   assert.match(migration,/institution_guide/);
-  assert.match(access,/const lockedOff=\['drive','petitions'\]/);
+  assert.ok(access.includes("const lockedOff=['drive'];"));
   assert.match(migration,/calendar','institution_opinions','eced','institution_guide','petitions','notes','settings/);
   assert.match(page,/petitions:'Etkin: tarayıcıda DOCX şablonu saklama/);
   for(const key of ['drive']) {
