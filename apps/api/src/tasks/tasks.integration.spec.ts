@@ -312,6 +312,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_audit_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM tasks WHERE id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_audit_events WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM projects WHERE id = ANY($1::uuid[])', [projectIds]);
