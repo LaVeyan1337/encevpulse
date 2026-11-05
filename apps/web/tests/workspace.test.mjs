@@ -177,7 +177,8 @@ test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet ba
   assert.match(admin, /new-department/);
   assert.match(admin, /Sistem rolleri/);
   assert.match(admin, /users\/\$\{editingUserId\}\/profile/);
-  assert.match(admin, /Rol \/ Modül İzinleri/);
+  assert.match(admin, /Rol \/ İşlem İzinleri/);
+  assert.match(admin, /Modül Durumu/);
   assert.match(admin, /api\/auth\/permissions\//);
 });
 
