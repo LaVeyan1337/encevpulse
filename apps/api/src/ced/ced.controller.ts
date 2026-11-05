@@ -19,6 +19,28 @@ export class CedController {
     return this.ced.listInstitutionOpinions(user);
   }
 
+  @Get('directory')
+  async listDirectory(@Req() request: Request) {
+    return this.ced.listDirectoryContacts(await this.authorize(request,'institution_guide','view'));
+  }
+
+  @Post('directory')
+  @HttpCode(HttpStatus.CREATED)
+  async createDirectoryEntry(@Req() request: Request, @Body() body: unknown) {
+    return this.ced.createDirectoryContact(await this.authorize(request,'institution_guide','create',true),body);
+  }
+
+  @Patch('directory/:contactId')
+  async updateDirectoryEntry(@Req() request: Request, @Param('contactId') contactId: string, @Body() body: unknown) {
+    return this.ced.updateDirectoryContact(await this.authorize(request,'institution_guide','update',true),contactId,body);
+  }
+
+  @Delete('directory/:contactId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async archiveDirectoryEntry(@Req() request: Request, @Param('contactId') contactId: string) {
+    await this.ced.archiveDirectoryContact(await this.authorize(request,'institution_guide','delete',true),contactId);
+  }
+
   @Get('contacts')
   async listInstitutionContacts(@Req() request: Request) {
     const user=await this.auth.authorizeRequest(request);
