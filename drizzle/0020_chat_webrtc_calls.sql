@@ -49,6 +49,10 @@ LANGUAGE plpgsql AS $$
 DECLARE
   v_conversation_id uuid;
 BEGIN
+  -- Heartbeat writes must not fan out call-change events every 20 seconds.
+  IF TG_OP='UPDATE' AND NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP='DELETE' THEN
     v_conversation_id:=OLD.conversation_id;
   ELSE
