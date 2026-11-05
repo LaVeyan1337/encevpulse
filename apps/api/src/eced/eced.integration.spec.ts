@@ -106,18 +106,19 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
     assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
     const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(petitionsModule?.enabled,false,'Petitions stays unavailable until shared template, field merge, preview and approval flows are complete.');
-    assert.ok(Array.isArray(petitionsModule.actions),'Stored role grants are separate from module availability.');
+    assert.equal(petitionsModule?.enabled,true,'The server-side DOCX workflow is active.');
+    assert.ok(petitionsModule.actions.includes('manage'),'System administrator can manage active petition templates.');
     const ownerPermissions=await api(base,ownerA,'auth/permissions/me');
     assert.equal(ownerPermissions.response.status,200);
     const ownerPetitions=ownerPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(ownerPetitions?.enabled,false);
-    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update'),'The process-owner grants are retained while the module is unavailable.');
+    assert.equal(ownerPetitions?.enabled,true);
+    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update')&&ownerPetitions.actions.includes('manage'),'Process owners can manage templates and documents.');
     const employeePermissions=await api(base,employee,'auth/permissions/me');
     assert.equal(employeePermissions.response.status,200);
     const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(employeePetitions?.enabled,false);
-    assert.deepEqual(employeePetitions.actions,[],'The employee role has no petition document grants.');
+    assert.equal(employeePetitions?.enabled,true);
+    assert.ok(employeePetitions.actions.includes('view')&&employeePetitions.actions.includes('create'),'Employees can create project-linked draft documents.');
+    assert.ok(!employeePetitions.actions.includes('manage')&&!employeePetitions.actions.includes('update'),'Employees cannot manage templates or approve documents.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
