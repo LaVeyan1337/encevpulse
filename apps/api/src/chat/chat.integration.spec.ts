@@ -468,6 +468,8 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const closedSignals=await api(base,carol,`chat/calls/${callId}/signals?afterId=0`);
       assert.equal(closedSignals.response.status,200);
       assert.equal(closedSignals.data.signals.length,0,'Biten çağrının SDP/ICE sinyalleri artık istemciye sunulmamalı.');
+      const erasedSignals=await pool.query('SELECT count(*)::int AS count FROM chat_call_signals WHERE call_id=$1',[callId]);
+      assert.equal(erasedSignals.rows[0].count,0,'Çağrı bitince geçici SDP/ICE payloadları silinmeli.');
       const endedHeartbeat=await api(base,alice,`chat/calls/${callId}/heartbeat`,'POST',{});
       assert.equal(endedHeartbeat.response.status,409,'Bitmiş çağrı heartbeat ile yeniden açılamamalı.');
       const noActiveAlice=await api(base,alice,'chat/calls/active');
@@ -493,6 +495,8 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(expiredCall.data.call,null,'Katılımcılardan biri heartbeat göndermeyi bırakırsa çağrı zaman aşımına uğramalı.');
       const expiredCallStatus=await pool.query('SELECT status FROM chat_calls WHERE id=$1',[timeoutCall.data.call.id]);
       assert.equal(expiredCallStatus.rows[0].status,'ended');
+      const expiredSignals=await pool.query('SELECT count(*)::int AS count FROM chat_call_signals WHERE call_id=$1',[timeoutCall.data.call.id]);
+      assert.equal(expiredSignals.rows[0].count,0,'Zaman aşımına uğrayan çağrının SDP/ICE payloadları silinmeli.');
 
       const leave=await api(base,carol,`chat/conversations/${directId}/members/${userIds[2]}`,'DELETE',{});
       assert.equal(leave.response.status,204);
