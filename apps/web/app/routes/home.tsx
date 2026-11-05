@@ -472,11 +472,15 @@ export default function Home() {
       }
       const savedActions=Array.isArray(result.actions)?result.actions as string[]:actions;
       setPermissionMatrix(current=>current?({...current,modules:current.modules.map(item=>item.moduleKey===moduleKey?{...item,permissionsByRole:{...item.permissionsByRole,[selectedPermissionRole]:savedActions}}:item)}):current);
-      const mine=await fetch('/api/auth/permissions/me',{credentials:'same-origin',cache:'no-store'});
-      if(mine.ok){
-        const mineResult=await readBody(mine);
-        if(Array.isArray(mineResult.modules))setView(current=>current.status==='authenticated'?{...current,user:{...current.user,modulePermissions:mineResult.modules as ModulePermissionSnapshot[]}}:current);
-      }
+      setView(current=>current.status==='authenticated'?{
+        ...current,
+        user:{
+          ...current.user,
+          modulePermissions:current.user.modulePermissions?.map(module=>
+            module.moduleKey===moduleKey?{...module,enabled:Boolean(result.enabled)}:module,
+          ),
+        },
+      }:current);
       setAdminMessage(`${module.displayName} izinleri ${permissionMatrix.roles.find(role=>role.code===selectedPermissionRole)?.displayName??selectedPermissionRole} rolü için kaydedildi.`);
     } catch {
       setAdminError('Modül izinleri kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.');
