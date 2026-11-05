@@ -3,6 +3,13 @@ let currentOrigin = '';
 let currentTabKey = '';
 let currentTabId = null;
 const PORTAL_ORIGIN = 'https://eced.csb.gov.tr';
+function showReportResult(result) {
+  const ok = result?.ok === true;
+  $('connection').textContent = ok ? 'Sinyal ulaştı' : 'Bağlantı sorunu';
+  $('connection').classList.toggle('is-ok', ok);
+  $('connection').classList.toggle('is-error', !ok);
+  $('status').textContent = result?.message || 'Sinyal sonucu alınamadı. Eklentiyi yenileyip yeniden deneyin.';
+}
 async function init() {
   const tabs = await chrome.tabs.query({active:true,lastFocusedWindow:true});
   const tab = tabs[0];
@@ -68,19 +75,29 @@ $('enableSite').addEventListener('click',async()=>{
 });
 $('save').addEventListener('click',async()=>{
   if (!currentOrigin) return;
-  const permission = await chrome.permissions.contains({origins:[currentOrigin+'/*']});
-  if (!permission) { $('status').textContent='Önce “Bu portalı izlemeye aç” düğmesiyle site iznini verin.'; return; }
-  const values = await chrome.storage.local.get(['accountLabels','accountSources','sessionStates','sectionLabels']);
-  const accountLabels=values.accountLabels||{},accountSources=values.accountSources||{},sessionStates=values.sessionStates||{},sectionLabels=values.sectionLabels||{};
-  const manualLabel=$('accountName').value.trim().slice(0,100);
-  if(manualLabel){accountLabels[currentTabKey]=manualLabel;accountSources[currentTabKey]='manual';}
-  else{delete accountLabels[currentTabKey];delete accountSources[currentTabKey];}
-  sessionStates[currentTabKey]=manualLabel ? $('sessionState').value : 'unknown';
-  sectionLabels[currentTabKey]=$('sectionLabel').value.trim().slice(0,60);
-  await chrome.storage.local.set({accountLabels,accountSources,sessionStates,sectionLabels});
-  $('status').textContent=manualLabel
-    ? 'Manuel hesap etiketi kaydedildi; otomatik profil tespitinden önceliklidir. Parola, çerez veya sayfa depolaması okunmadı.'
-    : 'Manuel etiket kaldırıldı. Portal profili görünür durumdaysa otomatik tanıma kullanılacak; aksi halde hesap belirsiz kalır.';
-  chrome.runtime.sendMessage({type:'report-active-tab'});
+  const button=$('save');
+  button.disabled=true;
+  $('status').textContent='Seçimler kaydedildi. PULSE sinyali gönderiliyor…';
+  try {
+    const permission = await chrome.permissions.contains({origins:[currentOrigin+'/*']});
+    if (!permission) {
+      showReportResult({ok:false,message:'Önce “Bu portalı izlemeye aç” düğmesiyle site iznini verin.'});
+      return;
+    }
+    const values = await chrome.storage.local.get(['accountLabels','accountSources','sessionStates','sectionLabels']);
+    const accountLabels=values.accountLabels||{},accountSources=values.accountSources||{},sessionStates=values.sessionStates||{},sectionLabels=values.sectionLabels||{};
+    const manualLabel=$('accountName').value.trim().slice(0,100);
+    if(manualLabel){accountLabels[currentTabKey]=manualLabel;accountSources[currentTabKey]='manual';}
+    else{delete accountLabels[currentTabKey];delete accountSources[currentTabKey];}
+    sessionStates[currentTabKey]=manualLabel ? $('sessionState').value : 'unknown';
+    sectionLabels[currentTabKey]=$('sectionLabel').value.trim().slice(0,60);
+    await chrome.storage.local.set({accountLabels,accountSources,sessionStates,sectionLabels});
+    const result=await chrome.runtime.sendMessage({type:'report-active-tab'});
+    showReportResult(result);
+  } catch {
+    showReportResult({ok:false,message:'Seçimler kaydedildi ancak PULSE sinyal sonucu alınamadı. Eklentiyi yenileyip yeniden deneyin.'});
+  } finally {
+    button.disabled=false;
+  }
 });
 void init().catch(()=>{$('status').textContent='Eklenti ayarları okunamadı. Tarayıcı eklenti sayfasından yenileyin.';});

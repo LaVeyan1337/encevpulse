@@ -8,7 +8,7 @@
     <label>Oturum durumu<select id="sessionState"><option value="unknown">Doğrulanmadı / emin değilim</option><option value="active">Oturum açık (kendim kontrol ettim)</option><option value="logged_out">Oturum kapalı (kendim kontrol ettim)</option></select></label>
     <label>Portal bölümü (isteğe bağlı)<input id="sectionLabel" maxlength="60" placeholder="Örn. Proje başvuru listesi"></label>
     <button id="save" class="primary">Seçimlerimi kaydet ve sinyal gönder</button>
-    <p class="hint" id="status">Hesap etiketi ve oturum durumu yalnızca sizin açıkça seçtiğiniz değerlerden alınır.</p>
+    <p class="hint" id="status" role="status" aria-live="polite">Hesap etiketi ve oturum durumu yalnızca sizin açıkça seçtiğiniz değerlerden alınır.</p>
   </section>
   <footer><a href="options.html" target="_blank">Bağlantı ayarları</a><span>Parola / çerez okunmaz</span></footer>
 </main><script src="popup.js"></script></body></html>

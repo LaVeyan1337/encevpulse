@@ -8,9 +8,9 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 2. Tek seferlik anahtarı kopyalayın. Anahtar yalnızca oluşturulduğu anda gösterilir.
 3. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
 4. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile bu klasörü seçin.
-5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını kaydedin. API adresi `http://127.0.0.1:5173/api` gibi yerel bir adres ise eklenti ilgili origin için ayrıca izin ister.
+5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını girin. Eklenti önce API origin'inin `manifest.json` içindeki `optional_host_permissions` listesinde tam olarak tanımlı olup olmadığını kontrol eder; ardından yalnızca o origin için izin ister. Yerel geliştirme adresleri (`127.0.0.1` ve `localhost`) tanımlıdır. Canlı ortam kullanılıyorsa gerçek PULSE HTTPS origin'i bu listeye eklenmelidir; genel `https://*/*` izni kullanılmamalıdır. Bağlantı testi başarılı olmadan yeni ayarlar kaydedilmez.
 6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. İlk izin ve eşleştirmeden sonra algılayıcı, izinli portal sekmeleri açıldığında ve tarayıcı yeniden başladığında yeniden eklenir.
-7. PULSE'un e-ÇED ekranında cihaz sinyalini kontrol edin. İlk sinyal birkaç saniye içinde görünmezse eklenti seçeneklerinden **Bağlantıyı test et** adımını çalıştırın.
+7. Portal sekmesindeki eklenti penceresinde **Seçimlerimi kaydet ve sinyal gönder** düğmesine basın. PULSE API yanıtı artık doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin.
 
 ## Hesap tanıma
 
@@ -35,3 +35,13 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 ## Güncelleme
 
 Bu klasör değiştiğinde `chrome://extensions` veya `edge://extensions` sayfasında eklentinin **Yenile** düğmesine basın. Açık e-ÇED sekmesini bir kez yenileyin. Yerel olmayan bir PULSE API alan adı kullanılacaksa ilgili tam origin, `manifest.json` içindeki `optional_host_permissions` listesine önceden eklenmeli ve eklenti yeniden yüklenmelidir; geniş `*` izinleri kullanılmamalıdır.
+
+
+## Sinyal sorunlarını ayırma
+
+- “Sinyal PULSE sunucusuna ulaştı” mesajı, raporun API tarafından kabul edildiğini gösterir; portal profil adı otomatik bulunamadıysa hesap etiketi ayrıca girilmelidir.
+- HTTP 401/403, eşleştirme anahtarının geçersiz veya iptal edilmiş olabileceğini gösterir. PULSE'tan cihaz eşleştirmesini yeniden oluşturun.
+- “API alan adı izin listesinde yok” mesajı, canlı sunucunun origin'inin manifestte tanımlı olmadığını gösterir. Yalnızca gerçek tam origin eklenmeli, geniş wildcard izni verilmemelidir.
+- “Portal izni verilmemiş” mesajında e-ÇED sekmesinde portal iznini açın.
+- Ağ hatasında API adresi, HTTPS sertifikası, sunucu erişimi ve tarayıcının verdiği host izni kontrol edilmelidir.
+- API'ye sinyal ulaşması, e-ÇED profil seçicilerinin canlı portal DOM'unda doğru eşleştiğini kanıtlamaz. Otomatik hesap tanıma canlı oturumda ayrıca doğrulanmalıdır.
