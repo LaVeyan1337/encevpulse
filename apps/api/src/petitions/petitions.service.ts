@@ -90,6 +90,38 @@ export class PetitionsService {
     } finally { client.release(); }
   }
 
+  async listTemplateVersions(templateId: string) {
+    assertUuid(templateId,'Şablon');
+    const result = await this.db.query(
+      `SELECT version.id,version.version,version.file_name AS "fileName",
+        version.content_sha256 AS "sha256",version.byte_size AS "byteSize",
+        version.field_keys AS "fieldKeys",version.created_at AS "createdAt",
+        creator.display_name AS "createdByName"
+       FROM petition_template_versions version
+       JOIN petition_template_families family ON family.id=version.template_id
+       JOIN users creator ON creator.id=version.created_by
+       WHERE version.template_id=$1
+       ORDER BY version.version DESC`,
+      [templateId],
+    );
+    if (!result.rowCount) throw new NotFoundException({code:'PETITION_TEMPLATE_NOT_FOUND',message:'Dilekçe şablonu bulunamadı.'});
+    return {versions:result.rows.map(row=>({...row,fields:fieldDefinitions(row.fieldKeys as string[])}))};
+  }
+
+  async downloadTemplateVersion(templateId:string,versionId:string) {
+    assertUuid(templateId,'Şablon');
+    assertUuid(versionId,'Şablon sürümü');
+    const result=await this.db.query<{content:Buffer;fileName:string;byteSize:number}>(
+      `SELECT version.content,version.file_name AS "fileName",version.byte_size AS "byteSize"
+       FROM petition_template_versions version
+       JOIN petition_template_families family ON family.id=version.template_id
+       WHERE family.id=$1 AND version.id=$2`,
+      [templateId,versionId],
+    );
+    if(!result.rowCount)throw new NotFoundException({code:'PETITION_TEMPLATE_VERSION_NOT_FOUND',message:'Şablon sürümü bulunamadı.'});
+    return result.rows[0];
+  }
+
   async createTemplateVersion(user: AuthUser, templateId: string, file: PetitionUploadFile | undefined) {
     assertUuid(templateId,'Şablon');
     const inspected = inspectUpload(file);
