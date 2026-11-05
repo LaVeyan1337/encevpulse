@@ -491,7 +491,6 @@ export default function Home() {
     if(view.status!=='authenticated'||moduleSavingKey)return;
     const blocked:Record<string,string>={
       drive:'Ortak Drive, kaynak dosya yetkilerini koruyan bağlantı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
-      petitions:'Dilekçe şablon alan eşlemesi ve onaylı belge akışı tamamlanmadan bu modül açılamaz.',
     };
     if(enabled&&blocked[moduleKey]){setAdminError(blocked[moduleKey]);return;}
     setModuleSavingKey(moduleKey);setAdminError('');setAdminMessage('');
@@ -856,8 +855,9 @@ export default function Home() {
                       const lockedCore=['overview','tasks','users','permissions','settings'].includes(module.moduleKey);
                       const blockedReason=({
                         drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
-                        petitions:'Word şablon alan eşlemesi ve onaylı belge iş akışı henüz tamamlanmadı.',
-                        institution_guide:'Kurum Rehberi şu anda Kurum Görüşleri içindeki iletişim alanlarında bulunuyor.',
+                      } as Record<string,string>)[module.moduleKey];
+                      const moduleHint=({
+                        petitions:'Etkin: tarayıcıda DOCX şablonu saklama, SHA-256 bütünlük kontrolü ve biçimi koruyan yerel kopya indirme. Dinamik alan doldurma, ortak NAS kilidi ve onay/durum akışı henüz yoktur.',
                       } as Record<string,string>)[module.moduleKey];
                       return (
                         <div className="permission-module-row" key={module.moduleKey}>
@@ -876,7 +876,7 @@ export default function Home() {
                               {moduleSavingKey===module.moduleKey?'Kaydediliyor…':module.enabled?'Devre dışı bırak':'Etkinleştir'}
                             </button>
                           </div>
-                          {blockedReason&&<p className="field-hint">{blockedReason}</p>}
+                          {blockedReason&&<p className="field-hint">{blockedReason}</p>}{moduleHint&&<p className="field-hint">{moduleHint}</p>}
                           {lockedCore&&!module.enabled&&<p className="field-hint">Bu temel modül kapalı bırakılamaz.</p>}
                         </div>
                       );
