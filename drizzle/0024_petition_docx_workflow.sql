@@ -18,6 +18,30 @@ CREATE UNIQUE INDEX petition_template_active_name_idx
   ON petition_template_families(lower(btrim(name)))
   WHERE is_active = true AND archived_at IS NULL;
 
+
+CREATE TABLE petition_template_audit_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL REFERENCES petition_template_families(id) ON DELETE RESTRICT,
+  actor_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  action text NOT NULL CHECK (action IN ('created','version_added','archived')),
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX petition_template_audit_time_idx
+  ON petition_template_audit_events(template_id,created_at DESC);
+
+CREATE FUNCTION prevent_petition_template_audit_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+  RAISE EXCEPTION 'petition template audit events are append-only';
+END;
+$;
+
+CREATE TRIGGER petition_template_audit_events_append_only
+BEFORE UPDATE OR DELETE ON petition_template_audit_events
+FOR EACH ROW EXECUTE FUNCTION prevent_petition_template_audit_mutation();
+
 CREATE TABLE petition_template_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id uuid NOT NULL REFERENCES petition_template_families(id) ON DELETE RESTRICT,
