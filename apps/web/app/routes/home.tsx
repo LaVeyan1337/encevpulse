@@ -855,9 +855,11 @@ export default function Home() {
                       const lockedCore=['overview','tasks','users','permissions','settings'].includes(module.moduleKey);
                       const blockedReason=({
                         drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
+                        institution_guide:'Bağımsız kurum ekleme, düzenleme ve arşiv akışı tamamlanmadı. Proje kapsamlı rehber Kurum Görüşleri içinde kullanılabilir.',
+                        petitions:'Onaylı ortak şablon, alan eşleme, gerçek Word üretimi/önizleme ve kayıt-onay akışı tamamlanmadı.',
                       } as Record<string,string>)[module.moduleKey];
                       const moduleHint=({
-                        petitions:'Etkin: tarayıcıda DOCX şablonu saklama, SHA-256 bütünlük kontrolü ve biçimi koruyan yerel kopya indirme. Dinamik alan doldurma, ortak NAS kilidi ve onay/durum akışı henüz yoktur.',
+                        petitions:'Mevcut taslak yalnızca tarayıcıda saklanan DOCX dosyasının değiştirilmemiş kopyasını indirir; otomatik dilekçe üretimi değildir.',
                       } as Record<string,string>)[module.moduleKey];
                       return (
                         <div className="permission-module-row" key={module.moduleKey}>
