@@ -35,6 +35,17 @@ CROSS JOIN (VALUES ('institution_opinions'),('eced')) AS d(module_key)
 WHERE r.code='process_owner'
 ON CONFLICT DO NOTHING;
 
+-- Project managers own the delivery scope of the project-linked opinion and e-ÇED processes.
+INSERT INTO role_module_permissions(role_id,module_key,permission_key)
+SELECT r.id,d.module_key,d.permission_key
+FROM roles r
+CROSS JOIN (VALUES
+  ('institution_opinions','view'),('institution_opinions','create'),('institution_opinions','update'),
+  ('eced','view'),('eced','create'),('eced','update')
+) AS d(module_key,permission_key)
+WHERE r.code='project_manager'
+ON CONFLICT DO NOTHING;
+
 CREATE TABLE user_notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
