@@ -91,3 +91,11 @@ $$;
 CREATE TRIGGER user_note_audit_events_append_only
 BEFORE UPDATE OR DELETE ON user_note_audit_events
 FOR EACH ROW EXECUTE FUNCTION prevent_user_note_audit_mutation();
+
+-- Notes may also reference a task, but only when the owner can already access that task.
+ALTER TABLE user_notes
+  ADD COLUMN task_id uuid REFERENCES tasks(id) ON DELETE RESTRICT;
+
+CREATE INDEX user_notes_task_idx
+  ON user_notes(task_id)
+  WHERE task_id IS NOT NULL;
