@@ -25,6 +25,9 @@ TURN geçici kimlik bilgileri coturn REST shared-secret yöntemine göre HMAC-SH
 - Çağrı sinyalleşmesi HTTPS API + PostgreSQL + SSE kullanır; medya akışı WebRTC peer connection üzerinden taşınır. TURN kullanılırsa medya TURN relay üzerinden geçebilir.
 - Bu özellik **uçtan uca şifreleme (E2EE) olarak sunulmaz**. WebRTC medya taşıması DTLS-SRTP ile korunur; ancak uygulama sunucusu çağrı sinyalleşmesine erişebilir ve ayrı istemci tarafı anahtar yönetimi bu sürümde yoktur.
 
+## Kullanım sınırı
+Gelen arama penceresi bu ilk sürümde Sohbet çalışma alanı açıkken gösterilir. Kullanıcı başka bir PULSE modülündeyken arka planda global çağrı bildirimi/cevaplama henüz yoktur. Arama kartı sayfa yenilendiğinde veya sohbet alanından çıkıldığında çağrıyı sonlandırır.
+
 ## Sınırlar
 - Grup araması, arama geçmişi arayüzü, ekran paylaşımı, arama kaydı ve E2EE kapsam dışıdır.
 - Gerçek ses/video kalite ve NAT geçişi testi için TURN hizmeti ve iki ayrı gerçek ağda tarayıcı testi gerekir. CI yalnızca API sinyalleşme/üyelik/oturum durumunu doğrular.
