@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Post, Patch, Query, Req, Sse } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import type { AuthUser } from '../auth/auth.service.js';
 import type { MessageEvent } from '@nestjs/common';
 import type { Observable } from 'rxjs';
 import { AuthService } from '../auth/auth.service.js';
@@ -7,6 +8,9 @@ import { AccessControlService } from '../access-control/access-control.service.j
 import type { ModuleAction } from '../access-control/access-control.service.js';
 import { ChatEventsService } from './chat-events.service.js';
 import { ChatService } from './chat.service.js';
+import { ChatUploadGuard } from './chat-upload.guard.js';
+import type { UploadedChatFile } from './chat-attachments.js';
+type ChatUploadRequest = Request & { chatUploadUser?: AuthUser };
 
 @Controller('chat')
 export class ChatController {
@@ -64,6 +68,53 @@ export class ChatController {
   @HttpCode(HttpStatus.CREATED)
   async send(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
     return this.chat.sendMessage(await this.authorize(request,'chat','create',true), id, body);
+  }
+
+  @Post('conversations/:id/attachments')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(ChatUploadGuard)
+  @UseInterceptors(FilesInterceptor('files',5,{
+    limits:{files:5,fileSize:12*1024*1024,fields:3,fieldSize:5000},
+  }))
+  async sendAttachments(
+    @Req() request: ChatUploadRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @UploadedFiles() files: UploadedChatFile[],
+  ) {
+    const user=request.chatUploadUser;
+    if(!user) throw new Error('Chat upload authorization was not initialized.');
+    return this.chat.sendAttachments(user,id,body,files??[]);
+  }
+
+  @Get('attachments/:id/content')
+  @Header('Cache-Control','private, no-store')
+  @Header('X-Content-Type-Options','nosniff')
+  async attachmentContent(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Res({passthrough:true}) response: Response,
+  ) {
+    const attachment=await this.chat.getAttachment(await this.authorize(request,'chat','view'),id);
+    response.setHeader('Content-Type',attachment.mimeType);
+    response.setHeader('Content-Length',String(attachment.byteSize));
+    response.setHeader('Content-Disposition',contentDisposition('inline',attachment.originalName));
+    return new StreamableFile(attachment.content);
+  }
+
+  @Get('attachments/:id/download')
+  @Header('Cache-Control','private, no-store')
+  @Header('X-Content-Type-Options','nosniff')
+  async downloadAttachment(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Res({passthrough:true}) response: Response,
+  ) {
+    const attachment=await this.chat.getAttachment(await this.authorize(request,'chat','view'),id);
+    response.setHeader('Content-Type','application/octet-stream');
+    response.setHeader('Content-Length',String(attachment.byteSize));
+    response.setHeader('Content-Disposition',contentDisposition('attachment',attachment.originalName));
+    return new StreamableFile(attachment.content);
   }
 
   @Post('conversations/:id/read')
@@ -143,4 +194,10 @@ export class ChatController {
     await this.access.assertPermission(user,moduleKey,action);
     return user;
   }
+}
+
+
+function contentDisposition(mode:'inline'|'attachment',filename:string):string {
+  const safe=filename.replace(/[\\r\\n"]/g,'_').replace(/[^\\x20-\\x7e]/g,'_').slice(0,160)||'dosya';
+  return mode+`; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
