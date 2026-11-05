@@ -6,7 +6,7 @@ import { DatabaseService } from '../database/database.service.js';
 
 const CHANNEL='pulse_chat_events';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type ChatEventType='message.changed'|'membership.changed'|'reaction.changed'|'read.changed'|'task.linked';
+type ChatEventType='message.changed'|'membership.changed'|'reaction.changed'|'read.changed'|'task.linked'|'call.changed';
 interface ChatNotification {conversationId:string;eventType:ChatEventType;affectedUserId?:string|null;}
 
 @Injectable()
@@ -77,7 +77,7 @@ export class ChatEventsService implements OnModuleInit,OnModuleDestroy {
         let payload:ChatNotification;
         try{payload=JSON.parse(notification.payload) as ChatNotification;}catch{return;}
         if(!payload||!UUID.test(payload.conversationId)||
-          !['message.changed','membership.changed','reaction.changed','read.changed','task.linked'].includes(payload.eventType))return;
+          !['message.changed','membership.changed','reaction.changed','read.changed','task.linked','call.changed'].includes(payload.eventType))return;
         if(payload.affectedUserId&&!UUID.test(payload.affectedUserId))return;
         void this.dispatch(payload).catch(()=>undefined);
       });
