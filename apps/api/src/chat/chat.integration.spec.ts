@@ -299,6 +299,26 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const removedContent=await fetch(attachmentUrl,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
       assert.equal(removedContent.status,404,'Silinen mesajın ek içeriği sunulmamalı.');
 
+      const pdfFixture=Buffer.from('%PDF-1.7\\nchat attachment fixture\\n%%EOF');
+      const pdfForm=new FormData();
+      pdfForm.append('caption','Toplantı tutanağı');
+      pdfForm.append('clientRequestId',randomUUID());
+      pdfForm.append('files',new Blob([new Uint8Array(pdfFixture)],{type:'application/pdf'}),'toplanti.pdf');
+      const pdfUpload=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,pdfForm);
+      assert.equal(pdfUpload.response.status,201,JSON.stringify(pdfUpload.data));
+      const pdfMessageId=pdfUpload.data.message.id as string;
+      messageIds.push(pdfMessageId);
+      const pdfAttachmentId=pdfUpload.data.message.attachments[0].id as string;
+      const blockedInlinePdf=await fetch(`${base}/api/chat/attachments/${pdfAttachmentId}/content`,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(blockedInlinePdf.status,404,'PDF eki inline içerik uç noktasından sunulmamalı.');
+      const forcedPdfDownload=await fetch(`${base}/api/chat/attachments/${pdfAttachmentId}/download`,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(forcedPdfDownload.status,200);
+      assert.equal(forcedPdfDownload.headers.get('content-type'),'application/octet-stream');
+      assert.match(forcedPdfDownload.headers.get('content-disposition')??'',/attachment/);
+      assert.deepEqual(Buffer.from(await forcedPdfDownload.arrayBuffer()),pdfFixture);
+      const pdfDeleted=await api(base,alice,`chat/messages/${pdfMessageId}`,'DELETE',{version:1});
+      assert.equal(pdfDeleted.response.status,204);
+
       const noEditPermission=await api(base,bob,`chat/messages/${firstMessageId}`,'PATCH',{
         body:'Başkasının mesajını düzenleme',version:1,
       });
