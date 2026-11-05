@@ -68,13 +68,13 @@ export class ChatCallsService {
          WHERE status='ringing' AND expires_at<=now()`,
       );
       await client.query(
-        `UPDATE chat_calls call SET status='ended',ended_at=now()
-         WHERE call.status IN ('ringing','accepted')
-           AND (call.status='accepted' AND call.last_heartbeat_at<now()-interval '120 seconds'
+        `UPDATE chat_calls call_row SET status='ended',ended_at=now()
+         WHERE call_row.status IN ('ringing','accepted')
+           AND (call_row.status='accepted' AND call_row.last_heartbeat_at<now()-interval '120 seconds'
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
-               WHERE member.conversation_id=call.conversation_id AND member.user_id=call.caller_user_id AND member.left_at IS NULL)
+               WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.caller_user_id AND member.left_at IS NULL)
              OR NOT EXISTS(SELECT 1 FROM conversation_members member
-               WHERE member.conversation_id=call.conversation_id AND member.user_id=call.callee_user_id AND member.left_at IS NULL))`,
+               WHERE member.conversation_id=call_row.conversation_id AND member.user_id=call_row.callee_user_id AND member.left_at IS NULL))`,
       );
       const busy=await client.query(
         `SELECT id FROM chat_calls WHERE status IN ('ringing','accepted')
@@ -102,14 +102,14 @@ export class ChatCallsService {
        WHERE status='ringing' AND expires_at<=now()`,
     );
     await this.db.query(
-      `UPDATE chat_calls call SET status='ended',ended_at=now()
-       WHERE call.status IN ('ringing','accepted')
+      `UPDATE chat_calls call_row SET status='ended',ended_at=now()
+       WHERE call_row.status IN ('ringing','accepted')
          AND (NOT EXISTS(
-           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call.conversation_id
-             AND cm.user_id=call.caller_user_id AND cm.left_at IS NULL
+           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call_row.conversation_id
+             AND cm.user_id=call_row.caller_user_id AND cm.left_at IS NULL
          ) OR NOT EXISTS(
-           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call.conversation_id
-             AND cm.user_id=call.callee_user_id AND cm.left_at IS NULL
+           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call_row.conversation_id
+             AND cm.user_id=call_row.callee_user_id AND cm.left_at IS NULL
          ))`,
     );
     await this.db.query(
@@ -117,22 +117,22 @@ export class ChatCallsService {
        WHERE status='accepted' AND last_heartbeat_at<now()-interval '120 seconds'`,
     );
     const result=await this.db.query(
-      `SELECT call.id,call.conversation_id AS "conversationId",
-        call.caller_user_id AS "callerUserId",call.callee_user_id AS "calleeUserId",
-        call.media_type AS "mediaType",call.status,call.created_at AS "createdAt",
-        call.accepted_at AS "acceptedAt",call.expires_at AS "expiresAt",
+      `SELECT call_row.id,call_row.conversation_id AS "conversationId",
+        call_row.caller_user_id AS "callerUserId",call_row.callee_user_id AS "calleeUserId",
+        call_row.media_type AS "mediaType",call_row.status,call_row.created_at AS "createdAt",
+        call_row.accepted_at AS "acceptedAt",call_row.expires_at AS "expiresAt",
         conversation.conversation_type AS "conversationType",conversation.title AS "conversationTitle",
-        CASE WHEN call.caller_user_id=$1 THEN callee.display_name ELSE caller.display_name END AS "peerName",
-        CASE WHEN call.caller_user_id=$1 THEN callee.avatar_key ELSE caller.avatar_key END AS "peerAvatarKey",
-        (call.caller_user_id=$1) AS "isCaller"
-       FROM chat_calls call
-       JOIN conversations conversation ON conversation.id=call.conversation_id AND conversation.archived_at IS NULL
-       JOIN conversation_members mine ON mine.conversation_id=call.conversation_id AND mine.user_id=$1 AND mine.left_at IS NULL
-       JOIN users caller ON caller.id=call.caller_user_id AND caller.status='active'
-       JOIN users callee ON callee.id=call.callee_user_id AND callee.status='active'
-       WHERE call.status IN ('ringing','accepted')
-         AND (call.caller_user_id=$1 OR call.callee_user_id=$1)
-       ORDER BY call.created_at DESC LIMIT 1`,
+        CASE WHEN call_row.caller_user_id=$1 THEN callee.display_name ELSE caller.display_name END AS "peerName",
+        CASE WHEN call_row.caller_user_id=$1 THEN callee.avatar_key ELSE caller.avatar_key END AS "peerAvatarKey",
+        (call_row.caller_user_id=$1) AS "isCaller"
+       FROM chat_calls call_row
+       JOIN conversations conversation ON conversation.id=call_row.conversation_id AND conversation.archived_at IS NULL
+       JOIN conversation_members mine ON mine.conversation_id=call_row.conversation_id AND mine.user_id=$1 AND mine.left_at IS NULL
+       JOIN users caller ON caller.id=call_row.caller_user_id AND caller.status='active'
+       JOIN users callee ON callee.id=call_row.callee_user_id AND callee.status='active'
+       WHERE call_row.status IN ('ringing','accepted')
+         AND (call_row.caller_user_id=$1 OR call_row.callee_user_id=$1)
+       ORDER BY call_row.created_at DESC LIMIT 1`,
       [user.id],
     );
     return {call:result.rows[0]??null};
@@ -183,12 +183,12 @@ export class ChatCallsService {
   async heartbeat(user:AuthUser,callId:string) {
     assertUuid(callId);
     const result=await this.db.query(
-      `UPDATE chat_calls call SET last_heartbeat_at=now()
-       WHERE call.id=$1 AND (call.caller_user_id=$2 OR call.callee_user_id=$2)
-         AND call.status='accepted'
+      `UPDATE chat_calls call_row SET last_heartbeat_at=now()
+       WHERE call_row.id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
+         AND call_row.status='accepted'
          AND (SELECT count(*) FROM conversation_members member
-           WHERE member.conversation_id=call.conversation_id
-             AND member.user_id=ANY(ARRAY[call.caller_user_id,call.callee_user_id])
+           WHERE member.conversation_id=call_row.conversation_id
+             AND member.user_id=ANY(ARRAY[call_row.caller_user_id,call_row.callee_user_id])
              AND member.left_at IS NULL)=2`,
       [callId,user.id],
     );
@@ -250,10 +250,10 @@ export class ChatCallsService {
       `SELECT signal.id::text AS id,signal.sender_user_id AS "senderUserId",
         signal.signal_type AS "signalType",signal.payload,signal.created_at AS "createdAt"
        FROM chat_call_signals signal
-       JOIN chat_calls call ON call.id=signal.call_id
-       JOIN conversation_members member ON member.conversation_id=call.conversation_id
+       JOIN chat_calls call_row ON call_row.id=signal.call_id
+       JOIN conversation_members member ON member.conversation_id=call_row.conversation_id
          AND member.user_id=$2 AND member.left_at IS NULL
-       WHERE signal.call_id=$1 AND (call.caller_user_id=$2 OR call.callee_user_id=$2)
+       WHERE signal.call_id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
          AND signal.sender_user_id<>$2 AND signal.id>$3::bigint
        ORDER BY signal.id LIMIT 101`,
       [callId,user.id,afterId],
