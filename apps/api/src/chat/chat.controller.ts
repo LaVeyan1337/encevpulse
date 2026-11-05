@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req, Res, Sse, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, NotFoundException, Param, Patch, Post, Query, Req, Res, Sse, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import type { AuthUser } from '../auth/auth.service.js';
@@ -97,6 +97,9 @@ export class ChatController {
     @Res({passthrough:true}) response: Response,
   ) {
     const attachment=await this.chat.getAttachment(await this.authorize(request,'chat','view'),id);
+    if(!attachment.mimeType.startsWith('image/')&&!attachment.mimeType.startsWith('audio/')&&!attachment.mimeType.startsWith('video/')) {
+      throw new NotFoundException({code:'CHAT_INLINE_MEDIA_NOT_FOUND',message:'Bu dosya türü yalnızca indirilerek açılabilir.'});
+    }
     response.setHeader('Content-Type',attachment.mimeType);
     response.setHeader('Content-Length',String(attachment.byteSize));
     response.setHeader('Content-Disposition',contentDisposition('inline',attachment.originalName));
