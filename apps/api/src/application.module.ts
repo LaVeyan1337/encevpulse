@@ -9,6 +9,7 @@ import { ChatModule } from './chat/chat.module.js';
 import { CalendarModule } from './calendar/calendar.module.js';
 import { CedModule } from './ced/ced.module.js';
 import { EcedModule } from './eced/eced.module.js';
+import { NotesModule } from './notes/notes.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EcedModule } from './eced/eced.module.js';
     CalendarModule,
     CedModule,
     EcedModule,
+    NotesModule,
     ChatModule,
   ],
 })
