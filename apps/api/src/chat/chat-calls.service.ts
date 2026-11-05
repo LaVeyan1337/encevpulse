@@ -223,7 +223,16 @@ export class ChatCallsService {
       if(!['ringing','accepted'].includes(row.status))throw new ConflictException({code:'CHAT_CALL_CLOSED',message:'Sona ermiş aramaya sinyal gönderilemez.'});
       if(signalType==='offer'&&user.id!==row.caller_user_id)throw invalid('Arama teklifini yalnızca arayan taraf gönderebilir.');
       if(signalType==='answer'&&(user.id!==row.callee_user_id||row.status!=='accepted'))throw invalid('Arama yanıtı yalnızca aramayı kabul eden katılımcı tarafından gönderilebilir.');
-      if(signalType==='ice_candidate') {
+      if(signalType==='offer'||signalType==='answer') {
+        const existing=await client.query<{count:number}>(
+          `SELECT count(*)::int AS count FROM chat_call_signals
+           WHERE call_id=$1 AND signal_type=$2`,
+          [callId,signalType],
+        );
+        if(existing.rows[0].count>0)throw new ConflictException({
+          code:'CHAT_CALL_SIGNAL_ALREADY_SET',message:'Bu arama için SDP teklifi veya yanıtı zaten kaydedilmiş.',
+        });
+      } else {
         const count=await client.query<{count:number}>(
           `SELECT count(*)::int AS count FROM chat_call_signals
            WHERE call_id=$1 AND sender_user_id=$2 AND signal_type='ice_candidate'`,[callId,user.id],
@@ -246,6 +255,7 @@ export class ChatCallsService {
     assertUuid(callId);
     const afterId=afterIdInput===undefined?'0':afterIdInput;
     if(!/^(0|[1-9][0-9]{0,18})$/.test(afterId))throw invalid('Arama sinyali imleci geçersiz.');
+    if(BigInt(afterId)>BigInt('9223372036854775807'))throw invalid('Arama sinyali imleci geçersiz.');
     const result=await this.db.query(
       `SELECT signal.id::text AS id,signal.sender_user_id AS "senderUserId",
         signal.signal_type AS "signalType",signal.payload,signal.created_at AS "createdAt"
@@ -253,7 +263,8 @@ export class ChatCallsService {
        JOIN chat_calls call_row ON call_row.id=signal.call_id
        JOIN conversation_members member ON member.conversation_id=call_row.conversation_id
          AND member.user_id=$2 AND member.left_at IS NULL
-       WHERE signal.call_id=$1 AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
+       WHERE signal.call_id=$1 AND call_row.status IN ('ringing','accepted')
+         AND (call_row.caller_user_id=$2 OR call_row.callee_user_id=$2)
          AND signal.sender_user_id<>$2 AND signal.id>$3::bigint
        ORDER BY signal.id LIMIT 101`,
       [callId,user.id,afterId],
