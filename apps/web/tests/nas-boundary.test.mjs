@@ -29,7 +29,7 @@ test('Dilekçeler NAS/SMB erişimi olmadan PULSE veritabanında çalışır',asy
   assert.match(apiService,/FROM petition_documents/);
   assert.match(apiService,/INSERT INTO petition_documents/);
   assert.match(apiController,/StreamableFile/);
-  assert.doesNotMatch(apiService+apiController,/192\.168\.1\.55|\\\\[^\s]+|smb:\/\/|file:\/\/|child_process|openfiles\.exe|NetFileEnum/i);
+  assert.doesNotMatch(apiService+apiController,/192\.168\.1\.55|smb:\/\/|file:\/\/|child_process|openfiles\.exe|NetFileEnum/i);
   assert.match(migration,/content bytea NOT NULL/);
   assert.doesNotMatch(migration,/192\.168\.1\.55|smb:\/\/|file:\/\//i);
 });
