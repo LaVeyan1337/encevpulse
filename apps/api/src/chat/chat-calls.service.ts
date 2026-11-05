@@ -143,6 +143,10 @@ export class ChatCallsService {
     const result=await this.db.query(
       `UPDATE chat_calls SET status='accepted',accepted_at=now(),last_heartbeat_at=now()
        WHERE id=$1 AND callee_user_id=$2 AND status='ringing' AND expires_at>now()
+         AND EXISTS(SELECT 1 FROM conversation_members callee_member
+           WHERE callee_member.conversation_id=chat_calls.conversation_id AND callee_member.user_id=$2 AND callee_member.left_at IS NULL)
+         AND EXISTS(SELECT 1 FROM conversation_members caller_member
+           WHERE caller_member.conversation_id=chat_calls.conversation_id AND caller_member.user_id=chat_calls.caller_user_id AND caller_member.left_at IS NULL)
        RETURNING id,conversation_id AS "conversationId",media_type AS "mediaType",
          caller_user_id AS "callerUserId",callee_user_id AS "calleeUserId",status,accepted_at AS "acceptedAt"`,
       [callId,user.id],
@@ -182,8 +186,10 @@ export class ChatCallsService {
       `UPDATE chat_calls call SET last_heartbeat_at=now()
        WHERE call.id=$1 AND (call.caller_user_id=$2 OR call.callee_user_id=$2)
          AND call.status='accepted'
-         AND EXISTS(SELECT 1 FROM conversation_members member
-           WHERE member.conversation_id=call.conversation_id AND member.user_id=$2 AND member.left_at IS NULL)`,
+         AND (SELECT count(*) FROM conversation_members member
+           WHERE member.conversation_id=call.conversation_id
+             AND member.user_id=ANY(ARRAY[call.caller_user_id,call.callee_user_id])
+             AND member.left_at IS NULL)=2`,
       [callId,user.id],
     );
     if(!result.rowCount)throw new ConflictException({code:'CHAT_CALL_NOT_ACTIVE',message:'Etkin arama bulunamadı.'});
