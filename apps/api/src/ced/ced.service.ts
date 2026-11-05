@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
+import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from './institution-defaults.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,9 +61,12 @@ export class CedService {
         `SELECT o.id,o.case_id AS "caseId",o.institution_name AS "institutionName",o.subject,o.status,
          o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",
          o.outgoing_letter_no AS "outgoingLetterNo",o.incoming_letter_no AS "incomingLetterNo",
-         o.contact_person AS "contactPerson",o.notes,o.version,o.created_by AS "createdBy",
+         o.contact_person AS "contactPerson",contact.title AS "contactTitle",contact.department AS "contactDepartment",
+         contact.phone AS "contactPhone",contact.email AS "contactEmail",contact.address AS "contactAddress",
+         o.notes,o.version,o.created_by AS "createdBy",
          creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
+         LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
          WHERE o.project_id=$1 AND o.archived_at IS NULL
          ORDER BY o.deadline_date NULLS LAST,o.institution_name,o.created_at`,
         [projectId],
@@ -81,11 +85,14 @@ export class CedService {
         o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",
         o.response_date::text AS "responseDate",o.outgoing_letter_no AS "outgoingLetterNo",
         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",
+        contact.title AS "contactTitle",contact.department AS "contactDepartment",contact.phone AS "contactPhone",
+        contact.email AS "contactEmail",contact.address AS "contactAddress",
         o.notes,o.version,o.updated_at AS "updatedAt"
        FROM ced_institution_opinions o
        JOIN projects p ON p.id=o.project_id
        LEFT JOIN ced_cases c ON c.id=o.case_id
        LEFT JOIN users owner ON owner.id=p.owner_user_id
+       LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
        WHERE o.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
          AND (o.case_id IS NULL OR c.archived_at IS NULL)
          AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
@@ -97,6 +104,79 @@ export class CedService {
       [user.id],
     );
     return { opinions: result.rows };
+  }
+
+  async listInstitutionContacts(user: AuthUser) {
+    const result = await this.db.query(
+      `SELECT contact.id,contact.institution_name AS "institutionName",
+        contact.contact_person AS "contactPerson",contact.title,contact.department,contact.phone,contact.email,contact.address,
+        count(DISTINCT opinion.project_id)::int AS "projectCount",
+        max(contact.updated_at) AS "updatedAt"
+       FROM ced_institution_contacts contact
+       JOIN ced_institution_opinions opinion ON opinion.contact_id=contact.id AND opinion.archived_at IS NULL
+       JOIN projects p ON p.id=opinion.project_id AND p.archived_at IS NULL AND p.status<>'archived'
+       WHERE contact.archived_at IS NULL
+         AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+           SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
+         ))
+       GROUP BY contact.id
+       ORDER BY contact.institution_name,contact.contact_person
+       LIMIT 1000`,
+      [user.id],
+    );
+    return { contacts: result.rows };
+  }
+
+  async addDefaultOpinionDrafts(user: AuthUser, projectId: string) {
+    assertUuid(projectId, 'Proje');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.assertProjectAccess(client, projectId, user.id, true);
+      const inserted = await client.query(
+        `INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,created_by,updated_by)
+         SELECT $1,NULL,defaults.institution_name,$2,'draft',$3,$3
+         FROM unnest($4::text[]) AS defaults(institution_name)
+         WHERE NOT EXISTS (
+           SELECT 1 FROM ced_institution_opinions existing
+           WHERE existing.project_id=$1 AND existing.archived_at IS NULL
+             AND lower(btrim(existing.institution_name))=lower(btrim(defaults.institution_name))
+         )
+         RETURNING id`,
+        [projectId,DEFAULT_OPINION_SUBJECT,user.id,DEFAULT_INSTITUTION_NAMES],
+      );
+      if (inserted.rowCount) {
+        await this.auditProject(client,projectId,'institution_opinion',projectId,'default_drafts_added',
+          {count:inserted.rowCount,institutions:DEFAULT_INSTITUTION_NAMES},user.id);
+      }
+      await client.query('COMMIT');
+      return {ok:true,createdCount:inserted.rowCount??0};
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+
+  async archiveOpinion(user: AuthUser, opinionId: string) {
+    assertUuid(opinionId, 'Kurum görüşü');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const found = await client.query(
+        `SELECT id,project_id AS "projectId",case_id AS "caseId",institution_name AS "institutionName"
+         FROM ced_institution_opinions WHERE id=$1 AND archived_at IS NULL FOR UPDATE`,
+        [opinionId],
+      );
+      if (!found.rowCount) throw new NotFoundException({code:'CED_OPINION_NOT_FOUND',message:'Kurum görüşü kaydı bulunamadı.'});
+      const row = found.rows[0];
+      await this.assertProjectAccess(client,row.projectId,user.id);
+      await client.query(
+        `UPDATE ced_institution_opinions SET archived_at=now(),updated_by=$1,updated_at=now(),version=version+1 WHERE id=$2`,
+        [user.id,opinionId],
+      );
+      if (row.caseId) await this.audit(client,row.caseId,'institution_opinion',opinionId,'archived',{institutionName:row.institutionName},user.id);
+      else await this.auditProject(client,row.projectId,'institution_opinion',opinionId,'archived',{institutionName:row.institutionName},user.id);
+      await client.query('COMMIT');
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
   }
 
   async createProjectCase(user: AuthUser, projectId: string, input: unknown) {
@@ -420,7 +500,7 @@ export class CedService {
   async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     let opinionId = '';
@@ -428,11 +508,12 @@ export class CedService {
       await client.query('BEGIN');
       // Lock the project row to serialize simultaneous submissions without creating a fake ÇED case.
       await this.assertProjectAccess(client, projectId, user.id, true);
+      const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{id:string}>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
          outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,
-        [projectId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
+         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
+        [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
           draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
       );
       opinionId=inserted.rows[0].id;
@@ -446,17 +527,18 @@ export class CedService {
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'notes']);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
       const current = await this.loadAccessibleCase(client, caseId, user.id, true);
+      const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{ id: string }>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,institution_name,subject,status,request_date,deadline_date,response_date,
+        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
          outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
-        [current.project_id,caseId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING id`,
+        [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
           draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
       );
       await this.audit(client, caseId, 'institution_opinion', inserted.rows[0].id, 'created', draft, user.id);
@@ -477,8 +559,10 @@ export class CedService {
       await client.query('BEGIN');
       const found = await client.query<any>(
         `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
-          o.response_date::text AS response_date
-         FROM ced_institution_opinions o WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
+          o.response_date::text AS response_date,contact.title AS contact_title,contact.department AS contact_department,
+          contact.phone AS contact_phone,contact.email AS contact_email,contact.address AS contact_address
+         FROM ced_institution_opinions o LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id
+         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
         [opinionId],
       );
       if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
@@ -499,13 +583,19 @@ export class CedService {
         outgoingLetterNo: Object.hasOwn(value, 'outgoingLetterNo') ? value.outgoingLetterNo : old.outgoing_letter_no,
         incomingLetterNo: Object.hasOwn(value, 'incomingLetterNo') ? value.incomingLetterNo : old.incoming_letter_no,
         contactPerson: Object.hasOwn(value, 'contactPerson') ? value.contactPerson : old.contact_person,
+        contactTitle: Object.hasOwn(value, 'contactTitle') ? value.contactTitle : old.contact_title ?? '',
+        contactDepartment: Object.hasOwn(value, 'contactDepartment') ? value.contactDepartment : old.contact_department ?? '',
+        contactPhone: Object.hasOwn(value, 'contactPhone') ? value.contactPhone : old.contact_phone ?? '',
+        contactEmail: Object.hasOwn(value, 'contactEmail') ? value.contactEmail : old.contact_email ?? '',
+        contactAddress: Object.hasOwn(value, 'contactAddress') ? value.contactAddress : old.contact_address ?? '',
         notes: Object.hasOwn(value, 'notes') ? value.notes : old.notes,
       });
+      const contactId = await this.saveInstitutionContact(client, user.id, merged);
       await client.query(
         `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
-         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,notes=$10,updated_by=$11,updated_at=now(),version=version+1 WHERE id=$12`,
+         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,updated_by=$12,updated_at=now(),version=version+1 WHERE id=$13`,
         [merged.institutionName, merged.subject, merged.status, merged.requestDate, merged.deadlineDate, merged.responseDate,
-          merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, merged.notes, user.id, opinionId],
+          merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, contactId, merged.notes, user.id, opinionId],
       );
       if (old.case_id) await this.audit(client, old.case_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
       else await this.auditProject(client, old.project_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
@@ -657,9 +747,12 @@ export class CedService {
       includeOpinions ? this.db.query(
         `SELECT o.id,o.institution_name AS "institutionName",o.subject,o.status,o.request_date::text AS "requestDate",
          o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",o.outgoing_letter_no AS "outgoingLetterNo",
-         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",o.notes,o.version,
+         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",
+         contact.title AS "contactTitle",contact.department AS "contactDepartment",contact.phone AS "contactPhone",
+         contact.email AS "contactEmail",contact.address AS "contactAddress",o.notes,o.version,
          o.created_by AS "createdBy",creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
+         LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
          WHERE o.project_id=$2 AND o.archived_at IS NULL ORDER BY CASE WHEN o.deadline_date IS NULL THEN 1 ELSE 0 END,o.deadline_date,o.institution_name`, [caseId,accessible.rows[0].project_id],
       ) : Promise.resolve({ rows: [] } as any),
       this.db.query(
@@ -692,6 +785,39 @@ export class CedService {
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'CED_CASE_NOT_FOUND', message: 'ÇED süreci bulunamadı.' });
     return result.rows[0];
+  }
+
+  private async saveInstitutionContact(client: PoolClient, userId: string, draft: ReturnType<typeof validateOpinion>): Promise<string | null> {
+    const hasDetails = Boolean(draft.contactPerson || draft.contactTitle || draft.contactDepartment ||
+      draft.contactPhone || draft.contactEmail || draft.contactAddress);
+    if (!hasDetails) return null;
+    const existing = await client.query<{id:string}>(
+      `SELECT id FROM ced_institution_contacts
+       WHERE archived_at IS NULL
+         AND lower(btrim(institution_name))=lower(btrim($1))
+         AND lower(btrim(contact_person))=lower(btrim($2))
+         AND lower(btrim(email))=lower(btrim($3))
+       ORDER BY updated_at DESC,id
+       LIMIT 1 FOR UPDATE`,
+      [draft.institutionName,draft.contactPerson,draft.contactEmail],
+    );
+    if (existing.rowCount) {
+      await client.query(
+        `UPDATE ced_institution_contacts SET title=$1,department=$2,phone=$3,email=$4,address=$5,
+          updated_by=$6,updated_at=now()
+         WHERE id=$7`,
+        [draft.contactTitle,draft.contactDepartment,draft.contactPhone,draft.contactEmail,draft.contactAddress,userId,existing.rows[0].id],
+      );
+      return existing.rows[0].id;
+    }
+    const inserted = await client.query<{id:string}>(
+      `INSERT INTO ced_institution_contacts(
+        institution_name,contact_person,title,department,phone,email,address,created_by,updated_by
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING id`,
+      [draft.institutionName,draft.contactPerson,draft.contactTitle,draft.contactDepartment,draft.contactPhone,
+        draft.contactEmail,draft.contactAddress,userId],
+    );
+    return inserted.rows[0].id;
   }
 
   private async assertProjectAccess(client: PoolClient, projectId: string, userId: string, lock = false) {
@@ -775,10 +901,16 @@ function validateOpinion(value: Record<string, unknown>) {
     outgoingLetterNo: boundedText(value.outgoingLetterNo ?? '', 0, 100, 'Giden yazı numarası'),
     incomingLetterNo: boundedText(value.incomingLetterNo ?? '', 0, 100, 'Gelen yazı numarası'),
     contactPerson: boundedText(value.contactPerson ?? '', 0, 160, 'İletişim kişisi'),
+    contactTitle: boundedText(value.contactTitle ?? '', 0, 120, 'İlgili kişinin unvanı'),
+    contactDepartment: boundedText(value.contactDepartment ?? '', 0, 120, 'İlgili kişinin birimi'),
+    contactPhone: boundedText(value.contactPhone ?? '', 0, 60, 'Telefon'),
+    contactEmail: boundedText(value.contactEmail ?? '', 0, 254, 'E-posta'),
+    contactAddress: boundedText(value.contactAddress ?? '', 0, 400, 'Adres'),
     notes: boundedText(value.notes ?? '', 0, 4000, 'Açıklama'),
   };
   if (draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
   if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
+  if (draft.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contactEmail)) throw invalid('İlgili kişi e-posta adresi geçersiz.');
   return draft;
 }
 function validateMeeting(value: Record<string, unknown>) {
