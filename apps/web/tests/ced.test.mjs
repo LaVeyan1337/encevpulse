@@ -86,5 +86,5 @@ test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kull
   assert.match(styles, /\.opinions-table/);
   assert.match(styles, /border-strong/);
   assert.doesNotMatch(brand, /#c88f73|#a96f56|#b97e61/i);
-  assert.match(brand, /--accent:#91a3ff/);
+  assert.match(brand, /--accent:#65baff/);\n  assert.match(brand, /--accent:#237bd5/);
 });
