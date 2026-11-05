@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 export const CHAT_ATTACHMENT_MAX_FILE_BYTES = 12 * 1024 * 1024;
 export const CHAT_ATTACHMENT_MAX_TOTAL_BYTES = 24 * 1024 * 1024;
 export const CHAT_ATTACHMENT_MAX_FILES = 5;
+export const CHAT_ATTACHMENT_USER_QUOTA_BYTES = 1024 * 1024 * 1024;
 
 export type UploadedChatFile = {
   originalname: string;
