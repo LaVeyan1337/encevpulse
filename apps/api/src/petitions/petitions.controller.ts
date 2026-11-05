@@ -68,9 +68,8 @@ export class PetitionsController {
     @Param('versionId') versionId:string,
     @Res({passthrough:true}) response:Response,
   ) {
-    const file=await this.petitions.downloadTemplateVersion(
-      await this.authorize(request,'view'),templateId,versionId,
-    );
+    await this.authorize(request,'view');
+    const file=await this.petitions.downloadTemplateVersion(templateId,versionId);
     response.setHeader('Cache-Control','private, no-store');
     response.setHeader('X-Content-Type-Options','nosniff');
     response.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.wordprocessingml.document');
