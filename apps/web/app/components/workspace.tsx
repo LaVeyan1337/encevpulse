@@ -330,6 +330,7 @@ export function Workspace({
 
   const request = useCallback(
     async (path: string, method = 'GET', data?: unknown) => {
+      const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
       const response = await fetch(`/api/${path}`, {
         method,
         credentials: 'same-origin',
@@ -337,8 +338,8 @@ export function Workspace({
         headers:
           data === undefined
             ? {}
-            : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-        ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+            : { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), 'X-CSRF-Token': csrfToken },
+        ...(data === undefined ? {} : { body: isFormData ? data : JSON.stringify(data) }),
       });
       if (response.status === 401) {
         onExpired();

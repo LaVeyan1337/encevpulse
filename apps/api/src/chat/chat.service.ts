@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { CHAT_ATTACHMENT_USER_QUOTA_BYTES, validateChatAttachmentFiles, type UploadedChatFile } from './chat-attachments.js';
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
@@ -154,7 +155,15 @@ export class ChatService {
               AND (read_to.created_at,read_to.id)>=(m.created_at,m.id)
             ORDER BY reader.display_name
           ),ARRAY[]::text[]) AS "readBy",
-          link.task_id AS "linkedTaskId"
+          link.task_id AS "linkedTaskId",
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'id',attachment.id,'originalName',attachment.original_name,'mimeType',attachment.mime_type,
+              'byteSize',attachment.byte_size,'createdAt',attachment.created_at
+            ) ORDER BY attachment.created_at,attachment.id)
+            FROM chat_attachments attachment
+            WHERE attachment.message_id=m.id AND attachment.deleted_at IS NULL AND attachment.content IS NOT NULL
+          ),'[]'::json) AS attachments
        FROM messages m JOIN users u ON u.id=m.sender_id
        LEFT JOIN messages parent ON parent.id=m.reply_to_id
        LEFT JOIN users parent_user ON parent_user.id=parent.sender_id
@@ -220,6 +229,104 @@ export class ChatService {
     finally { client.release(); }
   }
 
+  async sendAttachments(user: AuthUser,id: string,input: unknown,uploads: UploadedChatFile[]) {
+    assertUuid(id);
+    const value=objectInput(input);
+    const files=validateChatAttachmentFiles(uploads);
+    const caption=value.caption===undefined?'':textInput(value.caption,0,4000,'Açıklama');
+    const body=caption|| (files.length===1?'📎 '+files[0].originalName:'📎 '+files.length+' dosya');
+    const replyTo=value.replyToId===undefined||value.replyToId===null?null:uuidInput(value.replyToId,'Yanıt mesajı');
+    const clientRequestId=value.clientRequestId===undefined?randomUUID():uuidInput(value.clientRequestId,'İstek kimliği');
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.requireMember(client,id,user.id);
+      if(replyTo) {
+        const parent=await client.query(`SELECT id FROM messages WHERE id=$1 AND conversation_id=$2 AND deleted_at IS NULL`,[replyTo,id]);
+        if(!parent.rowCount) throw invalid('Yanıt verilen mesaj bulunamadı.');
+      }
+      const inserted=await client.query(
+        `INSERT INTO messages(conversation_id,sender_id,client_request_id,body,reply_to_id)
+         VALUES($1,$2,$3,$4,$5) ON CONFLICT(sender_id,client_request_id) DO NOTHING
+         RETURNING id,created_at AS "createdAt",version`,
+        [id,user.id,clientRequestId,body,replyTo],
+      );
+      let message=inserted.rows[0];
+      if(!message) {
+        const existing=await client.query(
+          `SELECT id,conversation_id,body,reply_to_id,created_at AS "createdAt",version
+           FROM messages WHERE sender_id=$1 AND client_request_id=$2 FOR UPDATE`,
+          [user.id,clientRequestId],
+        );
+        message=existing.rows[0];
+        if(!message||message.conversation_id!==id||message.body!==body||(message.reply_to_id??null)!==replyTo) {
+          throw new ConflictException({code:'MESSAGE_IDEMPOTENCY_CONFLICT',message:'Bu dosya gönderimi daha önce farklı içerikle kullanılmış.'});
+        }
+        const existingFiles=await client.query(
+          `SELECT sha256 FROM chat_attachments WHERE message_id=$1 AND deleted_at IS NULL ORDER BY created_at,id`,
+          [message.id],
+        );
+        if(existingFiles.rowCount!==files.length||existingFiles.rows.some((row,index)=>row.sha256!==files[index].sha256)) {
+          throw new ConflictException({code:'MESSAGE_ATTACHMENT_IDEMPOTENCY_CONFLICT',message:'Bu gönderim kimliği farklı dosyalarla daha önce kullanılmış.'});
+        }
+      } else {
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext('chat-attachments-user:'||$1::text))`,[user.id]);
+        const usage=await client.query<{bytes:string}>(`SELECT COALESCE(sum(byte_size),0)::text AS bytes
+          FROM chat_attachments WHERE uploaded_by=$1 AND deleted_at IS NULL`,[user.id]);
+        const storedBytes=Number(usage.rows[0]?.bytes??'0');
+        const requestedBytes=files.reduce((total,file)=>total+file.byteSize,0);
+        if(!Number.isSafeInteger(storedBytes)||storedBytes+requestedBytes>CHAT_ATTACHMENT_USER_QUOTA_BYTES) {
+          throw invalid('Sohbet ekleri için kullanıcı başına 1 GB saklama sınırı doldu.');
+        }
+        for(const file of files) {
+          await client.query(
+            `INSERT INTO chat_attachments(message_id,conversation_id,uploaded_by,original_name,mime_type,byte_size,sha256,content)
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [message.id,id,user.id,file.originalName,file.mimeType,file.byteSize,file.sha256,file.content],
+          );
+        }
+        await client.query(`INSERT INTO message_events(message_id,conversation_id,actor_user_id,event_type,details)
+          VALUES($1,$2,$3,'created',$4)`,[message.id,id,user.id,{attachments:files.length}]);
+        await client.query(`UPDATE conversations SET updated_at=now() WHERE id=$1`,[id]);
+        await client.query(`INSERT INTO chat_notifications(recipient_user_id,actor_user_id,conversation_id,message_id,idempotency_key)
+          SELECT cm.user_id,$2::uuid,$1::uuid,$3::uuid,
+            'chat.message:'||($3::uuid)::text||':'||cm.user_id::text
+          FROM conversation_members cm JOIN users u ON u.id=cm.user_id
+          WHERE cm.conversation_id=$1::uuid AND cm.user_id<>$2::uuid
+            AND cm.left_at IS NULL AND u.status='active'
+          ON CONFLICT(idempotency_key) DO NOTHING`,[id,user.id,message.id]);
+      }
+      const attachmentRows=await client.query(
+        `SELECT id,original_name AS "originalName",mime_type AS "mimeType",byte_size AS "byteSize",
+          created_at AS "createdAt"
+         FROM chat_attachments WHERE message_id=$1 AND deleted_at IS NULL ORDER BY created_at,id`,
+        [message.id],
+      );
+      await client.query('COMMIT');
+      return {message:{id:message.id,createdAt:message.createdAt,version:message.version,clientRequestId,attachments:attachmentRows.rows}};
+    } catch(error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+
+  async getAttachment(user: AuthUser,id: string) {
+    assertUuid(id);
+    const result=await this.db.query<{
+      id:string;originalName:string;mimeType:string;byteSize:number;content:Buffer;
+    }>(
+      `SELECT attachment.id,attachment.original_name AS "originalName",attachment.mime_type AS "mimeType",
+        attachment.byte_size AS "byteSize",attachment.content
+       FROM chat_attachments attachment
+       JOIN messages message ON message.id=attachment.message_id AND message.deleted_at IS NULL
+       JOIN conversations conversation ON conversation.id=attachment.conversation_id AND conversation.archived_at IS NULL
+       JOIN conversation_members member ON member.conversation_id=conversation.id AND member.user_id=$2 AND member.left_at IS NULL
+       JOIN users account ON account.id=member.user_id AND account.status='active'
+       WHERE attachment.id=$1 AND attachment.deleted_at IS NULL AND attachment.content IS NOT NULL`,
+      [id,user.id],
+    );
+    if(!result.rowCount) throw new NotFoundException({code:'CHAT_ATTACHMENT_NOT_FOUND',message:'Dosya bulunamadı veya bu sohbete erişiminiz yok.'});
+    return result.rows[0];
+  }
+
   async editMessage(user: AuthUser,id: string,input: unknown) {
     assertUuid(id);
     const value=objectInput(input);
@@ -272,6 +379,7 @@ export class ChatService {
       if(old.deleted_at) throw new ConflictException({code:'MESSAGE_DELETED',message:'Mesaj zaten silinmiş.'});
       await client.query(`UPDATE messages SET body='',deleted_at=now(),edited_at=now(),version=version+1,
         pinned_at=NULL,pinned_by=NULL WHERE id=$1`,[id]);
+      await client.query(`UPDATE chat_attachments SET content=NULL,deleted_at=now() WHERE message_id=$1 AND deleted_at IS NULL`,[id]);
       await client.query(`INSERT INTO message_events(message_id,conversation_id,actor_user_id,event_type)
         VALUES($1,$2,$3,'deleted')`,[id,old.conversation_id,user.id]);
       await client.query('COMMIT');

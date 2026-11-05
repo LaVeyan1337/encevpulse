@@ -24,6 +24,11 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     cedService: '../../api/src/ced/ced.service.ts',
     chat: '../app/components/chat-workspace.tsx',
     chatStyles: '../app/people-chat.css',
+    chatService: '../../api/src/chat/chat.service.ts',
+    chatController: '../../api/src/chat/chat.controller.ts',
+    chatUploadGuard: '../../api/src/chat/chat-upload.guard.ts',
+    chatAttachmentValidation: '../../api/src/chat/chat-attachments.ts',
+    chatAttachmentMigration: '../../../drizzle/0019_chat_attachments.sql',
     drawer: '../app/components/drawer.tsx',
     glass: '../app/bitrix-glass.css',
     extensionManifest: '../../../browser_extension/manifest.json',
@@ -122,6 +127,23 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.chat,/visibleConversations\.map/);
   assert.match(source.chatStyles,/\.chat-message\.own \.chat-message-content/);
   assert.match(source.chatStyles,/\.chat-list-filters/);
+  assert.match(source.chat,/uploadAttachments/);
+  assert.match(source.chat,/startVoiceRecording/);
+  assert.match(source.chat,/MediaRecorder/);
+  assert.match(source.chat,/chat-attachment-audio/);
+  assert.match(source.chat,/chat-attachment-image/);
+  assert.match(source.chat,/chat-composer-media/);
+  assert.match(source.chatService,/async sendAttachments/);
+  assert.match(source.chatService,/async getAttachment/);
+  assert.match(source.chatService,/CHAT_ATTACHMENT_USER_QUOTA_BYTES/);
+  assert.match(source.chatController,/FilesInterceptor\('files'/);
+  assert.match(source.chatController,/attachments\/:id\/content/);
+  assert.match(source.chatUploadGuard,/authorizeRequest\(request,true,'multipart'\)/);
+  assert.match(source.chatAttachmentValidation,/contentMatches/);
+  assert.match(source.chatAttachmentValidation,/CHAT_ATTACHMENT_MAX_TOTAL_BYTES/);
+  assert.match(source.chatAttachmentMigration,/CREATE TABLE chat_attachments/);
+  assert.match(source.chatAttachmentMigration,/chat_attachments_content_retention/);
+  assert.match(source.workspace,/data instanceof FormData/);
 
   assert.match(source.drawer,/createPortal/);
   assert.match(source.drawer,/document\.body/);

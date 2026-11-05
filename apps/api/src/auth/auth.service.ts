@@ -164,14 +164,15 @@ export class AuthService {
     return { user: session.user, csrfToken: csrfForSession(token) };
   }
 
-  async authorizeRequest(request: Request, write = false): Promise<AuthUser> {
+  async authorizeRequest(request: Request, write = false, contentType: 'json' | 'multipart' = 'json'): Promise<AuthUser> {
     const session = await this.requireSession(request);
     if (session.user.mustChangePassword) {
       throw new ForbiddenException({ code: 'PASSWORD_CHANGE_REQUIRED', message: 'Bu işlemden önce parolanızı değiştirin.' });
     }
     if (write) {
       this.assertOrigin(request);
-      this.assertJsonContentType(request);
+      if(contentType==='multipart') this.assertMultipartContentType(request);
+      else this.assertJsonContentType(request);
       await this.assertSessionCsrf(request, session.csrfTokenHash);
     }
     return session.user;
@@ -596,6 +597,12 @@ export class AuthService {
   private assertJsonContentType(request: Request): void {
     if (!request.is('application/json')) {
       throw new BadRequestException({ code: 'JSON_REQUIRED', message: 'İstek biçimi desteklenmiyor.' });
+    }
+  }
+
+  private assertMultipartContentType(request: Request): void {
+    if (!request.is('multipart/form-data')) {
+      throw new BadRequestException({code:'MULTIPART_REQUIRED',message:'Dosya yükleme isteği desteklenen biçimde değil.'});
     }
   }
 

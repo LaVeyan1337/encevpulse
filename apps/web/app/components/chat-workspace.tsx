@@ -12,11 +12,12 @@ type ChatMember = {
   role:'owner'|'admin'|'member';joinedAt:string;
 };
 type Reaction = {code:string;count:number;reactedByMe:boolean};
+type ChatAttachment = {id:string;originalName:string;mimeType:string;byteSize:number;createdAt:string};
 type Message = {
   id:string;conversationId:string;senderId:string;senderName:string;senderAvatarKey:string;body:string;
   replyToId:string|null;replyBody:string|null;replySenderName:string|null;version:number;
   createdAt:string;editedAt:string|null;deletedAt:string|null;pinnedAt:string|null;
-  isMine:boolean;reactions:Reaction[];readBy:string[];linkedTaskId:string|null;
+  isMine:boolean;reactions:Reaction[];readBy:string[];linkedTaskId:string|null;attachments:ChatAttachment[];
 };
 type DirectoryPerson = {
   id:string;displayName:string;username:string;email?:string;jobTitle?:string;department?:string;avatarKey?:string;roles?:string[];
@@ -27,6 +28,11 @@ const reactions=['👍','❤️','😂','🎉','👀','🙏','✅','🔥'];
 const roleLabel=(role:string)=>({owner:'Sohbet sahibi',admin:'Yönetici',member:'Üye'}[role]??role);
 const timeLabel=(value:string)=>new Intl.DateTimeFormat('tr-TR',{hour:'2-digit',minute:'2-digit'}).format(new Date(value));
 const dateLabel=(value:string)=>new Intl.DateTimeFormat('tr-TR',{day:'numeric',month:'short'}).format(new Date(value));
+const fileSizeLabel=(bytes:number)=>{
+  if(bytes<1024)return bytes+' B';
+  if(bytes<1024*1024)return (bytes/1024).toFixed(0)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+};
 
 export function ChatWorkspace({
   request,
@@ -70,6 +76,9 @@ export function ChatWorkspace({
   const [messageLoading,setMessageLoading]=useState(false);
   const [error,setError]=useState('');
   const [draft,setDraft]=useState('');
+  const [pendingFiles,setPendingFiles]=useState<File[]>([]);
+  const [recording,setRecording]=useState(false);
+  const [recordingError,setRecordingError]=useState('');
   const [replyTo,setReplyTo]=useState<Message|null>(null);
   const [sending,setSending]=useState(false);
   const [sendState,setSendState]=useState<'idle'|'sent'|'failed'>('idle');
@@ -91,6 +100,12 @@ export function ChatWorkspace({
   const [taskDraftAssigneeId,setTaskDraftAssigneeId]=useState(currentUserId);
   const [taskDraftProjectId,setTaskDraftProjectId]=useState('');
   const scrollRef=useRef<HTMLDivElement|null>(null);
+  const attachmentInputRef=useRef<HTMLInputElement|null>(null);
+  const selectedConversationIdRef=useRef<string|null>(selectedId);
+  const recorderRef=useRef<MediaRecorder|null>(null);
+  const recordingStreamRef=useRef<MediaStream|null>(null);
+  const recordingChunksRef=useRef<Blob[]>([]);
+  const recordingTimeoutRef=useRef<number|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
   const lastExternalTarget=useRef<string|null>(null);
@@ -292,6 +307,32 @@ export function ChatWorkspace({
     };
   },[selectedId,loadConversations,loadDetail,loadMessages]);
 
+  useEffect(()=>()=> {
+    const recorder=recorderRef.current;
+    if(recorder&&recorder.state!=='inactive'){
+      recorder.onstop=null;
+      recorder.stop();
+    }
+    recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+    if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+  },[]);
+
+  useEffect(()=>{
+    selectedConversationIdRef.current=selectedId;
+    setPendingFiles([]);
+    setRecordingError('');
+    if(recorderRef.current&&recorderRef.current.state!=='inactive'){
+      recorderRef.current.onstop=null;
+      recorderRef.current.stop();
+    }
+    recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+    recordingStreamRef.current=null;
+    recorderRef.current=null;
+    if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+    recordingTimeoutRef.current=null;
+    setRecording(false);
+  },[selectedId]);
+
   useEffect(()=>{
     const element=scrollRef.current;
     if(!element)return;
@@ -334,10 +375,43 @@ export function ChatWorkspace({
     }finally{setLoadingOlder(false);}
   }
 
+  async function uploadAttachments(files:File[],caption:string,targetConversationId=selectedId,replyMessageId=replyTo?.id??null) {
+    if(!canCreate||!targetConversationId||files.length===0||sending)return;
+    if(files.length>5){setError('Bir mesajda en fazla 5 dosya gönderebilirsiniz.');return;}
+    if(files.some(file=>file.size<1||file.size>12*1024*1024)||files.reduce((total,file)=>total+file.size,0)>24*1024*1024){
+      setError('Her dosya en fazla 12 MB, bir mesajdaki toplam ekler en fazla 24 MB olabilir.');
+      return;
+    }
+    const form=new FormData();
+    form.append('caption',caption);
+    if(replyMessageId)form.append('replyToId',replyMessageId);
+    form.append('clientRequestId',crypto.randomUUID());
+    for(const file of files)form.append('files',file,file.name);
+    setSending(true);setSendState('idle');setError('');
+    try{
+      await request('chat/conversations/'+targetConversationId+'/attachments','POST',form);
+      setSendState('sent');
+      if(selectedConversationIdRef.current===targetConversationId){
+        setDraft(current=>current.trim()===caption?'':current);
+        setPendingFiles([]);
+        setReplyTo(null);
+        await Promise.all([loadMessages(targetConversationId,true,true),loadConversations()]);
+      }else await loadConversations();
+    }catch(cause){
+      setSendState('failed');
+      setError(cause instanceof Error?cause.message:'Dosya gönderilemedi. Seçtiğiniz dosyalar korunmuştur.');
+    }finally{setSending(false);}
+  }
+
   async function sendMessage(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value=draft.trim();
-    if(!canCreate||!selectedId||!value||sending)return;
+    if(!canCreate||!selectedId||sending||recording)return;
+    if(pendingFiles.length){
+      await uploadAttachments([...pendingFiles],value,selectedId,replyTo?.id??null);
+      return;
+    }
+    if(!value)return;
     setSending(true);setSendState('idle');setError('');
     const clientRequestId=crypto.randomUUID();
     const currentReply=replyTo?.id??null;
@@ -354,6 +428,62 @@ export function ChatWorkspace({
       setSendState('failed');
       setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
     } finally {setSending(false);}
+  }
+
+  async function startVoiceRecording(){
+    if(!canCreate||!selectedId||sending||recording)return;
+    setRecordingError('');
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+      setRecordingError('Bu tarayıcı ses kaydını desteklemiyor. Güncel Chrome veya Edge kullanın.');
+      return;
+    }
+    const targetConversationId=selectedId;
+    const replyMessageId=replyTo?.id??null;
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      if(selectedConversationIdRef.current!==targetConversationId){
+        stream.getTracks().forEach(track=>track.stop());
+        return;
+      }
+      const candidates=['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4'];
+      const mimeType=candidates.find(type=>MediaRecorder.isTypeSupported(type));
+      const recorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream);
+      recordingStreamRef.current=stream;
+      recorderRef.current=recorder;
+      recordingChunksRef.current=[];
+      recorder.ondataavailable=event=>{if(event.data.size)recordingChunksRef.current.push(event.data);};
+      recorder.onerror=()=>setRecordingError('Ses kaydı sırasında bir hata oluştu.');
+      recorder.onstop=()=>{
+        if(recordingTimeoutRef.current!==null)window.clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current=null;
+        stream.getTracks().forEach(track=>track.stop());
+        recordingStreamRef.current=null;
+        recorderRef.current=null;
+        setRecording(false);
+        const blob=new Blob(recordingChunksRef.current,{type:recorder.mimeType||'audio/webm'});
+        recordingChunksRef.current=[];
+        if(!blob.size){setRecordingError('Ses kaydı boş olduğu için gönderilmedi.');return;}
+        if(blob.size>12*1024*1024){setRecordingError('Ses kaydı 12 MB sınırını aştı. Daha kısa bir kayıt deneyin.');return;}
+        const normalizedMime=(blob.type||'audio/webm').split(';')[0].toLowerCase();
+        const extension=normalizedMime==='audio/ogg'?'ogg':normalizedMime==='audio/mp4'?'m4a':'webm';
+        const file=new File([blob],'sesli-mesaj-'+Date.now()+'.'+extension,{type:normalizedMime});
+        void uploadAttachments([file],'',targetConversationId,replyMessageId);
+      };
+      recorder.start(1000);
+      setRecording(true);
+      recordingTimeoutRef.current=window.setTimeout(()=>stopVoiceRecording(),120000);
+    }catch(cause){
+      recordingStreamRef.current?.getTracks().forEach(track=>track.stop());
+      recordingStreamRef.current=null;
+      recorderRef.current=null;
+      setRecording(false);
+      setRecordingError(cause instanceof Error?cause.message:'Mikrofon erişimi sağlanamadı.');
+    }
+  }
+
+  function stopVoiceRecording(){
+    const recorder=recorderRef.current;
+    if(recorder&&recorder.state!=='inactive')recorder.stop();
   }
 
   async function openSearchResult(result:Record<string,any>) {
@@ -651,7 +781,41 @@ export function ChatWorkspace({
                             {editingId===message.id?(
                               <div className="chat-edit-box"><textarea value={editingBody} onChange={event=>setEditingBody(event.target.value)} maxLength={4000}/><div><button type="button" onClick={()=>{setEditingId(null);setEditingBody('');}}>Vazgeç</button><button type="button" disabled={actionBusy||!editingBody.trim()} onClick={()=>void editMessage(message)}>Kaydet</button></div></div>
                             ):(
-                              <p className={message.deletedAt?'chat-message-deleted':''}>{message.deletedAt?'Bu mesaj silindi.':message.body}</p>
+                              message.deletedAt
+                                ? <p className="chat-message-deleted">Bu mesaj silindi.</p>
+                                : (message.attachments?.length??0)===0||!message.body.startsWith('📎 ')
+                                  ? <p>{message.body}</p>
+                                  : null
+                            )}
+                            {!message.deletedAt&&(message.attachments?.length??0)>0&&(
+                              <div className="chat-attachments">
+                                {message.attachments.map(attachment=>{
+                                  const contentUrl='/api/chat/attachments/'+attachment.id+'/content';
+                                  if(attachment.mimeType.startsWith('image/'))return (
+                                    <a className="chat-attachment-image" href={contentUrl} target="_blank" rel="noreferrer" key={attachment.id}>
+                                      <img src={contentUrl} alt={attachment.originalName} loading="lazy"/>
+                                    </a>
+                                  );
+                                  if(attachment.mimeType.startsWith('audio/'))return (
+                                    <div className="chat-attachment-audio" key={attachment.id}>
+                                      <span>♫ {attachment.originalName}</span>
+                                      <audio controls preload="metadata" src={contentUrl}/>
+                                    </div>
+                                  );
+                                  if(attachment.mimeType.startsWith('video/'))return (
+                                    <div className="chat-attachment-video" key={attachment.id}>
+                                      <video controls preload="metadata" src={contentUrl}/>
+                                      <span>{attachment.originalName} · {fileSizeLabel(attachment.byteSize)}</span>
+                                    </div>
+                                  );
+                                  return (
+                                    <a className="chat-attachment-file" href={'/api/chat/attachments/'+attachment.id+'/download'} key={attachment.id}>
+                                      <span className="chat-attachment-file-icon">↧</span>
+                                      <span><strong>{attachment.originalName}</strong><small>{fileSizeLabel(attachment.byteSize)}</small></span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
                             )}
                             {!message.deletedAt&&(
                               <>
@@ -683,8 +847,35 @@ export function ChatWorkspace({
             </div>
             {canCreate ? <form className="chat-composer" onSubmit={sendMessage}>
               {replyTo&&<div className="chat-replying"><span><strong>{replyTo.senderName}</strong> mesajına yanıt veriliyor</span><p>{replyTo.body.slice(0,120)}</p><button type="button" onClick={()=>setReplyTo(null)} aria-label="Yanıtı iptal et">×</button></div>}
+              {pendingFiles.length>0&&<div className="chat-pending-files" aria-label="Gönderilmeye hazır dosyalar">
+                {pendingFiles.map((file,index)=><div key={file.name+'-'+index}><span>{file.name} · {fileSizeLabel(file.size)}</span><button type="button" onClick={()=>setPendingFiles(items=>items.filter((_,fileIndex)=>fileIndex!==index))} aria-label={file.name+' dosyasını kaldır'}>×</button></div>)}
+              </div>}
+              <div className="chat-composer-media">
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,audio/*"
+                  onChange={event=>{
+                    const chosen=Array.from(event.currentTarget.files??[]);
+                    event.currentTarget.value='';
+                    if(chosen.length>5){setError('Bir mesajda en fazla 5 dosya seçebilirsiniz.');return;}
+                    if(chosen.some(file=>file.size<1||file.size>12*1024*1024)||chosen.reduce((total,file)=>total+file.size,0)>24*1024*1024){
+                      setError('Her dosya en fazla 12 MB, toplam ekler en fazla 24 MB olabilir.');return;
+                    }
+                    setPendingFiles(chosen);setError('');
+                  }}
+                />
+                <button type="button" className="chat-media-button" onClick={()=>attachmentInputRef.current?.click()} disabled={sending||recording} aria-label="Fotoğraf veya dosya ekle" title="Fotoğraf veya dosya ekle">＋</button>
+                {recording
+                  ? <button type="button" className="chat-record-button is-recording" onClick={stopVoiceRecording} aria-label="Ses kaydını bitir"><i/> Kaydı bitir</button>
+                  : <button type="button" className="chat-record-button" onClick={()=>void startVoiceRecording()} disabled={sending||pendingFiles.length>0} aria-label="Sesli mesaj kaydet" title="Sesli mesaj kaydet">🎙 Sesli mesaj</button>}
+                {recording&&<span className="chat-recording-live" role="status">Kayıt sürüyor · en fazla 2 dakika</span>}
+                {recordingError&&<span className="chat-recording-error" role="alert">{recordingError}</span>}
+              </div>
               <textarea value={draft} onChange={event=>setDraft(event.target.value)} maxLength={4000} rows={2} placeholder={replyTo?'Yanıtınızı yazın…':'Mesajınızı yazın…'} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
-              <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · Metin korundu':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||!draft.trim()}>{sending?'Gönderiliyor…':'Gönder'} <b>↗</b></button></div>
+              <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · İçerik korundu':recording?'Kaydı bitirerek sesli mesajı gönderin':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||recording||(!draft.trim()&&pendingFiles.length===0)}>{sending?'Gönderiliyor…':pendingFiles.length?'Dosyaları gönder':'Gönder'} <b>↗</b></button></div>
             </form> : <div className="chat-readonly-note">Bu konuşmaları görüntüleme yetkiniz var; mesaj gönderme izniniz bulunmuyor.</div>}
           </>
         ):(

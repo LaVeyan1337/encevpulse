@@ -104,6 +104,16 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
     return {response,data};
   }
 
+  async function apiMultipart(base:string,client:Client,path:string,form:FormData,method='POST') {
+    const response=await fetch(`${base}/api/${path}`,{
+      method,
+      headers:{Origin:ORIGIN,Cookie:client.cookie,'X-CSRF-Token':client.csrf},
+      body:form,
+    });
+    const data=response.status===204?null:await response.json();
+    return {response,data};
+  }
+
   async function signIn(base:string,username:string):Promise<Client> {
     const challenge=await fetch(`${base}/api/auth/csrf`,{
       method:'POST',headers:{Origin:ORIGIN,'Content-Type':'application/json'},body:'{}',
@@ -239,6 +249,76 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(reply.response.status,201);
       replyMessageId=reply.data.message.id;messageIds.push(replyMessageId);
 
+      const pngFixture=Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x01]);
+      const uploadRequestId=randomUUID();
+      const buildImageForm=()=>{
+        const form=new FormData();
+        form.append('caption','Flora saha fotoğrafı');
+        form.append('replyToId',firstMessageId);
+        form.append('clientRequestId',uploadRequestId);
+        form.append('files',new Blob([new Uint8Array(pngFixture)],{type:'image/png'}),'flora-saha.png');
+        return form;
+      };
+      const uploaded=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,buildImageForm());
+      assert.equal(uploaded.response.status,201,JSON.stringify(uploaded.data));
+      const attachmentMessageId=uploaded.data.message.id as string;
+      messageIds.push(attachmentMessageId);
+      assert.equal(uploaded.data.message.attachments.length,1);
+      assert.equal(uploaded.data.message.attachments[0].originalName,'flora-saha.png');
+
+      const repeatedUpload=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,buildImageForm());
+      assert.equal(repeatedUpload.response.status,201,JSON.stringify(repeatedUpload.data));
+      assert.equal(repeatedUpload.data.message.id,attachmentMessageId,'Aynı idempotency anahtarı ikinci mesaj veya ek oluşturmamalı.');
+
+      const uploadedList=await api(base,alice,`chat/conversations/${groupId}/messages`);
+      const uploadedMessage=uploadedList.data.messages.find((message:{id:string})=>message.id===attachmentMessageId);
+      assert.ok(uploadedMessage);
+      assert.equal(uploadedMessage.attachments.length,1);
+      assert.equal(uploadedMessage.body,'Flora saha fotoğrafı');
+
+      const attachmentUrl=`${base}/api/chat/attachments/${uploadedMessage.attachments[0].id}/content`;
+      const downloaded=await fetch(attachmentUrl,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(downloaded.status,200);
+      assert.equal(downloaded.headers.get('content-type'),'image/png');
+      assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),pngFixture);
+
+      const forbiddenDownload=await fetch(attachmentUrl,{headers:{Origin:ORIGIN,Cookie:dave.cookie}});
+      assert.equal(forbiddenDownload.status,404,'Sohbet üyesi olmayan kullanıcı eki görememeli.');
+
+      const forgedForm=new FormData();
+      forgedForm.append('caption','Sahte görsel');
+      forgedForm.append('clientRequestId',randomUUID());
+      forgedForm.append('files',new Blob(['<script>alert(1)</script>'],{type:'image/png'}),'sahte.png');
+      const forgedUpload=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,forgedForm);
+      assert.equal(forgedUpload.response.status,400,'MIME bildirimi uzantı ve dosya imzası kontrolünü atlamamalı.');
+
+      const forbiddenDelete=await api(base,bob,`chat/messages/${attachmentMessageId}`,'DELETE',{version:1});
+      assert.equal(forbiddenDelete.response.status,403,'Başka kullanıcının ekli mesajı silinememeli.');
+      const removeAttachmentMessage=await api(base,alice,`chat/messages/${attachmentMessageId}`,'DELETE',{version:1});
+      assert.equal(removeAttachmentMessage.response.status,204);
+      const removedContent=await fetch(attachmentUrl,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(removedContent.status,404,'Silinen mesajın ek içeriği sunulmamalı.');
+
+      const pdfFixture=Buffer.from('%PDF-1.7\\nchat attachment fixture\\n%%EOF');
+      const pdfForm=new FormData();
+      pdfForm.append('caption','Toplantı tutanağı');
+      pdfForm.append('clientRequestId',randomUUID());
+      pdfForm.append('files',new Blob([new Uint8Array(pdfFixture)],{type:'application/pdf'}),'toplanti.pdf');
+      const pdfUpload=await apiMultipart(base,alice,`chat/conversations/${groupId}/attachments`,pdfForm);
+      assert.equal(pdfUpload.response.status,201,JSON.stringify(pdfUpload.data));
+      const pdfMessageId=pdfUpload.data.message.id as string;
+      messageIds.push(pdfMessageId);
+      const pdfAttachmentId=pdfUpload.data.message.attachments[0].id as string;
+      const blockedInlinePdf=await fetch(`${base}/api/chat/attachments/${pdfAttachmentId}/content`,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(blockedInlinePdf.status,404,'PDF eki inline içerik uç noktasından sunulmamalı.');
+      const forcedPdfDownload=await fetch(`${base}/api/chat/attachments/${pdfAttachmentId}/download`,{headers:{Origin:ORIGIN,Cookie:alice.cookie}});
+      assert.equal(forcedPdfDownload.status,200);
+      assert.equal(forcedPdfDownload.headers.get('content-type'),'application/octet-stream');
+      assert.match(forcedPdfDownload.headers.get('content-disposition')??'',/attachment/);
+      assert.deepEqual(Buffer.from(await forcedPdfDownload.arrayBuffer()),pdfFixture);
+      const pdfDeleted=await api(base,alice,`chat/messages/${pdfMessageId}`,'DELETE',{version:1});
+      assert.equal(pdfDeleted.response.status,204);
+
       const noEditPermission=await api(base,bob,`chat/messages/${firstMessageId}`,'PATCH',{
         body:'Başkasının mesajını düzenleme',version:1,
       });
@@ -357,6 +437,7 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       await cleanup.query('DELETE FROM chat_notifications WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM conversation_read_cursors WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM message_task_links WHERE message_id=ANY($1::uuid[])',[messageIds]);
+      await cleanup.query('DELETE FROM chat_attachments WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM message_reactions WHERE message_id=ANY($1::uuid[])',[messageIds]);
       await cleanup.query('DELETE FROM message_events WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
       await cleanup.query('DELETE FROM conversation_member_events WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
