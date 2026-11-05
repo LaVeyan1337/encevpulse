@@ -1757,22 +1757,28 @@ export function Workspace({
             />
           )}
 
-          {section === 'chat' && (
-            <ChatWorkspace
-              request={request}
-              people={people}
-              currentUserId={user.id}
-              projects={projects.filter((project) => project.status !== 'archived' && !project.archivedAt).map(({id,name,status}) => ({id,name,status}))}
-              startUserId={chatStartUserId}
-              initialConversationId={chatStartConversationId}
-              onStartConsumed={clearChatStart}
-              onTaskOpen={(taskId) => void openChatTask(taskId)}
-              canCreate={hasModulePermission('chat','create')}
-              canUpdate={hasModulePermission('chat','update')}
-              canDelete={hasModulePermission('chat','delete')}
-              canCreateTask={hasModulePermission('chat','create')&&hasModulePermission('tasks','create')}
-              canViewTasks={hasModulePermission('tasks','view')}
-            />
+          {hasModulePermission('chat') && (
+            <div
+              className={section === 'chat' ? 'chat-workspace-host' : 'chat-workspace-host is-background'}
+              aria-hidden={section !== 'chat'}
+            >
+              <ChatWorkspace
+                request={request}
+                people={people}
+                currentUserId={user.id}
+                projects={projects.filter((project) => project.status !== 'archived' && !project.archivedAt).map(({id,name,status}) => ({id,name,status}))}
+                startUserId={chatStartUserId}
+                initialConversationId={chatStartConversationId}
+                onStartConsumed={clearChatStart}
+                onTaskOpen={(taskId) => void openChatTask(taskId)}
+                canCreate={hasModulePermission('chat','create')}
+                canUpdate={hasModulePermission('chat','update')}
+                canDelete={hasModulePermission('chat','delete')}
+                canCreateTask={hasModulePermission('chat','create')&&hasModulePermission('tasks','create')}
+                canViewTasks={hasModulePermission('tasks','view')}
+                isActive={section === 'chat'}
+              />
+            </div>
           )}
 
           {/* Project Workspace */}

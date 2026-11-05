@@ -13,6 +13,7 @@ on:
       - feature/chat-media-audio-20261105
       - feature/chat-webrtc-calls-20261105
       - feature/eced-extension-report-diagnostics-20261105
+      - feature/global-chat-call-overlay-20261105
     paths:
       - "apps/**"
       - "drizzle/**"
