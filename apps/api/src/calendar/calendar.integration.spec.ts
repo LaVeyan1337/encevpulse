@@ -321,6 +321,7 @@ test('takvim API: kişisel, ortak ve proje etkinlikleri; kapsam, tarih izdüşü
         await cleanup.query('DELETE FROM tasks WHERE id = ANY($1::uuid[])', [taskIds]);
       }
       if (projectIds.length) {
+        await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM project_audit_events WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id = ANY($1::uuid[])', [projectIds]);
