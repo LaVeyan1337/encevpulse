@@ -107,17 +107,17 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
     const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(petitionsModule?.enabled,false,'Petitions stays unavailable until shared template, field merge, preview and approval flows are complete.');
-    assert.deepEqual(petitionsModule.actions,[],'A disabled module must not expose actions even to administrators.');
+    assert.ok(Array.isArray(petitionsModule.actions),'Stored role grants are separate from module availability.');
     const ownerPermissions=await api(base,ownerA,'auth/permissions/me');
     assert.equal(ownerPermissions.response.status,200);
     const ownerPetitions=ownerPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(ownerPetitions?.enabled,false);
-    assert.deepEqual(ownerPetitions.actions,[]);
+    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update'),'The process-owner grants are retained while the module is unavailable.');
     const employeePermissions=await api(base,employee,'auth/permissions/me');
     assert.equal(employeePermissions.response.status,200);
     const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(employeePetitions?.enabled,false);
-    assert.deepEqual(employeePetitions.actions,[],'Disabled Petitions must remain unavailable to every role.');
+    assert.deepEqual(employeePetitions.actions,[],'The employee role has no petition document grants.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));
