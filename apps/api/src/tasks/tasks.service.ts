@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
+import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from '../ced/institution-defaults.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'] as const;
@@ -517,13 +518,21 @@ export class TasksService {
       );
       const project=inserted.rows[0];
       await client.query(
+        `INSERT INTO ced_institution_opinions(
+          project_id,case_id,institution_name,subject,status,created_by,updated_by
+        )
+        SELECT $1,NULL,institution_name,$2,'draft',$3,$3
+        FROM unnest($4::text[]) AS institution_name`,
+        [project.id,DEFAULT_OPINION_SUBJECT,user.id,DEFAULT_INSTITUTION_NAMES],
+      );
+      await client.query(
         `INSERT INTO project_members(project_id,user_id,added_by)
          SELECT $1,member_id,$2 FROM unnest($3::uuid[]) AS member_id ON CONFLICT DO NOTHING`,
         [project.id,user.id,[user.id,...memberIds]],
       );
       await client.query(
         `INSERT INTO project_audit_events(project_id,actor_user_id,event_type,details)
-         VALUES($1,$2,'created',$3)`,[project.id,user.id,{fields:['name','description','status','projectType','startsOn','targetOn','memberIds']}],
+         VALUES($1,$2,'created',$3)`,[project.id,user.id,{fields:['name','description','status','projectType','startsOn','targetOn','memberIds','defaultInstitutionOpinionDrafts']}],
       );
       await client.query('COMMIT');
       return {project};
