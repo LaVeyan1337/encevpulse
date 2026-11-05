@@ -1,0 +1,27 @@
+# Ücretsiz şirket içi HTTPS reverse proxy örneği.
+# Caddy bu bilgisayarda çalışır; şirket içi DNS adı sunucu IP'sine çözülmelidir.
+# Caddy'nin dahili CA kök sertifikası istemci bilgisayarlarda güvenilir kılınmalıdır.
+#
+# Caddy ortam değişkenleri:
+#   PULSE_HOSTNAME=pulse.<kurum-ici-dns-alani>
+#   PULSE_WEB_ROOT=C:/Code/encev-pulse/apps/web/build/client
+#
+# Hostname ve gerçek web build yolu kurum ortamına göre ayarlanmadan kullanmayın.
+
+{$PULSE_HOSTNAME} {
+    tls internal
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:3000 {
+            # SSE olaylarının proxy arkasında gecikmeden iletilmesi
+            flush_interval -1
+        }
+    }
+
+    handle {
+        root * {$PULSE_WEB_ROOT}
+        try_files {path} /index.html
+        file_server
+    }
+}
