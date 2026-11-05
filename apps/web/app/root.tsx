@@ -11,6 +11,7 @@ import './ced.css';
 import './institution-opinions.css';
 import './eced.css';
 import './petitions.css';
+import './notes.css';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
