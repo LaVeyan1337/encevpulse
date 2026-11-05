@@ -14,7 +14,7 @@ services:
     volumes:
       - encev_pulse_prod_pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U encev_pulse_app -d encev_pulse"]
+      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 12
