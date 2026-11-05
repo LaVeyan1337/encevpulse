@@ -150,6 +150,12 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.ok(source.chatStyles.includes('.chat-call-global-error'));
   assert.match(source.chatStyles,/\.chat-call-backdrop/);
   assert.match(source.chatStyles,/\.chat-call-video-stage/);
+  const chatTheme = source.chatStyles.slice(source.chatStyles.indexOf('/* Three-panel persistent chat */'));
+  assert.ok(chatTheme.includes('var(--accent-subtle)'));
+  assert.ok(chatTheme.includes('var(--surface-raised)'));
+  for (const legacyTone of ['#594537','#ead4c1','#c8aa91','rgba(200,143,115','rgba(180,160,137']) {
+    assert.ok(!chatTheme.includes(legacyTone),'chat theme must not retain the old brown palette: '+legacyTone);
+  }
   assert.match(source.chatCallsController,/@Post\('calls\/:id\/heartbeat'\)/);
   assert.match(source.chatCallsController,/@Post\('calls\/:id\/signals'\)/);
   assert.match(source.chatCallsService,/async startCall/);
