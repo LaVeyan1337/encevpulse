@@ -867,7 +867,7 @@ export default function Home() {
                               type="button"
                               className={module.enabled?'secondary-button compact-button':'primary-button compact-button'}
                               onClick={()=>void saveModuleState(module.moduleKey,!module.enabled)}
-                              disabled={moduleSavingKey!==null||Boolean(blockedReason&& !module.enabled)||Boolean(lockedCore&&!module.enabled)}
+                              disabled={moduleSavingKey!==null||Boolean(blockedReason&&!module.enabled)||Boolean(lockedCore&&module.enabled)}
                               aria-pressed={module.enabled}
                             >
                               {moduleSavingKey===module.moduleKey?'Kaydediliyor…':module.enabled?'Devre dışı bırak':'Etkinleştir'}
