@@ -23,6 +23,13 @@ type DirectoryPerson = {
   id:string;displayName:string;username:string;email?:string;jobTitle?:string;department?:string;avatarKey?:string;roles?:string[];
 };
 type ChatDetail = {conversation:{id:string;type:'direct'|'group';title:string|null};members:ChatMember[];myRole:string;pinned:Array<{id:string;body:string;senderName:string;createdAt:string}>};
+type ActiveCall = {
+  id:string;conversationId:string;callerUserId:string;calleeUserId:string;mediaType:'audio'|'video';
+  status:'ringing'|'accepted';createdAt:string;acceptedAt:string|null;expiresAt:string;peerName:string;
+  peerAvatarKey:string|null;isCaller:boolean;
+};
+type CallSignal = {id:string;senderUserId:string;signalType:'offer'|'answer'|'ice_candidate';payload:Record<string,any>};
+
 
 const reactions=['👍','❤️','😂','🎉','👀','🙏','✅','🔥'];
 const roleLabel=(role:string)=>({owner:'Sohbet sahibi',admin:'Yönetici',member:'Üye'}[role]??role);
@@ -79,6 +86,15 @@ export function ChatWorkspace({
   const [pendingFiles,setPendingFiles]=useState<File[]>([]);
   const [recording,setRecording]=useState(false);
   const [recordingError,setRecordingError]=useState('');
+  const [activeCall,setActiveCall]=useState<ActiveCall|null>(null);
+  const [callError,setCallError]=useState('');
+  const [callBusy,setCallBusy]=useState(false);
+  const [callPeerReady,setCallPeerReady]=useState(0);
+  const [relayConfigured,setRelayConfigured]=useState(false);
+  const [localStream,setLocalStream]=useState<MediaStream|null>(null);
+  const [remoteStream,setRemoteStream]=useState<MediaStream|null>(null);
+  const [microphoneEnabled,setMicrophoneEnabled]=useState(true);
+  const [cameraEnabled,setCameraEnabled]=useState(true);
   const [replyTo,setReplyTo]=useState<Message|null>(null);
   const [sending,setSending]=useState(false);
   const [sendState,setSendState]=useState<'idle'|'sent'|'failed'>('idle');
@@ -106,6 +122,16 @@ export function ChatWorkspace({
   const recordingStreamRef=useRef<MediaStream|null>(null);
   const recordingChunksRef=useRef<Blob[]>([]);
   const recordingTimeoutRef=useRef<number|null>(null);
+  const peerConnectionRef=useRef<RTCPeerConnection|null>(null);
+  const localStreamRef=useRef<MediaStream|null>(null);
+  const remoteAudioRef=useRef<HTMLAudioElement|null>(null);
+  const remoteVideoRef=useRef<HTMLVideoElement|null>(null);
+  const localVideoRef=useRef<HTMLVideoElement|null>(null);
+  const lastCallSignalIdRef=useRef('0');
+  const pendingIceCandidatesRef=useRef<RTCIceCandidateInit[]>([]);
+  const processingCallSignalsRef=useRef(false);
+  const callSetupRef=useRef(false);
+  const callPollTimerRef=useRef<number|null>(null);
   const pendingScrollRestore=useRef<{height:number;top:number}|null>(null);
   const initialLoadDone=useRef(false);
   const lastExternalTarget=useRef<string|null>(null);
@@ -272,6 +298,7 @@ export function ChatWorkspace({
       let update:{conversationId?:string;eventType?:string;accessRevoked?:boolean};
       try{update=JSON.parse((event as MessageEvent<string>).data) as typeof update;}
       catch{return;}
+      if(update.eventType==='call.changed')void refreshActiveCall();
       if(update.conversationId===selectedId&&update.accessRevoked===true){
         setSelectedId(null);
         setDetail(null);
@@ -334,6 +361,37 @@ export function ChatWorkspace({
   },[selectedId]);
 
   useEffect(()=>{
+    const refresh=()=>{void refreshActiveCall();};
+    refresh();
+    const timer=window.setInterval(refresh,2500);
+    return ()=>window.clearInterval(timer);
+  },[]);
+
+  useEffect(()=>{
+    if(remoteStream&&remoteAudioRef.current)remoteAudioRef.current.srcObject=remoteStream;
+    if(remoteStream&&remoteVideoRef.current)remoteVideoRef.current.srcObject=remoteStream;
+    if(localStream&&localVideoRef.current)localVideoRef.current.srcObject=localStream;
+  },[remoteStream,localStream]);
+
+  useEffect(()=>{
+    if(!activeCall||activeCall.status!=='accepted')return;
+    const timer=window.setInterval(()=>{
+      void request('chat/calls/'+activeCall.id+'/heartbeat','POST',{}).catch(()=>undefined);
+    },20000);
+    return ()=>window.clearInterval(timer);
+  },[activeCall?.id,activeCall?.status,request]);
+
+  useEffect(()=>{
+    if(!activeCall||!peerConnectionRef.current||callSetupRef.current)return;
+    const timer=window.setInterval(()=>void processCallSignals(activeCall.id),1200);
+    callPollTimerRef.current=timer;
+    return ()=>{
+      window.clearInterval(timer);
+      if(callPollTimerRef.current===timer)callPollTimerRef.current=null;
+    };
+  },[activeCall?.id,activeCall?.status,callPeerReady]);
+
+  useEffect(()=>{
     const element=scrollRef.current;
     if(!element)return;
     const restore=pendingScrollRestore.current;
@@ -373,6 +431,221 @@ export function ChatWorkspace({
       pendingScrollRestore.current=null;
       setError(cause instanceof Error?cause.message:'Eski mesajlar yüklenemedi.');
     }finally{setLoadingOlder(false);}
+  }
+
+  async function refreshActiveCall(){
+    try{
+      const result=await request('chat/calls/active');
+      const next=(result.call??null) as ActiveCall|null;
+      const previous=activeCallIdRef.current;
+      if(!next&&previous){
+        closeLocalCall();
+        setCallError('Arama sona erdi veya bağlantı zaman aşımına uğradı.');
+      }
+      activeCallIdRef.current=next?.id??null;
+      setActiveCall(next);
+    }catch{
+      // A transient call-state lookup must not tear down an active peer connection.
+    }
+  }
+
+  function closeLocalCall(){
+    if(callPollTimerRef.current!==null)window.clearInterval(callPollTimerRef.current);
+    callPollTimerRef.current=null;
+    const peer=peerConnectionRef.current;
+    peerConnectionRef.current=null;
+    activeCallIdRef.current=null;
+    callSetupRef.current=false;
+    if(peer){peer.onicecandidate=null;peer.ontrack=null;peer.onconnectionstatechange=null;peer.close();}
+    localStreamRef.current?.getTracks().forEach(track=>track.stop());
+    localStreamRef.current=null;
+    pendingIceCandidatesRef.current=[];
+    lastCallSignalIdRef.current='0';
+    setLocalStream(null);
+    setRemoteStream(null);
+    setMicrophoneEnabled(true);
+    setCameraEnabled(true);
+    processingCallSignalsRef.current=false;
+    setCallPeerReady(value=>value+1);
+  }
+
+  async function getCallMedia(mediaType:'audio'|'video'){
+    if(!navigator.mediaDevices?.getUserMedia){
+      throw new Error('Mikrofon/kamera için HTTPS veya localhost güvenli bağlamı gerekir.');
+    }
+    const configuration=await request('chat/call-configuration');
+    setRelayConfigured(Boolean(configuration.relayConfigured));
+    const stream=await navigator.mediaDevices.getUserMedia({
+      audio:true,
+      video:mediaType==='video'?{width:{ideal:1280},height:{ideal:720},facingMode:'user'}:false,
+    });
+    localStreamRef.current=stream;
+    setLocalStream(stream);
+    setMicrophoneEnabled(stream.getAudioTracks().some(track=>track.enabled));
+    setCameraEnabled(stream.getVideoTracks().some(track=>track.enabled));
+    const peer=new RTCPeerConnection({iceServers:(configuration.iceServers??[]) as RTCIceServer[]});
+    peerConnectionRef.current=peer;
+    for(const track of stream.getTracks())peer.addTrack(track,stream);
+    peer.ontrack=event=>{
+      const incoming=event.streams[0];
+      if(incoming)setRemoteStream(incoming);
+    };
+    const callId=activeCallIdRef.current;
+    peer.onicecandidate=event=>{
+      if(!event.candidate||!callId)return;
+      const candidate=event.candidate.toJSON();
+      void request('chat/calls/'+callId+'/signals','POST',{
+        signalType:'ice_candidate',payload:candidate,
+      }).catch(()=>setCallError('Ağ bağlantı adayı gönderilemedi.'));
+    };
+    peer.onconnectionstatechange=()=>{
+      if(peer.connectionState==='failed'){
+        setCallError('Ağ bağlantısı kurulamadı. Sunucu tarafında TURN hizmeti gerekebilir.');
+      }else if(peer.connectionState==='disconnected'){
+        setCallError('Bağlantı kesildi; yeniden bağlanması bekleniyor.');
+      }else if(peer.connectionState==='connected'){
+        setCallError('');
+      }
+    };
+    lastCallSignalIdRef.current='0';
+    pendingIceCandidatesRef.current=[];
+    setCallPeerReady(value=>value+1);
+    return peer;
+  }
+
+  const activeCallIdRef=useRef<string|null>(null);
+  useEffect(()=>{activeCallIdRef.current=activeCall?.id??null;},[activeCall?.id]);
+  useEffect(()=>()=> {
+    const callId=activeCallIdRef.current;
+    if(callId)void request('chat/calls/'+callId+'/end','POST',{}).catch(()=>undefined);
+    if(callPollTimerRef.current!==null)window.clearInterval(callPollTimerRef.current);
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current=null;
+    localStreamRef.current?.getTracks().forEach(track=>track.stop());
+    localStreamRef.current=null;
+  },[request]);
+
+  async function sendCallSignal(callId:string,signalType:'offer'|'answer'|'ice_candidate',payload:Record<string,unknown>){
+    await request('chat/calls/'+callId+'/signals','POST',{signalType,payload});
+  }
+
+  async function flushIceCandidates(peer:RTCPeerConnection){
+    if(!peer.remoteDescription)return;
+    const queued=pendingIceCandidatesRef.current.splice(0);
+    for(const candidate of queued)await peer.addIceCandidate(new RTCIceCandidate(candidate));
+  }
+
+  async function processCallSignals(callId:string){
+    const peer=peerConnectionRef.current;
+    if(!peer||callSetupRef.current||processingCallSignalsRef.current)return;
+    processingCallSignalsRef.current=true;
+    try{
+      const result=await request('chat/calls/'+callId+'/signals?afterId='+encodeURIComponent(lastCallSignalIdRef.current));
+      const signals=(result.signals??[]) as CallSignal[];
+      for(const signal of signals){
+        if(signal.signalType==='answer'&&peer.signalingState==='have-local-offer'&&!peer.remoteDescription){
+          await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+          await flushIceCandidates(peer);
+        }else if(signal.signalType==='offer'&&!peer.remoteDescription){
+          await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+          await flushIceCandidates(peer);
+        }else if(signal.signalType==='ice_candidate'){
+          const candidate=signal.payload as RTCIceCandidateInit;
+          if(peer.remoteDescription)await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          else pendingIceCandidatesRef.current.push(candidate);
+        }
+        lastCallSignalIdRef.current=signal.id;
+      }
+    }catch(cause){
+      setCallError(cause instanceof Error?cause.message:'Arama sinyalleşmesi alınamadı.');
+    }finally{processingCallSignalsRef.current=false;}
+  }
+
+  async function startCall(mediaType:'audio'|'video'){
+    if(!selectedId||selected?.type!=='direct'||!canCreate||activeCall||callBusy)return;
+    setCallBusy(true);setCallError('');
+    try{
+      const created=await request('chat/conversations/'+selectedId+'/calls','POST',{mediaType});
+      const call={...created.call,peerName:selected.displayName,peerAvatarKey:selected.avatarKey,isCaller:true} as ActiveCall;
+      activeCallIdRef.current=call.id;
+      setActiveCall(call);
+      try{
+        const peer=await getCallMedia(mediaType);
+        const offer=await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await sendCallSignal(call.id,'offer',{type:offer.type,sdp:offer.sdp??''});
+      }catch(mediaError){
+        await request('chat/calls/'+call.id+'/end','POST',{}).catch(()=>undefined);
+        closeLocalCall();activeCallIdRef.current=null;setActiveCall(null);
+        throw mediaError;
+      }
+    }catch(cause){
+      setCallError(cause instanceof Error?cause.message:'Arama başlatılamadı.');
+    }finally{setCallBusy(false);}
+  }
+
+  async function acceptCall(){
+    if(!activeCall||activeCall.isCaller||activeCall.status!=='ringing'||callBusy)return;
+    setCallBusy(true);setCallError('');
+    callSetupRef.current=true;
+    const callId=activeCall.id;
+    activeCallIdRef.current=callId;
+    try{
+      await request('chat/calls/'+callId+'/accept','POST',{});
+      const peer=await getCallMedia(activeCall.mediaType);
+      const offerResult=await request('chat/calls/'+callId+'/signals?afterId=0');
+      const signals=(offerResult.signals??[]) as CallSignal[];
+      const offer=signals.find(signal=>signal.signalType==='offer');
+      if(!offer)throw new Error('Arama teklifi henüz ulaşmadı. Tekrar deneyin.');
+      await peer.setRemoteDescription(new RTCSessionDescription(offer.payload as RTCSessionDescriptionInit));
+      for(const signal of signals){
+        if(signal.signalType==='ice_candidate')await peer.addIceCandidate(new RTCIceCandidate(signal.payload as RTCIceCandidateInit));
+        lastCallSignalIdRef.current=signal.id;
+      }
+      const answer=await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+      await sendCallSignal(callId,'answer',{type:answer.type,sdp:answer.sdp??''});
+      setActiveCall(current=>current?{...current,status:'accepted'}:current);
+      setSelectedId(activeCall.conversationId);
+      setMobileThreadOpen(true);
+      await Promise.all([loadDetail(activeCall.conversationId),loadMessages(activeCall.conversationId,true,true)]);
+    }catch(cause){
+      setCallError(cause instanceof Error?cause.message:'Arama kabul edilemedi.');
+      if(activeCall)await request('chat/calls/'+activeCall.id+'/end','POST',{}).catch(()=>undefined);
+      closeLocalCall();setActiveCall(null);
+    }finally{
+      callSetupRef.current=false;
+      setCallPeerReady(value=>value+1);
+      setCallBusy(false);
+    }
+  }
+
+  async function declineCall(){
+    if(!activeCall||activeCall.isCaller||callBusy)return;
+    setCallBusy(true);
+    try{await request('chat/calls/'+activeCall.id+'/decline','POST',{});setActiveCall(null);closeLocalCall();}
+    catch(cause){setCallError(cause instanceof Error?cause.message:'Arama reddedilemedi.');}
+    finally{setCallBusy(false);}
+  }
+
+  async function endCall(){
+    if(!activeCall||callBusy)return;
+    setCallBusy(true);
+    try{await request('chat/calls/'+activeCall.id+'/end','POST',{});setActiveCall(null);closeLocalCall();}
+    catch(cause){setCallError(cause instanceof Error?cause.message:'Arama bitirilemedi.');}
+    finally{setCallBusy(false);}
+  }
+
+  function toggleMicrophone(){
+    const enabled=!(localStreamRef.current?.getAudioTracks().every(track=>track.enabled)??false);
+    localStreamRef.current?.getAudioTracks().forEach(track=>track.enabled=enabled);
+    setMicrophoneEnabled(enabled);
+  }
+
+  function toggleCamera(){
+    const enabled=!(localStreamRef.current?.getVideoTracks().every(track=>track.enabled)??false);
+    localStreamRef.current?.getVideoTracks().forEach(track=>track.enabled=enabled);
+    setCameraEnabled(enabled);
   }
 
   async function uploadAttachments(files:File[],caption:string,targetConversationId=selectedId,replyMessageId=replyTo?.id??null) {
@@ -742,7 +1015,14 @@ export function ChatWorkspace({
                     />}
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
-              <div className="chat-thread-actions"><span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span><button type="button" className="chat-icon-button" onClick={()=>{setSideTab('members');setMobileContextOpen(true);}} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
+              <div className="chat-thread-actions">
+                <span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span>
+                {canCreate&&selected.type==='direct'&&!activeCall&&<>
+                  <button type="button" className="chat-icon-button chat-call-header-button" onClick={()=>void startCall('audio')} disabled={callBusy} aria-label="Sesli arama başlat" title="Sesli arama">☎</button>
+                  <button type="button" className="chat-icon-button chat-call-header-button" onClick={()=>void startCall('video')} disabled={callBusy} aria-label="Görüntülü arama başlat" title="Görüntülü arama">▣</button>
+                </>}
+                <button type="button" className="chat-icon-button" onClick={()=>{setSideTab('members');setMobileContextOpen(true);}} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button>
+              </div>
             </header>
             {detail.pinned.length>0&&(
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>
@@ -925,9 +1205,50 @@ export function ChatWorkspace({
             {detail.pinned.length===0?<p>Henüz sabitlenmiş mesaj yok.</p>:detail.pinned.map(item=><button type="button" key={item.id} onClick={()=>{const target=document.getElementById('message-'+item.id);target?.scrollIntoView({behavior:'smooth',block:'center'});}}><strong>{item.senderName}</strong><span>{item.body}</span><time>{dateLabel(item.createdAt)}</time></button>)}
           </div>
         )}
-        <div className="chat-context-footer"><span>Dosya ekleri bu sürümde güvenlik ve saklama politikası netleşene kadar kapalıdır.</span></div>
+        <div className="chat-context-footer"><span>Sohbet ekleri ve aramalar erişim yetkisiyle korunur.</span></div>
       </aside>
 
+      {activeCall&&(
+        <div className="chat-call-backdrop">
+          {activeCall.status==='ringing'&&!activeCall.isCaller?(
+            <section className="chat-call-card chat-incoming-call" role="dialog" aria-modal="true" aria-label="Gelen arama">
+              <div className="chat-call-avatar">{activeCall.mediaType==='video'?'▣':'☎'}</div>
+              <span className="chat-call-kicker">GELEN {activeCall.mediaType==='video'?'GÖRÜNTÜLÜ':'SESLİ'} ARAMA</span>
+              <h2>{activeCall.peerName||'ENCEV PULSE kullanıcısı'}</h2>
+              <p>Bu sohbetten gelen aramayı kabul edebilir veya reddedebilirsiniz.</p>
+              <div className="chat-call-actions">
+                <button type="button" className="chat-call-decline" onClick={()=>void declineCall()} disabled={callBusy}>Reddet</button>
+                <button type="button" className="chat-call-accept" onClick={()=>void acceptCall()} disabled={callBusy}>{callBusy?'Bağlanıyor…':'Kabul et'}</button>
+              </div>
+            </section>
+          ):(
+            <section className="chat-call-card chat-active-call" role="dialog" aria-modal="true" aria-label="Aktif arama">
+              <header><div><span className="chat-call-kicker">{activeCall.mediaType==='video'?'GÖRÜNTÜLÜ ARAMA':'SESLİ ARAMA'}</span><h2>{activeCall.peerName||'Sohbet katılımcısı'}</h2><p>{activeCall.status==='ringing'?'Aranıyor…':remoteStream?'Bağlantı kuruldu':'Bağlantı kuruluyor…'}</p></div><span className="chat-call-state-dot"/></header>
+              {activeCall.mediaType==='video'?(
+                <div className="chat-call-video-stage">
+                  <video ref={remoteVideoRef} autoPlay playsInline className="chat-call-remote-video"/>
+                  {localStream&&<video ref={localVideoRef} autoPlay playsInline muted className="chat-call-local-video"/>}
+                  {!remoteStream&&<div className="chat-call-video-placeholder">Karşı tarafın görüntüsü bekleniyor…</div>}
+                </div>
+              ):(
+                <div className="chat-call-audio-stage">
+                  <div className="chat-call-avatar">☎</div>
+                  <audio ref={remoteAudioRef} autoPlay/>
+                  <span>{remoteStream?'Ses bağlantısı etkin':'Karşı tarafın sesi bekleniyor…'}</span>
+                </div>
+              )}
+              {!relayConfigured&&<p className="chat-call-network-note">TURN sunucusu ayarlı değil. Aynı ağda arama çalışabilir; farklı ev/ofis ağlarında bağlantı garanti değildir.</p>}
+              {callError&&<p className="chat-call-error" role="alert">{callError}</p>}
+              <div className="chat-call-actions">
+                <button type="button" className={!microphoneEnabled?'is-off':''} onClick={toggleMicrophone} disabled={!localStream} aria-label={microphoneEnabled?'Mikrofonu kapat':'Mikrofonu aç'}>{microphoneEnabled?'🎙 Mikrofon':'Mikrofon kapalı'}</button>
+                {activeCall.mediaType==='video'&&<button type="button" className={!cameraEnabled?'is-off':''} onClick={toggleCamera} disabled={!localStream} aria-label={cameraEnabled?'Kamerayı kapat':'Kamerayı aç'}>{cameraEnabled?'▣ Kamera':'Kamera kapalı'}</button>}
+                <button type="button" className="chat-call-decline" onClick={()=>void endCall()} disabled={callBusy}>{callBusy?'Kapatılıyor…':'Aramayı bitir'}</button>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+      {callError&&!activeCall&&<div className="chat-error" role="alert">{callError}<button type="button" onClick={()=>setCallError('')}>×</button></div>}
       {error&&<div className="chat-error" role="alert">{error}<button type="button" onClick={()=>setError('')}>×</button></div>}
 
       {canCreateTask&&taskDraftMessage&&(

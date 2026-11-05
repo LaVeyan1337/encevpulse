@@ -141,3 +141,8 @@ Bu bölüm mühendislik gereksinimlerini belirler; ürünün KVKK'ya veya başka
 
 Bu başlıklar netleşmeden belirli hosting sağlayıcısı, güvenlik sertifikasyonu, SLA veya yasal uygunluk iddiası verilmemelidir.
 
+
+
+## WebRTC arama altyapısı
+
+Bire bir sohbet aramaları sesli/görüntülü oturum ve REST/SSE sinyalleşmesi kullanır. Kabul edilmiş çağrıda iki katılımcı heartbeat'i ayrı izlenir; bir taraf 120 saniye yanıt vermezse oturum kapatılır ve geçici SDP/ICE payloadları silinir. Production'da HTTPS, STUN ve özellikle ev/ofis NAT'ı için TURN hizmeti gerekir. TURN paylaşımlı gizli anahtarı yalnızca API sunucusunda tutulur; API kullanıcıya süreli HMAC tabanlı TURN kimliği üretir. TURN yapılandırması olmadan her ağda çağrı kurulacağı garanti edilmez. Grup araması ve E2EE henüz uygulanmamıştır. Kurulum ayrıntıları için [WEBRTC_CALLS.md](WEBRTC_CALLS.md) belgesine bakın.

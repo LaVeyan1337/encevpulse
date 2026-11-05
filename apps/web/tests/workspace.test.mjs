@@ -202,7 +202,7 @@ test('Sohbet ekranı kalıcı mesaj API akışlarını ve üç panelli yapıyı 
   assert.match(chat, /conversation\.updated/);
   assert.match(chat, /15000/);
   assert.match(chat, /Gönderim başarısız/);
-  assert.match(chat, /Dosya ekleri bu sürümde güvenlik/);
+  assert.match(chat, /Sohbet ekleri ve aramalar erişim yetkisiyle korunur/);
   assert.match(styles, /grid-template-columns:268px minmax\(360px,1fr\) 264px/);
   assert.match(styles, /\.people-card/);
   assert.match(motion, /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?\.chat-message/);
