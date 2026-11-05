@@ -3,16 +3,16 @@
  color-scheme:dark;--page:#08182d;--surface:rgba(16,39,67,.76);--surface-raised:rgba(27,54,86,.78);--surface-hover:rgba(43,77,115,.86);
  --border:rgba(176,211,249,.16);--border-strong:rgba(190,222,255,.27);--text:#f4f8ff;--text-secondary:#b6c9df;--text-muted:#829bb8;
  --accent:#65baff;--accent-hover:#8bcfff;--accent-deep:#267dd0;--accent-subtle:rgba(56,150,238,.17);--accent-subtle-hover:rgba(56,150,238,.25);
- --danger:#ff8999;--danger-bg:rgba(255,104,130,.12);--danger-border:rgba(255,130,149,.3);--warning:#f0bd70;--warning-bg:rgba(240,189,112,.12);
- --success:#67cfa6;--success-bg:rgba(103,207,166,.12);--shadow-sm:0 5px 18px rgba(0,0,0,.18);--shadow-md:0 15px 38px rgba(0,0,0,.27);
- --shadow-lg:0 28px 78px rgba(0,0,0,.42);--shadow-drawer:-24px 0 70px rgba(0,0,0,.46);
+ --danger:#ff858d;--danger-bg:rgba(255,96,111,.13);--danger-border:rgba(255,130,142,.3);--warning:#ffc16f;--warning-bg:rgba(255,180,76,.14);
+ --success:#6fd9b0;--success-bg:rgba(72,205,157,.14);--shadow-sm:0 5px 18px rgba(0,8,22,.16);--shadow-md:0 15px 38px rgba(0,8,22,.23);
+ --shadow-lg:0 28px 78px rgba(0,7,20,.38);--shadow-drawer:-24px 0 70px rgba(0,7,20,.48);
 }
 :root[data-theme='light']{
- color-scheme:light;--page:#eaf2fb;--surface:rgba(255,255,255,.76);--surface-raised:rgba(255,255,255,.88);--surface-hover:rgba(240,247,255,.96);
+ color-scheme:light;--page:#eaf2fb;--surface:rgba(255,255,255,.72);--surface-raised:rgba(255,255,255,.88);--surface-hover:rgba(240,247,255,.96);
  --border:rgba(46,88,139,.13);--border-strong:rgba(39,91,151,.22);--text:#172b45;--text-secondary:#526b87;--text-muted:#7c91aa;
  --accent:#237bd5;--accent-hover:#1468c1;--accent-deep:#1459a8;--accent-subtle:rgba(35,123,213,.11);--accent-subtle-hover:rgba(35,123,213,.17);
- --danger:#c84d66;--danger-bg:rgba(200,77,102,.08);--danger-border:rgba(200,77,102,.22);--warning:#a87325;--warning-bg:rgba(168,115,37,.09);
- --success:#287d62;--success-bg:rgba(40,125,98,.09);--shadow-sm:0 5px 18px rgba(33,75,123,.07);--shadow-md:0 15px 38px rgba(33,75,123,.11);
+ --danger:#c83d50;--danger-bg:rgba(200,61,80,.08);--danger-border:rgba(200,61,80,.2);--warning:#a96a16;--warning-bg:rgba(227,153,39,.11);
+ --success:#147b5a;--success-bg:rgba(20,123,90,.09);--shadow-sm:0 5px 18px rgba(33,75,123,.07);--shadow-md:0 15px 38px rgba(33,75,123,.11);
  --shadow-lg:0 28px 78px rgba(33,75,123,.17);--shadow-drawer:-24px 0 70px rgba(26,60,101,.19);
 }
 html,body{background:var(--page);color:var(--text)}body{transition:background-color .28s ease,color .28s ease}
@@ -20,7 +20,7 @@ html,body{background:var(--page);color:var(--text)}body{transition:background-co
 :root[data-theme='light'] .workspace-shell{background-image:radial-gradient(ellipse 54% 42% at 3% 0%,rgba(43,133,229,.12),transparent 73%),radial-gradient(ellipse 40% 38% at 96% 7%,rgba(46,185,220,.1),transparent 72%),linear-gradient(135deg,#f3f8fd 0%,#e4eef9 58%,#f7f8fc 100%)}
 .workspace-shell::before{opacity:.14}:root[data-theme='light'] .workspace-shell::before{opacity:.2}
 .workspace-sidebar{color:var(--text);background:linear-gradient(165deg,rgba(18,76,145,.94),rgba(13,54,112,.96) 68%,rgba(11,34,75,.97));border-right:1px solid var(--border-strong);box-shadow:12px 0 42px rgba(0,0,0,.2),inset -1px 0 0 rgba(255,255,255,.045);backdrop-filter:blur(30px) saturate(145%);-webkit-backdrop-filter:blur(30px) saturate(145%)}
-:root[data-theme='light'] .workspace-sidebar{color:#273052;background:linear-gradient(165deg,rgba(250,251,255,.88),rgba(232,236,249,.86));border-right-color:var(--border-strong);box-shadow:10px 0 35px rgba(44,54,106,.08),inset -1px 0 0 rgba(255,255,255,.76)}
+:root[data-theme='light'] .workspace-sidebar{color:#273052;background:linear-gradient(165deg,rgba(250,251,255,.88),rgba(232,236,249,.86));border-right-color:var(--border-strong);box-shadow:10px 0 35px rgba(33,75,123,.08),inset -1px 0 0 rgba(255,255,255,.76)}
 .workspace-brand{border-bottom-color:var(--border-strong)}
 .brand-mark{border:1px solid rgba(164,220,255,.7);border-radius:12px;background:linear-gradient(145deg,rgba(111,203,255,.3),rgba(30,119,213,.18));box-shadow:0 7px 20px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.18)}
 .brand-mark::before,.brand-mark::after,.brand-mark span{background:#c4ecff;box-shadow:0 0 10px rgba(118,205,255,.55)}
