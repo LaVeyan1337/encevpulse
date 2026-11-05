@@ -121,6 +121,8 @@
 ## Doğrulama ve test sonuçları
 
 - Önceki kaynak sürümünde API/Web build, TypeScript ve görev/proje/yorum testleri CI'da başarılıydı. Bu sonuç yeni çalışan/sohbet kodunun test edildiği anlamına gelmez.
+- **5 Kasım 2026 — güncel web çalışma dalı CI doğrulaması:** Kaynak commit `bc60d65f88a8615528f9615302ebe551dfb008f0`, GitHub Actions `42030203203` başarıyla tamamlandı. Temiz CI PostgreSQL ortamında migration'lar uygulandı; Web testleri **24/24**, API testleri **35/35**, iki workspace TypeScript kontrolleri, API + Web üretim derlemeleri ve e-ÇED tarayıcı eklentisi derlemesi başarılı oldu. `encev-pulse-validated-source.zip` artifact'i oluşturulup CI'a yüklendi (489.537 bayt).
+- Bu koşu Linux CI kabulüdür. Windows hostta servis başlatma, gerçek Chrome/Edge profilleri, şirket LAN DNS/TLS, iki ayrı istemci, WebRTC NAT/TURN, yedek geri yükleme ve şirket çalışanlarıyla kullanıcı kabulü bu koşuda test edilmedi.
 - Yeni çalışan profili testleri; alanlar, avatar, roller, rehber API'si ve profil güncellemesini kapsayacak şekilde genişletildi.
 - Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, idempotent mesaj gönderimi, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi, birleşik bildirim akışı ve mesajdan görev oluşturmayı kapsar.
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
