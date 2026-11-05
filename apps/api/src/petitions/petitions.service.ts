@@ -67,9 +67,9 @@ export class PetitionsService {
         [name,description,user.id],
       );
       const templateId = family.rows[0].id;
-      await client.query(
+      const versionRow = await client.query<{id:string}>(
         `INSERT INTO petition_template_versions(template_id,version,file_name,content_sha256,byte_size,content,field_keys,created_by)
-         VALUES($1,1,$2,$3,$4,$5,$6::text[],$7)`,
+         VALUES($1,1,$2,$3,$4,$5,$6::text[],$7) RETURNING id`,
         [templateId,inspected.fileName,inspection.sha256,inspection.size,file.buffer,inspection.fieldKeys,user.id],
       );
       await client.query(
@@ -78,7 +78,7 @@ export class PetitionsService {
         [templateId,user.id,{version:1,fileName:inspected.fileName,sha256:inspection.sha256,fieldKeys:inspection.fieldKeys}],
       );
       await client.query('COMMIT');
-      return { template: { id:templateId,name,description,version:1,fileName:inspected.fileName,
+      return { template: { id:templateId,versionId:versionRow.rows[0].id,name,description,version:1,fileName:inspected.fileName,
         sha256:inspection.sha256,byteSize:inspection.size,fieldKeys:inspection.fieldKeys,
         fields:fieldDefinitions(inspection.fieldKeys) } };
     } catch(error) {
@@ -144,9 +144,9 @@ export class PetitionsService {
         [templateId],
       );
       const version = latest.rows[0].version + 1;
-      await client.query(
+      const versionRow = await client.query<{id:string}>(
         `INSERT INTO petition_template_versions(template_id,version,file_name,content_sha256,byte_size,content,field_keys,created_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7::text[],$8)`,
+         VALUES($1,$2,$3,$4,$5,$6,$7::text[],$8) RETURNING id`,
         [templateId,version,inspected.fileName,inspection.sha256,inspection.size,file.buffer,inspection.fieldKeys,user.id],
       );
       await client.query(
@@ -159,7 +159,7 @@ export class PetitionsService {
         [templateId,user.id,{version,fileName:inspected.fileName,sha256:inspection.sha256,fieldKeys:inspection.fieldKeys}],
       );
       await client.query('COMMIT');
-      return { template: { id:templateId,name:family.rows[0].name,description:family.rows[0].description,
+      return { template: { id:templateId,versionId:versionRow.rows[0].id,name:family.rows[0].name,description:family.rows[0].description,
         version,fileName:inspected.fileName,sha256:inspection.sha256,byteSize:inspection.size,
         fieldKeys:inspection.fieldKeys,fields:fieldDefinitions(inspection.fieldKeys) } };
     } catch(error) {
