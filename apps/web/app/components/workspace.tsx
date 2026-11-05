@@ -1765,6 +1765,7 @@ export function Workspace({
               canCreate={hasModulePermission('notes','create')}
               canUpdate={hasModulePermission('notes','update')}
               canDelete={hasModulePermission('notes','delete')}
+              canViewTasks={hasModulePermission('tasks','view')}
             />
           )}
 
