@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { EmployeeAvatar } from './avatars';
 
 type Request = (path:string,method?:string,data?:unknown)=>Promise<Record<string,any>>;
@@ -51,6 +52,7 @@ export function ChatWorkspace({
   canDelete,
   canCreateTask,
   canViewTasks,
+  isActive,
   startUserId,
   initialConversationId,
   onStartConsumed,
@@ -65,6 +67,7 @@ export function ChatWorkspace({
   canDelete:boolean;
   canCreateTask:boolean;
   canViewTasks:boolean;
+  isActive:boolean;
   startUserId?:string|null;
   initialConversationId?:string|null;
   onStartConsumed:()=>void;
@@ -363,9 +366,9 @@ export function ChatWorkspace({
   useEffect(()=>{
     const refresh=()=>{void refreshActiveCall();};
     refresh();
-    const timer=window.setInterval(refresh,2500);
+    const timer=window.setInterval(refresh,isActive?2500:10000);
     return ()=>window.clearInterval(timer);
-  },[]);
+  },[isActive]);
 
   useEffect(()=>{
     if(remoteStream&&remoteAudioRef.current)remoteAudioRef.current.srcObject=remoteStream;
@@ -1208,7 +1211,7 @@ export function ChatWorkspace({
         <div className="chat-context-footer"><span>Sohbet ekleri ve aramalar erişim yetkisiyle korunur.</span></div>
       </aside>
 
-      {activeCall&&(
+      {activeCall&&typeof document!=='undefined'&&createPortal(
         <div className="chat-call-backdrop">
           {activeCall.status==='ringing'&&!activeCall.isCaller?(
             <section className="chat-call-card chat-incoming-call" role="dialog" aria-modal="true" aria-label="Gelen arama">
@@ -1247,8 +1250,12 @@ export function ChatWorkspace({
             </section>
           )}
         </div>
+        ,document.body
       )}
-      {callError&&!activeCall&&<div className="chat-error" role="alert">{callError}<button type="button" onClick={()=>setCallError('')}>×</button></div>}
+      {callError&&!activeCall&&typeof document!=='undefined'&&createPortal(
+        <div className="chat-error chat-call-global-error" role="alert">{callError}<button type="button" onClick={()=>setCallError('')}>×</button></div>,
+        document.body
+      )}
       {error&&<div className="chat-error" role="alert">{error}<button type="button" onClick={()=>setError('')}>×</button></div>}
 
       {canCreateTask&&taskDraftMessage&&(

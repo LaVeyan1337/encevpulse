@@ -26,7 +26,7 @@ TURN geçici kimlik bilgileri coturn REST shared-secret yöntemine göre HMAC-SH
 - Bu özellik **uçtan uca şifreleme (E2EE) olarak sunulmaz**. WebRTC medya taşıması DTLS-SRTP ile korunur; ancak uygulama sunucusu çağrı sinyalleşmesine erişebilir ve ayrı istemci tarafı anahtar yönetimi bu sürümde yoktur.
 
 ## Kullanım sınırı
-Gelen arama penceresi bu ilk sürümde Sohbet çalışma alanı açıkken gösterilir. Kullanıcı başka bir PULSE modülündeyken arka planda global çağrı bildirimi/cevaplama henüz yoktur. Arama kartı sayfa yenilendiğinde veya sohbet alanından çıkıldığında çağrıyı sonlandırır.
+Gelen arama penceresi, kullanıcının Sohbet modülüne geçmesini beklemeden PULSE'un diğer modüllerinde de gösterilir. Sohbet modülüne görüntü izni bulunan kullanıcıda arka plan Sohbet bileşeni oturum boyunca bağlı kalır; çağrı durumu SSE olayıyla anlık, yedek sorguyla modül arka plandayken 10 saniyede bir kontrol edilir. Gelen arama kabul edildiğinde ilgili sohbet açılır; arama penceresi uygulamanın üst katmanında kalır. Sayfa yenileme, oturum kapatma veya sohbet görüntü izninin kaldırılması bileşeni sonlandırır; etkin arama da kapatılır. Sunucu heartbeat zaman aşımı ayrıca 120 saniyedir.
 
 ## Sınırlar
 - Grup araması, arama geçmişi arayüzü, ekran paylaşımı, arama kaydı ve E2EE kapsam dışıdır.

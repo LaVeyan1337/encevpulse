@@ -82,6 +82,8 @@
 .user-role-picker{max-height:230px;overflow:auto}
 
 /* Three-panel persistent chat */
+.chat-workspace-host{min-width:0;width:100%}
+.chat-workspace-host.is-background{display:none}
 .chat-workspace{
   display:grid;grid-template-columns:268px minmax(360px,1fr) 264px;
   min-width:0;height:min(78vh,850px);min-height:650px;overflow:hidden;
@@ -501,7 +503,7 @@
 .chat-thread-actions .chat-call-header-button{font-size:18px;color:var(--accent);border-color:var(--border-strong)}
 .chat-thread-actions .chat-call-header-button:hover{background:var(--accent-subtle);border-color:var(--accent)}
 .chat-thread-actions .chat-call-header-button:disabled{opacity:.45;cursor:wait}
-.chat-call-backdrop{position:absolute;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:rgba(4,12,16,.76);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.chat-call-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:20px;background:rgba(4,12,16,.76);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .chat-call-card{display:grid;gap:18px;width:min(100%,600px);max-height:min(90%,780px);overflow:auto;padding:24px;border:1px solid rgba(255,255,255,.18);border-radius:22px;background:linear-gradient(145deg,rgba(24,42,48,.98),rgba(13,25,31,.98));color:#f3faf8;box-shadow:0 28px 90px rgba(0,0,0,.45)}
 .chat-incoming-call{width:min(100%,430px);justify-items:center;text-align:center;padding:34px 28px}
 .chat-call-avatar{display:grid;place-items:center;width:82px;height:82px;border:1px solid rgba(107,220,185,.3);border-radius:50%;background:radial-gradient(circle at 30% 25%,rgba(63,190,151,.34),rgba(22,78,71,.55));color:#a7f1d9;font-size:32px;box-shadow:0 0 0 10px rgba(52,179,143,.08)}
@@ -537,3 +539,5 @@
  .chat-call-actions button{flex:1;min-height:42px;padding-inline:9px;font-size:11px}
  .chat-thread-actions .chat-live-indicator{display:none}
 }
+
+.chat-call-global-error{z-index:1201}
