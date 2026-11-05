@@ -1,10 +1,17 @@
-# ENCEV PULSE — Şirket İçi Sürüm Birleştirme Kaydı
+# ENCEV PULSE — Bütünleşik Test Sürümü Kaydı
 
 **Kaynak dalı:** `release/company-internal-2026-11-05`  
 **Birleştirme tabanı:** `main` (ana dal değiştirilmedi)  
 **Tarih:** 5 Kasım 2026
 
-Bu dal, mevcut web uygulamasını, API'yi, e-ÇED tarayıcı eklentisini ve veritabanı migration'larını tek kaynak ağacında toplar. Ana daldaki eski Python PULSE kaynakları, kurulum dosyaları ve mevcut kök belgeler korunmuştur.
+Bu dal, mevcut web uygulamasını, API'yi, e-ÇED tarayıcı eklentisini ve veritabanı migration'larını tek kaynak ağacında toplar. Ana daldaki eski Python PULSE kaynakları, kurulum dosyaları ve mevcut kök belgeler korunmuştur. **Bu bir şirket yayını değildir.** Yerel test ve CI doğrulaması için hazırlanmış bütünleşik kaynak dalıdır; `main` ve canlı sistem değiştirilmemiştir.
+
+## Yayın sınırı
+
+- Yerel test adresleri `127.0.0.1:5173`, API `127.0.0.1:3000` ve PostgreSQL `127.0.0.1:5432`'dir. Başka bilgisayarlardan bu adreslere erişim sağlanmaz.
+- Şirket içi erişim için host, LAN IP, iç DNS, HTTPS reverse proxy, istemci sertifika dağıtımı ve Firewall ayarı henüz yapılmamıştır.
+- Modüllerin etkin olması tüm kabul kriterlerinin tamamlandığı anlamına gelmez. Ayrıntı için [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) içindeki güncel modül sınırlarına bakın.
+- Ücretsiz şirket içi yayın hedefi [COMPANY_LAN_DEPLOYMENT.md](COMPANY_LAN_DEPLOYMENT.md) içinde tanımlanmıştır; yayın adımları henüz uygulanmamıştır.
 
 ## Modül kapsamı
 
