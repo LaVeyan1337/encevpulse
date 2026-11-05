@@ -242,6 +242,18 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       });
       assert.equal(calendarOn.response.status,200);
       assert.equal(calendarOn.body.enabled,true);
+      const petitionsOff=await api(baseUrl,'modules/petitions',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(petitionsOff.response.status,200);
+      assert.equal(petitionsOff.body.enabled,false);
+      const petitionsOn=await api(baseUrl,'modules/petitions',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:true}),
+      });
+      assert.equal(petitionsOn.response.status,200);
+      assert.equal(petitionsOn.body.enabled,true);
 
       const myPermissions=await api(baseUrl,'permissions/me',{headers:{Cookie:employeeSession.cookie}});
       assert.equal(myPermissions.response.status,200);
