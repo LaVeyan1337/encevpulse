@@ -1,18 +1,12 @@
 -- Activate modules that have real application flows and add private notes.
 -- Drive remains disabled until an explicitly approved, permission-preserving source adapter exists.
--- Petitions remains disabled until approved DOCX field mapping and workflow states are implemented.
+-- Enable the current browser-local DOCX copy workflow; NAS, field mapping and shared approval remain unavailable.
 UPDATE app_modules
 SET is_enabled = true
-WHERE module_key IN ('calendar','institution_opinions','eced','institution_guide','notes','settings');
+WHERE module_key IN ('calendar','institution_opinions','eced','institution_guide','petitions','notes','settings');
 
--- Migration 0013 enabled Petitions before its DOCX field mapping and approval flow
--- existed. Keep its data and role grants, but hide the incomplete workspace until ready.
-UPDATE app_modules SET is_enabled = false WHERE module_key = 'petitions';
-DELETE FROM role_module_permissions p
-USING roles r
-WHERE p.role_id = r.id AND r.code = 'system_admin'
-  AND p.module_key = 'petitions' AND p.permission_key = 'manage';
-
+-- Petitions is enabled for the browser-local template-copy workflow only.
+-- Existing process_owner create/update and auditor view grants are retained.
 -- Personal calendar access is safe because event ownership and visibility are enforced by CalendarService.
 INSERT INTO role_module_permissions(role_id,module_key,permission_key)
 SELECT r.id,'calendar',p.permission_key
