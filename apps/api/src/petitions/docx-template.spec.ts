@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { deflateRawSync } from 'node:zlib';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { test } from 'node:test';
 import { inspectDocxTemplate, renderDocxTemplate } from './docx-template.js';
 
@@ -31,6 +31,35 @@ function zip(entries:Entry[]):Buffer {
   end.writeUInt32LE(central.length,12);end.writeUInt32LE(local.length,16);
   return Buffer.concat([local,central,end]);
 }
+function extractEntry(input:Buffer,name:string):Buffer{
+  let endRecord=-1;
+  for(let offset=input.length-22;offset>=Math.max(0,input.length-65557);offset--){
+    if(input.readUInt32LE(offset)===0x06054b50){endRecord=offset;break;}
+  }
+  assert.ok(endRecord>=0);
+  const count=input.readUInt16LE(endRecord+10);
+  let centralOffset=input.readUInt32LE(endRecord+16);
+  for(let i=0;i<count;i++){
+    assert.equal(input.readUInt32LE(centralOffset),0x02014b50);
+    const method=input.readUInt16LE(centralOffset+10);
+    const compressedSize=input.readUInt32LE(centralOffset+20);
+    const nameLength=input.readUInt16LE(centralOffset+28);
+    const extraLength=input.readUInt16LE(centralOffset+30);
+    const commentLength=input.readUInt16LE(centralOffset+32);
+    const localOffset=input.readUInt32LE(centralOffset+42);
+    const entryName=input.subarray(centralOffset+46,centralOffset+46+nameLength).toString('utf8');
+    if(entryName===name){
+      const localNameLength=input.readUInt16LE(localOffset+26);
+      const localExtraLength=input.readUInt16LE(localOffset+28);
+      const dataOffset=localOffset+30+localNameLength+localExtraLength;
+      const compressed=input.subarray(dataOffset,dataOffset+compressedSize);
+      return method===0?Buffer.from(compressed):inflateRawSync(compressed);
+    }
+    centralOffset+=46+nameLength+extraLength+commentLength;
+  }
+  throw new Error('ZIP entry not found: '+name);
+}
+
 function docx(documentXml:string,headerXml=''):Buffer {
   const entries:Entry[]=[
     {name:'[Content_Types].xml',content:'<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>'},
@@ -59,9 +88,10 @@ test('DOCX üretimi XML karakterlerini güvenli kaçırır ve çok satırlı met
   assert.match(result.sha256,/^[0-9a-f]{64}$/);
   assert.match(result.previewText,/A&B <GES>/);
   assert.match(result.previewText,/İlk satır\nİkinci satır/);
-  assert.ok(result.content.includes(Buffer.from('A&amp;B &lt;GES&gt;')));
-  assert.ok(result.content.includes(Buffer.from('<w:br/>')));
-  assert.ok(!result.content.includes(Buffer.from('{{PROJECT_NAME}}')));
+  const documentXml=extractEntry(result.content,'word/document.xml').toString('utf8');
+  assert.ok(documentXml.includes('A&amp;B &lt;GES&gt;'));
+  assert.ok(documentXml.includes('<w:br/>'));
+  assert.ok(!documentXml.includes('{{PROJECT_NAME}}'));
 });
 
 test('üstbilgideki alanlar da bulunur ve doldurulur',()=>{
@@ -69,7 +99,8 @@ test('üstbilgideki alanlar da bulunur ve doldurulur',()=>{
   const inspection=inspectDocxTemplate(bytes);
   assert.deepEqual(inspection.fieldKeys,['DOCUMENT_DATE','PROJECT_NAME']);
   const result=renderDocxTemplate(bytes,{PROJECT_NAME:'Proje',DOCUMENT_DATE:'05.11.2026'});
-  assert.ok(result.content.includes(Buffer.from('05.11.2026')));
+  const header=extractEntry(result.content,'word/header1.xml').toString('utf8');
+  assert.ok(header.includes('05.11.2026'));
 });
 
 test('zorunlu alan eksikse Word çıktısı üretilmez',()=>{
