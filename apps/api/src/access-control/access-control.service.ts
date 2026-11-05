@@ -106,7 +106,7 @@ export class AccessControlService {
       throw new BadRequestException({code:'INVALID_MODULE_STATE',message:'Modül durumu geçersiz.'});
     }
     const enabled=value.enabled;
-    const lockedOff=['drive','institution_guide','petitions'];
+    const lockedOff=['drive','petitions'];
     if(enabled&&lockedOff.includes(moduleKey)) {
       const messages:Record<string,string>={
         drive:'Ortak Drive, şirket dosya alanının kaynak yetkilerini koruyan bağlantısı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
