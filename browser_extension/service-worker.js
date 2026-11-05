@@ -1,5 +1,7 @@
 const ALARM_NAME = 'encev-pulse-report';
 const MIN_REPORT_INTERVAL_MINUTES = 0.5;
+const REQUEST_TIMEOUT_MS = 10_000;
+const MAX_PARALLEL_REPORTS = 6;
 
 function cleanText(value, max) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -99,8 +101,11 @@ async function sendTabReport(tab) {
     try { apiUrl = new URL(cfg.apiBase); } catch {
       return reportStatus(false, 'invalid_api_url', 'PULSE API adresi geçersiz. Eklenti bağlantı ayarlarını kontrol edin.');
     }
-    if (!['http:', 'https:'].includes(apiUrl.protocol) || apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
-      return reportStatus(false, 'invalid_api_url', 'PULSE API adresi geçerli bir HTTP(S) adresi olmalıdır.');
+    const apiHost = apiUrl.hostname.toLowerCase();
+    const localApi = apiUrl.protocol === 'http:' && (apiHost === '127.0.0.1' || apiHost === 'localhost');
+    if ((!['http:', 'https:'].includes(apiUrl.protocol) || (apiUrl.protocol !== 'https:' && !localApi)) ||
+        apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash || apiUrl.origin === origin) {
+      return reportStatus(false, 'invalid_api_url', 'PULSE API adresi HTTPS olmalı (yerel geliştirmede yalnızca localhost/127.0.0.1); portal adresi kullanılamaz.');
     }
     if (!(await hasOriginPermission(apiUrl.origin))) {
       return reportStatus(false, 'api_permission_missing', 'PULSE sunucu adresi için tarayıcı izni yok. Eklenti bağlantı ayarlarından doğru API adresini kaydedin.');
@@ -123,18 +128,38 @@ async function sendTabReport(tab) {
       sessionState: accountName ? (sessionState === 'unknown' && accountSource === 'portal' ? 'active' : sessionState) : 'unknown',
       tabActive: Boolean(tab.active)
     };
-    const response = await fetch(cfg.apiBase.replace(/\/+$/, '') + '/eced/reports', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','X-Pulse-Token':cfg.pairingToken},
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-      credentials: 'omit'
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetch(cfg.apiBase.replace(/\/+$/, '') + '/eced/reports', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-Pulse-Token':cfg.pairingToken},
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+        credentials: 'omit',
+        signal: controller.signal
+      });
+    } catch {
+      return controller.signal.aborted
+        ? reportStatus(false, 'request_timeout', 'PULSE sunucusu 10 saniye içinde yanıt vermedi. Sunucu erişimini ve ters vekil bağlantısını kontrol edin.')
+        : reportStatus(false, 'network_error', 'PULSE sunucusuna erişilemedi. API adresi, HTTPS sertifikası, sunucu erişimi ve izinleri kontrol edin.');
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!response.ok) {
       const message = response.status === 401 || response.status === 403
         ? 'PULSE eşleştirmeyi reddetti (HTTP ' + response.status + '). Anahtar iptal edilmiş veya geçersiz olabilir.'
         : 'PULSE raporu kabul etmedi (HTTP ' + response.status + '). API sunucusu ve dağıtım günlükleri kontrol edilmeli.';
       return reportStatus(false, 'http_error', message, response.status);
+    }
+    let acknowledgement;
+    try { acknowledgement = await response.json(); }
+    catch {
+      return reportStatus(false, 'unexpected_response', 'Sunucu yanıt verdi ancak rapor kabul onayı okunamadı. API yönlendirmesini kontrol edin.', response.status);
+    }
+    if (acknowledgement?.queued !== true) {
+      return reportStatus(false, 'unexpected_response', 'Sunucu yanıtı raporun kuyruğa alındığını doğrulamadı. API adresi ve ters vekil yönlendirmesini kontrol edin.', response.status);
     }
     return reportStatus(
       true,
@@ -150,21 +175,33 @@ async function sendTabReport(tab) {
 }
 async function reportAllTabs() {
   const cfg = await getConfig();
-  if (!cfg.apiBase || !cfg.pairingToken || !cfg.allowedOrigins.length) return;
+  if (!cfg.apiBase || !cfg.pairingToken || !cfg.allowedOrigins.includes('https://eced.csb.gov.tr')) return;
   const tabs = await chrome.tabs.query({});
-  for (const tab of tabs) await sendTabReport(tab);
+  const portalTabs = tabs.filter(tab => {
+    try { return new URL(tab.url || '').origin === 'https://eced.csb.gov.tr'; }
+    catch { return false; }
+  });
+  for (let offset = 0; offset < portalTabs.length; offset += MAX_PARALLEL_REPORTS) {
+    const batch = portalTabs.slice(offset, offset + MAX_PARALLEL_REPORTS);
+    await Promise.all(batch.map(tab => sendTabReport(tab)));
+  }
 }
 async function schedule() {
-  await chrome.alarms.create(ALARM_NAME, {periodInMinutes:MIN_REPORT_INTERVAL_MINUTES});
+  try {
+    await chrome.alarms.create(ALARM_NAME, {periodInMinutes:MIN_REPORT_INTERVAL_MINUTES});
+  } catch {
+    // Older Chromium builds may enforce a one-minute minimum alarm period.
+    await chrome.alarms.create(ALARM_NAME, {periodInMinutes:1});
+  }
 }
 async function initializeBrowserState() {
-  await schedule();
-  await attachObserversToAllowedTabs();
-  await reportAllTabs();
+  try { await schedule(); } catch { /* Reporting and observer attachment must still be attempted. */ }
+  try { await attachObserversToAllowedTabs(); } catch { /* The next tab event retries attachment. */ }
+  try { await reportAllTabs(); } catch { /* The next alarm retries reporting. */ }
 }
 chrome.runtime.onInstalled.addListener(() => { void initializeBrowserState(); });
 chrome.runtime.onStartup.addListener(() => { void initializeBrowserState(); });
-chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM_NAME) void reportAllTabs(); });
+chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM_NAME) void reportAllTabs().catch(() => {}); });
 chrome.tabs.onActivated.addListener(async info => {
   try {
     const tab = await chrome.tabs.get(info.tabId);
@@ -229,4 +266,4 @@ chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
   }
   return false;
 });
-void schedule();
+void schedule().catch(() => {});
