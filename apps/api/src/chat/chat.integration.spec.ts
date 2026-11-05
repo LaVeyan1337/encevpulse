@@ -443,6 +443,12 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const acceptedCall=await api(base,carol,`chat/calls/${callId}/accept`,'POST',{});
       assert.equal(acceptedCall.response.status,201,JSON.stringify(acceptedCall.data));
       assert.equal(acceptedCall.data.call.status,'accepted');
+      const aliceHeartbeat=await api(base,alice,`chat/calls/${callId}/heartbeat`,'POST',{});
+      assert.equal(aliceHeartbeat.response.status,201,JSON.stringify(aliceHeartbeat.data));
+      const carolHeartbeat=await api(base,carol,`chat/calls/${callId}/heartbeat`,'POST',{});
+      assert.equal(carolHeartbeat.response.status,201,JSON.stringify(carolHeartbeat.data));
+      const outsiderHeartbeat=await api(base,bob,`chat/calls/${callId}/heartbeat`,'POST',{});
+      assert.equal(outsiderHeartbeat.response.status,409,'Sohbet dışındaki kullanıcı arama heartbeat kaydını yenileyememeli.');
       const answer=await api(base,carol,`chat/calls/${callId}/signals`,'POST',{
         signalType:'answer',payload:{type:'answer',sdp:'v=0\\r\\no=- 2 2 IN IP4 127.0.0.1\\r\\ns=ENCEV test answer\\r\\nt=0 0'},
       });
@@ -455,6 +461,8 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       assert.equal(ice.response.status,201,JSON.stringify(ice.data));
       const endedCall=await api(base,alice,`chat/calls/${callId}/end`,'POST',{});
       assert.equal(endedCall.response.status,201,JSON.stringify(endedCall.data));
+      const endedHeartbeat=await api(base,alice,`chat/calls/${callId}/heartbeat`,'POST',{});
+      assert.equal(endedHeartbeat.response.status,409,'Bitmiş çağrı heartbeat ile yeniden açılamamalı.');
       const noActiveAlice=await api(base,alice,'chat/calls/active');
       const noActiveCarol=await api(base,carol,'chat/calls/active');
       assert.equal(noActiveAlice.data.call,null);
