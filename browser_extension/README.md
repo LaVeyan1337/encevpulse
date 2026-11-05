@@ -6,11 +6,17 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 
 1. PULSE web uygulamasında **e-ÇED Takip → Tarayıcı eşleştirmeleri** bölümünden cihaz eşleştirmesi oluşturun.
 2. Tek seferlik anahtarı kopyalayın. Anahtar yalnızca oluşturulduğu anda gösterilir.
-3. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
-4. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile bu klasörü seçin.
-5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını girin. Eklenti önce API origin'inin `manifest.json` içindeki `optional_host_permissions` listesinde tam olarak tanımlı olup olmadığını kontrol eder; ardından yalnızca o origin için izin ister. Yerel geliştirme adresleri (`127.0.0.1` ve `localhost`) tanımlıdır. Canlı ortam kullanılıyorsa gerçek PULSE HTTPS origin'i bu listeye eklenmelidir; genel `https://*/*` izni kullanılmamalıdır. Bağlantı testi başarılı olmadan yeni ayarlar kaydedilmez.
-6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. İlk izin ve eşleştirmeden sonra algılayıcı, izinli portal sekmeleri açıldığında ve tarayıcı yeniden başladığında yeniden eklenir.
-7. Portal sekmesindeki eklenti penceresinde **Seçimlerimi kaydet ve sinyal gönder** düğmesine basın. PULSE API yanıtı artık doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin.
+3. Projeyi indirdiğiniz kök klasörde, gerçek PULSE adresiyle eklenti paketini üretin. PowerShell örneği:
+   ```powershell
+   $env:PULSE_API_BASE = "https://PULSE-SUNUCU-ADRESINIZ/api"
+   npm run extension:build
+   ```
+   `PULSE_API_BASE` değeri, PULSE web ekranında eşleştirme oluştururken gösterilen API adresiyle aynı olmalıdır. Komut, tam HTTPS sunucu alan adını eklentinin isteğe bağlı izin listesine ekler ve `.artifacts/browser-extension` klasörünü üretir. Üretim dışı HTTP yalnızca `127.0.0.1` veya `localhost` için kabul edilir. Parola veya eşleştirme anahtarı pakete yazılmaz.
+4. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
+5. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile `.artifacts/browser-extension` klasörünü seçin.
+6. Eklenti seçeneklerinden aynı PULSE API adresini ve tek seferlik eşleştirme anahtarını girin. Eklenti, API bağlantısını doğrulamadan yeni ayarları kaydetmez ve yalnızca manifestteki sunucu hostu için izin ister. Genel `https://*/*` izni kullanılmaz.
+7. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. Kurulum/güncelleme sonrasında eklenti açık ve izinli portal sekmelerine yeniden bağlanmayı dener; tarayıcı yeniden başladığında da aynı işlem yapılır.
+8. Portal sekmesindeki eklenti penceresi açıldığında bağlantı sinyali otomatik test edilir. **Seçimlerimi kaydet ve sinyal gönder** düğmesi hesap etiketi/oturum seçimini kaydeder ve tekrar rapor gönderir. PULSE API yanıtı doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin.
 
 ## Hesap tanıma
 
@@ -34,7 +40,9 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 
 ## Güncelleme
 
-Bu klasör değiştiğinde `chrome://extensions` veya `edge://extensions` sayfasında eklentinin **Yenile** düğmesine basın. Açık e-ÇED sekmesini bir kez yenileyin. Yerel olmayan bir PULSE API alan adı kullanılacaksa ilgili tam origin, `manifest.json` içindeki `optional_host_permissions` listesine önceden eklenmeli ve eklenti yeniden yüklenmelidir; geniş `*` izinleri kullanılmamalıdır.
+Kaynak eklentiyi değiştirdiğinizde aynı komutu gerçek `PULSE_API_BASE` değeriyle yeniden çalıştırın; tarayıcıda yeniden yükleyeceğiniz klasör `.artifacts/browser-extension` olacaktır. Manifest sürümü artırıldığında Chrome/Edge güncelleme uyarısı gösterebilir.
+
+Kaynak klasör değiştiğinde `npm run extension:build` ile paketi yeniden üretin; ardından `chrome://extensions` veya `edge://extensions` sayfasında yüklenmiş paketin **Yenile** düğmesine basın. Açık e-ÇED sekmesini bir kez yenileyin. Yerel olmayan bir PULSE API alan adı kullanılacaksa ilgili tam origin, `manifest.json` içindeki `optional_host_permissions` listesine önceden eklenmeli ve eklenti yeniden yüklenmelidir; geniş `*` izinleri kullanılmamalıdır.
 
 
 ## Sinyal sorunlarını ayırma
