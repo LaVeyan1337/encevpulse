@@ -1,6 +1,6 @@
 # ENCEV PULSE e-ÇED İzleyici (Manifest V3)
 
-Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED sekmelerine ait sınırlı sinyalleri PULSE'a gönderir. Parola, çerez, form alanı, localStorage/sessionStorage, ağ istekleri, sayfa HTML'i veya tüm sayfa metni toplanmaz. Site izni yalnızca resmî `https://eced.csb.gov.tr` origin'i için istenir; başka alan adlarında algılayıcı çalışmaz.
+Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED sekmelerine ait sınırlı sinyalleri PULSE'a gönderir. Parola, çerez, form alanı, localStorage/sessionStorage, ağ istekleri, sayfa HTML'i veya tüm sayfa metni toplanmaz. Portal izni yalnızca resmî `https://eced.csb.gov.tr` origin'i için istenir; API izni ise yalnızca PULSE bağlantısı için ayrıca istenir. Yerel geliştirme kullanımı için `http://127.0.0.1` ve `http://localhost` API origin'leri tanımlıdır.
 
 ## Kurulum
 
@@ -8,10 +8,9 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 2. Tek seferlik anahtarı kopyalayın. Anahtar yalnızca oluşturulduğu anda gösterilir.
 3. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
 4. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile bu klasörü seçin.
-5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını kaydedin.
-6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. Bu işlemden sonra algılayıcı yalnızca açık sekmeye eklenir.
-7. Tarayıcı enjeksiyonu reddederse PULSE sayfayı otomatik yenilemez; sekmeyi kendiniz yenileyip eklentiyi tekrar açın.
-8. PULSE'un e-ÇED ekranında cihaz sinyalini kontrol edin.
+5. Eklenti seçeneklerinden PULSE API adresini ve eşleştirme anahtarını kaydedin. API adresi `http://127.0.0.1:5173/api` gibi yerel bir adres ise eklenti ilgili origin için ayrıca izin ister.
+6. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. İlk izin ve eşleştirmeden sonra algılayıcı, izinli portal sekmeleri açıldığında ve tarayıcı yeniden başladığında yeniden eklenir.
+7. PULSE'un e-ÇED ekranında cihaz sinyalini kontrol edin. İlk sinyal birkaç saniye içinde görünmezse eklenti seçeneklerinden **Bağlantıyı test et** adımını çalıştırın.
 
 ## Hesap tanıma
 
@@ -24,8 +23,8 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 
 ## Güvenlik ve doğruluk
 
-- Eklenti, kullanıcı popup içindeki portal iznini açıkça verdiğinde içerik algılayıcısını yalnızca o anki sekmeye enjekte eder. Manifest'te otomatik çalışan statik portal içerik betiği yoktur.
-- Site izni ve betik enjeksiyonu kullanıcı tıklamasıyla başlatılır; eklenti sekmeyi otomatik yenilemez veya başka sayfaya yönlendirmez.
+- Eklenti, kullanıcı popup içindeki portal iznini açıkça verdikten sonra içerik algılayıcısını yalnızca izinli portal sekmelerine enjekte eder. Manifest'te otomatik çalışan statik portal içerik betiği yoktur; yeniden başlatma sonrası yeniden enjeksiyon, saklanan site izniyle yapılır.
+- İlk site izni kullanıcı tıklamasıyla alınır; sonrasında betik yalnızca aynı origin için saklanmış izin mevcutsa sayfa yüklenmesinde tekrar enjekte edilir. Eklenti sekmeyi otomatik yenilemez veya başka sayfaya yönlendirmez.
 - Otomatik algılayıcı sadece görünür, allowlist içindeki profil öğelerini okur. Form, input, textarea, select, parola alanı, çerez, tarayıcı depolaması, sayfa genelindeki metin ve HTML dökümü okunmaz.
 - URL query string ve fragment rapora eklenmez; yalnızca origin ve pathname gönderilir.
 - Raporlarda parola veya oturum çerezi bulunmaz. Sunucuya yalnızca hesap etiketi, sekme metaverisi ve kullanıcının seçtiği/algılayıcının çıkarabildiği oturum durumu gönderilir.
@@ -35,4 +34,4 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 
 ## Güncelleme
 
-Bu klasör değiştiğinde `chrome://extensions` veya `edge://extensions` sayfasında eklentinin **Yenile** düğmesine basın. Portal sekmesini yenileyin.
+Bu klasör değiştiğinde `chrome://extensions` veya `edge://extensions` sayfasında eklentinin **Yenile** düğmesine basın. Açık e-ÇED sekmesini bir kez yenileyin. Yerel olmayan bir PULSE API alan adı kullanılacaksa ilgili tam origin, `manifest.json` içindeki `optional_host_permissions` listesine önceden eklenmeli ve eklenti yeniden yüklenmelidir; geniş `*` izinleri kullanılmamalıdır.

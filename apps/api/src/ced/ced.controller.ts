@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { AccessControlService } from '../access-control/access-control.service.js';
@@ -19,11 +19,22 @@ export class CedController {
     return this.ced.listInstitutionOpinions(user);
   }
 
+  @Get('contacts')
+  async listInstitutionContacts(@Req() request: Request) {
+    return this.ced.listInstitutionContacts(await this.authorize(request, 'institution_opinions', 'view'));
+  }
+
   @Get('projects/:projectId')
   async getProjectCase(@Req() request: Request, @Param('projectId') projectId: string) {
     const user = await this.authorize(request, 'eced', 'view');
     const includeOpinions = await this.access.hasPermission(user, 'institution_opinions', 'view');
     return this.ced.getProjectCase(user, projectId, includeOpinions);
+  }
+
+  @Post('projects/:projectId/opinions/defaults')
+  @HttpCode(HttpStatus.CREATED)
+  async addDefaultOpinionDrafts(@Req() request: Request, @Param('projectId') projectId: string) {
+    return this.ced.addDefaultOpinionDrafts(await this.authorize(request, 'institution_opinions', 'create', true), projectId);
   }
 
   @Post('projects/:projectId/opinions')
@@ -69,6 +80,12 @@ export class CedController {
   @HttpCode(HttpStatus.CREATED)
   async createOpinion(@Req() request: Request, @Param('caseId') caseId: string, @Body() body: unknown) {
     return this.ced.createOpinion(await this.authorize(request, 'institution_opinions', 'create', true), caseId, body);
+  }
+
+  @Delete('opinions/:opinionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async archiveOpinion(@Req() request: Request, @Param('opinionId') opinionId: string) {
+    await this.ced.archiveOpinion(await this.authorize(request, 'institution_opinions', 'delete', true), opinionId);
   }
 
   @Patch('opinions/:opinionId')

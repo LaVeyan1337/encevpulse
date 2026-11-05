@@ -12,6 +12,8 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
     projectService: '../../api/src/tasks/tasks.service.ts',
     projectMigration: '../../../drizzle/0014_project_types_and_opinion_statuses.sql',
     cedMigration: '../../../drizzle/0015_project_scoped_institution_opinions.sql',
+    contactMigration: '../../../drizzle/0018_institution_contact_directory.sql',
+    institutionDefaults: '../../api/src/ced/institution-defaults.ts',
     projectStyles: '../app/projects.css',
     opinionStyles: '../app/institution-opinions.css',
     calendar: '../app/components/calendar-workspace.tsx',
@@ -71,6 +73,23 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.cedMigration,/DISABLE TRIGGER ced_audit_events_append_only/);
   assert.match(source.opinionStyles,/\.opinions-add-button/);
   assert.match(source.opinionStyles,/\.opinions-editor-grid/);
+  assert.match(source.opinions,/Kurum rehberi/);
+  assert.match(source.opinions,/contactPhone/);
+  assert.match(source.opinions,/contactEmail/);
+  assert.match(source.opinions,/contactAddress/);
+  assert.match(source.opinions,/ced\/contacts/);
+  assert.match(source.opinions,/ced\/projects\/'\+projectId\+'\/opinions\/defaults/);
+  assert.match(source.opinionController,/@Get\('contacts'\)/);
+  assert.match(source.opinionController,/@Delete\('opinions\/:opinionId'\)/);
+  assert.match(source.opinionController,/@Post\('projects\/:projectId\/opinions\/defaults'\)/);
+  assert.match(source.opinionService,/async listInstitutionContacts/);
+  assert.match(source.opinionService,/async addDefaultOpinionDrafts/);
+  assert.match(source.opinionService,/async archiveOpinion/);
+  assert.match(source.opinionService,/saveInstitutionContact/);
+  assert.match(source.contactMigration,/CREATE TABLE ced_institution_contacts/);
+  assert.match(source.contactMigration,/ADD COLUMN contact_id/);
+  assert.match(source.institutionDefaults,/DEFAULT_INSTITUTION_NAMES/);
+  assert.match(source.projectService,/DEFAULT_INSTITUTION_NAMES/);
 
   assert.match(source.calendar,/type CalendarScope = 'all'\|'personal'\|'corporate'/);
   assert.match(source.calendar,/type EventType = .*'presentation'.*'site_visit'.*'hkt'.*'idk'/);
@@ -96,6 +115,9 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.cedService,/\$4::boolean OR p\.created_by=\$3/);
 
   assert.match(source.chat,/conversationFilter/);
+  assert.match(source.chat,/mobileThreadOpen/);
+  assert.match(source.chat,/chat-mobile-back/);
+  assert.match(source.chatStyles,/chat-mobile-thread-open/);
   assert.match(source.chat,/\['unread','Okunmamış'\]/);
   assert.match(source.chat,/visibleConversations\.map/);
   assert.match(source.chatStyles,/\.chat-message\.own \.chat-message-content/);

@@ -51,6 +51,27 @@ async function clearTabLabels(tabId, keepKey = '') {
   }
   if (changed) await chrome.storage.local.set({accountLabels,accountSources,sessionStates,sectionLabels});
 }
+async function attachPortalObserver(tab) {
+  if (!tab || !Number.isInteger(tab.id) || !tab.url) return false;
+  let parsed;
+  try { parsed = new URL(tab.url); } catch { return false; }
+  if (parsed.origin !== 'https://eced.csb.gov.tr') return false;
+  const cfg = await getConfig();
+  if (!cfg.allowedOrigins.includes(parsed.origin) || !(await hasOriginPermission(parsed.origin))) return false;
+  try {
+    await chrome.scripting.executeScript({target:{tabId:tab.id},files:['content-script.js']});
+    await chrome.tabs.sendMessage(tab.id,{type:'scan-visible-account'});
+    return true;
+  } catch {
+    // Restricted browser pages or an incomplete tab cannot be instrumented.
+    return false;
+  }
+}
+async function attachObserversToAllowedTabs() {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) await attachPortalObserver(tab);
+}
+
 async function sendTabReport(tab) {
   if (!tab || !Number.isInteger(tab.id) || !tab.url) return;
   const cfg = await getConfig();
@@ -103,7 +124,7 @@ async function schedule() {
   await chrome.alarms.create(ALARM_NAME, {periodInMinutes:MIN_REPORT_INTERVAL_MINUTES});
 }
 chrome.runtime.onInstalled.addListener(() => { void schedule(); });
-chrome.runtime.onStartup.addListener(() => { void schedule(); void reportAllTabs(); });
+chrome.runtime.onStartup.addListener(() => { void schedule(); void attachObserversToAllowedTabs(); void reportAllTabs(); });
 chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM_NAME) void reportAllTabs(); });
 chrome.tabs.onActivated.addListener(async info => {
   try { await sendTabReport(await chrome.tabs.get(info.tabId)); } catch {}
@@ -114,12 +135,16 @@ chrome.tabs.onUpdated.addListener((tabId,changeInfo,tab) => {
     try { keepKey = new URL(tab.url || '').origin + '::' + String(tabId); } catch {}
     void clearTabLabels(tabId, keepKey);
   }
+  if (changeInfo.status === 'complete') void attachPortalObserver(tab);
   if (changeInfo.url || changeInfo.title || changeInfo.status === 'complete') void sendTabReport(tab);
 });
 chrome.tabs.onRemoved.addListener(tabId => { void clearTabLabels(tabId); });
 chrome.storage.onChanged.addListener((changes,area) => {
   if (area === 'local' && (changes.apiBase || changes.pairingToken || changes.allowedOrigins ||
-      changes.accountLabels || changes.accountSources || changes.sessionStates || changes.sectionLabels)) void reportAllTabs();
+      changes.accountLabels || changes.accountSources || changes.sessionStates || changes.sectionLabels)) {
+    void reportAllTabs();
+    if (changes.allowedOrigins) void attachObserversToAllowedTabs();
+  }
 });
 chrome.runtime.onMessage.addListener((message,_sender,sendResponse) => {
   if (message?.type === 'portal-account-observed') {

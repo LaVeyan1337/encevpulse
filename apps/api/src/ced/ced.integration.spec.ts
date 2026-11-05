@@ -96,6 +96,13 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(project.response.status, 201, JSON.stringify(project.data));
     const projectId = project.data.project.id as string;
     projectIds.push(projectId);
+    const initialOpinionList = await api(base, processOwner, 'ced/opinions');
+    const initialProjectDrafts = initialOpinionList.data.opinions.filter((item: {projectId:string;status:string})=>item.projectId===projectId);
+    assert.equal(initialProjectDrafts.length,8,'Yeni projeye düzenlenebilir varsayılan kurum taslakları eklenmeli.');
+    assert.ok(initialProjectDrafts.every((item: {status:string})=>item.status==='draft'));
+    const duplicateDefaults = await api(base, processOwner, 'ced/projects/'+projectId+'/opinions/defaults', 'POST', {});
+    assert.equal(duplicateDefaults.response.status,201,JSON.stringify(duplicateDefaults.data));
+    assert.equal(duplicateDefaults.data.createdCount,0,'Varsayılan listesi tekrar çağrıldığında kopya üretmemeli.');
 
     const mixedRoute = await api(base, processOwner, 'ced/projects/' + projectId, 'POST', { routeCode: 'combined' });
     assert.equal(mixedRoute.response.status, 400, 'Yeni süreçlerde karma rota kullanılamamalı.');
@@ -170,6 +177,12 @@ test('ÇED API: route-specific milestones, document completion and project acces
       requestDate: '2026-11-04',
       deadlineDate: '2026-11-14',
       outgoingLetterNo: '2026/TEST-01',
+      contactPerson: 'Ayşe Test',
+      contactTitle: 'Uzman',
+      contactDepartment: 'ÇED ve İzinler',
+      contactPhone: '+90 312 000 00 00',
+      contactEmail: 'ayse.test@example.com',
+      contactAddress: 'Ankara',
       notes: 'Entegrasyon testi kaydı',
     });
     assert.equal(opinionCreated.response.status, 201, JSON.stringify(opinionCreated.data));
@@ -179,6 +192,14 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.ok(listedOpinion, 'Yeni kurum görüşü genel listede görünmeli.');
     assert.equal(listedOpinion.projectId, projectId);
     assert.equal(listedOpinion.status, 'waiting');
+    assert.equal(listedOpinion.contactPhone, '+90 312 000 00 00');
+    assert.equal(listedOpinion.contactEmail, 'ayse.test@example.com');
+    const directory = await api(base, processOwner, 'ced/contacts');
+    assert.equal(directory.response.status,200,JSON.stringify(directory.data));
+    const directoryEntry = directory.data.contacts.find((item: {email:string})=>item.email==='ayse.test@example.com');
+    assert.ok(directoryEntry,'Kurum görüşüne girilen ilgili kişi rehberde görünmeli.');
+    assert.equal(directoryEntry.institutionName,'Ankara İl Müdürlüğü');
+    assert.equal(directoryEntry.contactPerson,'Ayşe Test');
 
     const opinionUpdated = await api(base, processOwner, 'ced/opinions/' + listedOpinion.id, 'PATCH', {
       version: listedOpinion.version,
@@ -219,16 +240,17 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(fakeCaseCheck.rowCount, 0, 'Kurum görüşleri boş bir ÇED dosyası üretmemeli.');
     const directOpinions = await api(base, processOwner, 'ced/opinions');
     const projectOpinions = directOpinions.data.opinions.filter((item: {projectId:string})=>item.projectId===opinionOnlyProjectId);
-    assert.equal(projectOpinions.length,2,'Bir projede birden fazla kurum görüşü tutulabilmeli.');
-    assert.deepEqual(new Set(projectOpinions.map((item: {status:string})=>item.status)),new Set(['positive','revision']));
-    const projectOpinionToUpdate = projectOpinions[0] as {id:string;version:number;subject:string};
+    assert.equal(projectOpinions.length,10,'Varsayılan taslaklar ve eklenen kurum görüşleri birlikte görünmeli.');
+    const projectRecordedOpinions = projectOpinions.filter((item: {status:string})=>item.status!=='draft');
+    assert.deepEqual(new Set(projectRecordedOpinions.map((item: {status:string})=>item.status)),new Set(['positive','revision']));
+    const projectOpinionToUpdate = projectRecordedOpinions[0] as {id:string;version:number;subject:string};
     const updatedProjectOpinion = await api(base, processOwner, 'ced/opinions/' + projectOpinionToUpdate.id, 'PATCH', {
       version: projectOpinionToUpdate.version, subject: projectOpinionToUpdate.subject + ' · güncellendi',
     });
     assert.equal(updatedProjectOpinion.response.status,200,JSON.stringify(updatedProjectOpinion.data));
     const beforeCase = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
     assert.equal(beforeCase.data.case,null,'Kurum görüşü için gerçek süreç kaydı oluşana kadar ÇED dosyası olmamalı.');
-    assert.equal(beforeCase.data.opinions.length,2,'ÇED dosyası olmadan proje görüşleri okunabilmeli.');
+    assert.equal(beforeCase.data.opinions.length,10,'ÇED dosyası olmadan varsayılanlar ve proje görüşleri okunabilmeli.');
     const ptdCreated = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId, 'POST', {
       routeCode: 'ek2_ptd', fileNumber: 'PTD-' + suffix,
     });
@@ -376,6 +398,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('ALTER TABLE project_audit_events ENABLE TRIGGER project_audit_events_append_only');
       }
       if (userIds.length) {
+        await cleanup.query('DELETE FROM ced_institution_contacts WHERE created_by=ANY($1::uuid[]) OR updated_by=ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::uuid[])', [userIds]);
         await cleanup.query('DELETE FROM user_role_assignments WHERE user_id=ANY($1::uuid[])', [userIds]);
         await cleanup.query('ALTER TABLE auth_audit_events DISABLE TRIGGER auth_audit_events_append_only');

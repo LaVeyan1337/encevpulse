@@ -4,20 +4,21 @@ import { Drawer } from './drawer';
 type Request = (path: string, method?: string, data?: unknown) => Promise<Record<string, any>>;
 type Status = 'draft' | 'requested' | 'waiting' | 'responded' | 'revision_requested' | 'closed' | 'positive' | 'negative' | 'revision' | 'other_request';
 type ProjectOption={id:string;name:string;status:string};
-type Draft={institutionName:string;subject:string;status:Status;requestDate:string;deadlineDate:string;responseDate:string;outgoingLetterNo:string;incomingLetterNo:string;contactPerson:string;notes:string};
-const emptyDraft=():Draft=>({institutionName:'',subject:'',status:'waiting',requestDate:'',deadlineDate:'',responseDate:'',outgoingLetterNo:'',incomingLetterNo:'',contactPerson:'',notes:''});
+type Draft={institutionName:string;subject:string;status:Status;requestDate:string;deadlineDate:string;responseDate:string;outgoingLetterNo:string;incomingLetterNo:string;contactPerson:string;contactTitle:string;contactDepartment:string;contactPhone:string;contactEmail:string;contactAddress:string;notes:string};
+const emptyDraft=():Draft=>({institutionName:'',subject:'',status:'waiting',requestDate:'',deadlineDate:'',responseDate:'',outgoingLetterNo:'',incomingLetterNo:'',contactPerson:'',contactTitle:'',contactDepartment:'',contactPhone:'',contactEmail:'',contactAddress:'',notes:''});
 type Row = {
   id: string; caseId: string; projectId: string; projectName: string; fileNumber: string;
   ecedReference: string; projectOwnerName: string | null; institutionName: string; subject: string;
   status: Status; requestDate: string | null; deadlineDate: string | null; responseDate: string | null;
-  outgoingLetterNo: string; incomingLetterNo: string; contactPerson: string; notes: string;
+  outgoingLetterNo: string; incomingLetterNo: string; contactPerson: string; contactTitle: string|null; contactDepartment: string|null; contactPhone: string|null; contactEmail: string|null; contactAddress: string|null; notes: string;
   version: number; updatedAt: string;
 };
 const labels: Record<Status,string> = {
   waiting:'Görüş bekleniyor',positive:'Olumlu',negative:'Olumsuz',revision:'Revize',other_request:'Farklı talep var',
-  draft:'Taslak (eski kayıt)',requested:'Gönderildi (eski kayıt)',responded:'Yanıt geldi (eski kayıt)',revision_requested:'Revize (eski kayıt)',closed:'Kapandı',
+  draft:'Taslak kurum — henüz gönderilmedi',requested:'Gönderildi (eski kayıt)',responded:'Yanıt geldi (eski kayıt)',revision_requested:'Revize (eski kayıt)',closed:'Kapandı',
 };
 const statusOptions:Array<{value:Status;label:string}>=[
+  {value:'draft',label:'Taslak / gönderilmedi'},
   {value:'waiting',label:'Görüş bekleniyor'},{value:'positive',label:'Olumlu'},
   {value:'negative',label:'Olumsuz'},{value:'revision',label:'Revize'},
   {value:'other_request',label:'Farklı talep var'},
@@ -41,8 +42,13 @@ function due(row:Row):{label:string;tone:string}{
   if(days===0)return {label:'Bugün son gün',tone:'today'};
   return {label:days+' gün kaldı',tone:days<=7?'soon':'normal'};
 }
-export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProject,projects=[],projectId,canCreate=false,canUpdate=false}:{request:Request;canOpenProject:boolean;onOpenProject:(id:string)=>void;projects?:ProjectOption[];projectId?:string;canCreate?:boolean;canUpdate?:boolean}){
+export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProject,projects=[],projectId,canCreate=false,canUpdate=false,canDelete=false}:{request:Request;canOpenProject:boolean;onOpenProject:(id:string)=>void;projects?:ProjectOption[];projectId?:string;canCreate?:boolean;canUpdate?:boolean;canDelete?:boolean}){
   const [rows,setRows]=useState<Row[]>([]);
+  const [contacts,setContacts]=useState<Array<{id:string;institutionName:string;contactPerson:string;title:string;department:string;phone:string;email:string;address:string;projectCount:number}>>([]);
+  const [view,setView]=useState<'opinions'|'directory'>('opinions');
+  const [contactsLoading,setContactsLoading]=useState(false);
+  const [notice,setNotice]=useState('');
+  const [deletingId,setDeletingId]=useState<string|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [query,setQuery]=useState('');
@@ -58,6 +64,12 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
     try{const result=await request('ced/opinions');setRows(Array.isArray(result.opinions)?result.opinions as Row[]:[]);}
     catch(cause){setError(cause instanceof Error?cause.message:'Kurum görüşleri yüklenemedi.');}
     finally{setLoading(false);}
+  },[request]);
+  const loadContacts=useCallback(async()=>{
+    setContactsLoading(true);
+    try{const result=await request('ced/contacts');setContacts(Array.isArray(result.contacts)?result.contacts:[]);}
+    catch(cause){setError(cause instanceof Error?cause.message:'Kurum rehberi yüklenemedi.');}
+    finally{setContactsLoading(false);}
   },[request]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(projectId)setSelectedProjectId(projectId);},[projectId]);
@@ -81,9 +93,28 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
   }
   function openEdit(row:Row){
     setEditing(row);setSelectedProjectId(row.projectId);setFormError('');
-    setDraft({institutionName:row.institutionName,subject:row.subject,status:row.status,requestDate:row.requestDate??'',deadlineDate:row.deadlineDate??'',responseDate:row.responseDate??'',outgoingLetterNo:row.outgoingLetterNo??'',incomingLetterNo:row.incomingLetterNo??'',contactPerson:row.contactPerson??'',notes:row.notes??''});
+    setDraft({institutionName:row.institutionName,subject:row.subject,status:row.status,requestDate:row.requestDate??'',deadlineDate:row.deadlineDate??'',responseDate:row.responseDate??'',outgoingLetterNo:row.outgoingLetterNo??'',incomingLetterNo:row.incomingLetterNo??'',contactPerson:row.contactPerson??'',contactTitle:row.contactTitle??'',contactDepartment:row.contactDepartment??'',contactPhone:row.contactPhone??'',contactEmail:row.contactEmail??'',contactAddress:row.contactAddress??'',notes:row.notes??''});
     setEditorOpen(true);
   }
+  async function addDefaultDrafts(){
+    if(!canCreate||!projectId||saving)return;
+    setSaving(true);setError('');setNotice('');
+    try{
+      const result=await request('ced/projects/'+projectId+'/opinions/defaults','POST',{});
+      setNotice((result.createdCount??0)+' eksik varsayılan kurum taslağı eklendi.');
+      await load();
+    }catch(cause){setError(cause instanceof Error?cause.message:'Varsayılan kurumlar eklenemedi.');}
+    finally{setSaving(false);}
+  }
+  async function archiveOpinion(row:Row){
+    if(!canDelete||deletingId)return;
+    if(!window.confirm(row.institutionName+' kurum görüşü kaydını kaldırmak istiyor musunuz? Kayıt silinmez, arşivlenir.'))return;
+    setDeletingId(row.id);setError('');
+    try{await request('ced/opinions/'+row.id,'DELETE',{});setNotice('Kurum görüşü taslağı listeden kaldırıldı.');await load();}
+    catch(cause){setError(cause instanceof Error?cause.message:'Kurum görüşü kaldırılamadı.');}
+    finally{setDeletingId(null);}
+  }
+
   async function saveOpinion(event:FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!canCreate&&!editing)return;
@@ -96,7 +127,7 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
     try{
       if(editing)await request('ced/opinions/'+editing.id,'PATCH',{...payload,version:editing.version});
       else await request('ced/projects/'+targetProject+'/opinions','POST',payload);
-      setEditorOpen(false);setEditing(null);await load();
+      setEditorOpen(false);setEditing(null);await Promise.all([load(),loadContacts()]);
     }catch(cause){setFormError(cause instanceof Error?cause.message:'Kurum görüşü kaydedilemedi.');}
     finally{setSaving(false);}
   }
@@ -106,17 +137,23 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
       <div><span className="opinions-eyebrow">{projectId?'PROJE YAZIŞMALARI':'KURUMSAL SÜREÇ TAKİBİ'}</span><h2>Kurum Görüşleri</h2>
         <p>{projectId?'Bu projeye ait tüm kurum yazışmalarını ve farklı görüş turlarını takip edin.':'Projeler arasındaki tüm kurum görüşlerini tek listeden yönetin.'}</p></div>
       <div className="opinions-header-actions">
+        {canCreate&&projectId&&<button type="button" className="opinions-defaults-button" onClick={()=>void addDefaultDrafts()} disabled={saving}>Eksik varsayılanları ekle</button>}
         {canCreate&&<button type="button" className="opinions-add-button" onClick={openCreate}>＋ <span>Yeni görüş ekle</span></button>}
         <button type="button" className="opinions-refresh-button" onClick={()=>void load()} disabled={loading}>↻ <span>{loading?'Yükleniyor…':'Yenile'}</span></button>
       </div>
     </header>
-    <div className="opinions-metrics" aria-label="Kurum görüşü özeti">
+    <nav className="opinions-view-tabs" aria-label="Kurum görüşü bölümleri">
+      <button type="button" aria-pressed={view==='opinions'} onClick={()=>setView('opinions')}>Kurum görüşleri <span>{visibleRows.length}</span></button>
+      <button type="button" aria-pressed={view==='directory'} onClick={()=>{setView('directory');void loadContacts();}}>Kurum rehberi <span>{contacts.length}</span></button>
+    </nav>
+    {notice&&<div className="opinions-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
+    <div className="opinions-metrics" aria-label="Kurum görüşü özeti" style={{display:view==='opinions'?'grid':'none'}}>
       <article><span>Açık kayıt</span><strong>{openCount}</strong></article>
       <article className={lateCount?'is-overdue':''}><span>Süresi geçen</span><strong>{lateCount}</strong></article>
       <article><span>Yanıtlanan</span><strong>{answered}</strong></article>
     </div>
-    {error&&<div className="opinions-error" role="alert"><span>{error}</span><button type="button" onClick={()=>void load()}>Tekrar dene</button></div>}
-    <div className="opinions-toolbar">
+    {view==='opinions'&&error&&<div className="opinions-error" role="alert"><span>{error}</span><button type="button" onClick={()=>void load()}>Tekrar dene</button></div>}
+    <div className="opinions-toolbar" style={{display:view==='opinions'?'flex':'none'}}>
       <label className="opinions-search"><span aria-hidden="true">⌕</span>
         <input aria-label="Kurum görüşlerinde ara" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Proje, kurum, konu veya yazı numarası ara"/>
       </label>
@@ -127,6 +164,7 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
       </label>
       <span className="opinions-result-count">{filtered.length} kayıt</span>
     </div>
+    <div style={{display:view==='opinions'?'block':'none'}}>
     {loading&&rows.length===0?<div className="opinions-empty">Kurum görüşleri yükleniyor…</div>
     :filtered.length===0?<div className="opinions-empty"><strong>{rows.length===0?'Henüz kurum görüşü kaydı yok':'Aramayla eşleşen kayıt bulunamadı'}</strong>
       <span>{rows.length===0?'Yeni bir görüş ekleyerek bu projenin yazışma geçmişini başlatabilirsiniz.':'Arama metnini veya durum filtresini değiştirin.'}</span>
@@ -145,12 +183,29 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
         <td><span className={'opinions-deadline deadline-'+deadline.tone}>{deadline.label}</span></td><td>{dateText(row.responseDate)}</td>
         <td className="opinions-row-actions">
           {canUpdate&&<button type="button" className="opinions-edit-button" onClick={()=>openEdit(row)}>Düzenle</button>}
+          {canDelete&&<button type="button" className="opinions-delete-button" onClick={()=>void archiveOpinion(row)} disabled={deletingId===row.id}>{deletingId===row.id?'Kaldırılıyor…':'Kaldır'}</button>}
           {canOpenProject&&<button type="button" className="opinions-open-button" onClick={()=>onOpenProject(row.projectId)}>Projeyi aç</button>}
           {!canUpdate&&!canOpenProject&&<span className="opinions-no-action">—</span>}
         </td>
       </tr>;
     })}</tbody></table></div>}
     <p className="opinions-footnote">Süre göstergesi yalnızca kayda girilmiş son tarihe göre hesaplanır; mevzuattaki iş günü veya resmî tatil hesabı değildir. Liste, erişim izniniz bulunan aktif projelerdeki en fazla 500 kaydı gösterir.</p>
+    </div>
+    {view==='directory'&&error&&<div className="opinions-error" role="alert"><span>{error}</span><button type="button" onClick={()=>void loadContacts()}>Tekrar dene</button></div>}
+    {view==='directory'&&<section className="institution-directory" aria-label="Kurum rehberi">
+      <header><div><h3>Kurum ve ilgili kişi kayıtları</h3><p>Kurum görüşü kaydına girilen iletişim bilgileri burada otomatik toplanır.</p></div><span>{contacts.length} kişi</span></header>
+      {contactsLoading?<div className="opinions-empty">Kurum rehberi yükleniyor…</div>
+      :contacts.length===0?<div className="opinions-empty"><strong>Henüz iletişim kaydı yok</strong><span>Bir kurum görüşünü düzenleyip ilgili kişi, telefon veya e-posta bilgisi eklediğinizde rehber otomatik oluşur.</span></div>
+      :<div className="institution-directory-grid">{contacts.map(contact=><article className="institution-contact-card" key={contact.id}>
+        <div><span className="institution-contact-kicker">{contact.institutionName}</span><h4>{contact.contactPerson||'İlgili kişi belirtilmedi'}</h4>{contact.title&&<p>{contact.title}{contact.department?' · '+contact.department:''}</p>}</div>
+        <div className="institution-contact-links">
+          {contact.phone&&<a href={'tel:'+contact.phone}>{contact.phone}</a>}
+          {contact.email&&<a href={'mailto:'+contact.email}>{contact.email}</a>}
+          {contact.address&&<span>{contact.address}</span>}
+        </div>
+        <footer>{contact.projectCount} projede kayıtlı</footer>
+      </article>)}</div>}
+    </section>}
     <Drawer
       isOpen={editorOpen}
       onClose={()=>{setEditorOpen(false);setEditing(null);setFormError('');}}
@@ -180,6 +235,11 @@ export function InstitutionOpinionsWorkspace({request,canOpenProject,onOpenProje
             {editing&&!statusOptions.some(option=>option.value===editing.status)&&<option value={editing.status}>{labels[editing.status]??editing.status}</option>}
           </select></div>
           <div className="form-group"><label htmlFor="opinion-contact">İlgili kişi (isteğe bağlı)</label><input id="opinion-contact" value={draft.contactPerson} maxLength={160} onChange={event=>setDraft(current=>({...current,contactPerson:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-contact-title">Unvan</label><input id="opinion-contact-title" value={draft.contactTitle} maxLength={120} onChange={event=>setDraft(current=>({...current,contactTitle:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-contact-department">Birim / departman</label><input id="opinion-contact-department" value={draft.contactDepartment} maxLength={120} onChange={event=>setDraft(current=>({...current,contactDepartment:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-contact-phone">Telefon</label><input id="opinion-contact-phone" type="tel" autoComplete="tel" value={draft.contactPhone} maxLength={60} onChange={event=>setDraft(current=>({...current,contactPhone:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-contact-email">E-posta</label><input id="opinion-contact-email" type="email" autoComplete="email" value={draft.contactEmail} maxLength={254} onChange={event=>setDraft(current=>({...current,contactEmail:event.target.value}))}/></div>
+          <div className="form-group"><label htmlFor="opinion-contact-address">Adres</label><input id="opinion-contact-address" value={draft.contactAddress} maxLength={400} onChange={event=>setDraft(current=>({...current,contactAddress:event.target.value}))}/></div>
           <div className="form-group"><label htmlFor="opinion-request-date">Talep / gönderim tarihi</label><input id="opinion-request-date" type="date" value={draft.requestDate} onChange={event=>setDraft(current=>({...current,requestDate:event.target.value}))}/></div>
           <div className="form-group"><label htmlFor="opinion-deadline">Yanıt için son tarih</label><input id="opinion-deadline" type="date" value={draft.deadlineDate} onChange={event=>setDraft(current=>({...current,deadlineDate:event.target.value}))}/></div>
           <div className="form-group"><label htmlFor="opinion-response-date">Yanıt tarihi</label><input id="opinion-response-date" type="date" value={draft.responseDate} onChange={event=>setDraft(current=>({...current,responseDate:event.target.value}))}/></div>
