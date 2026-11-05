@@ -75,6 +75,10 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(service.includes("createHash('sha256')"));
   assert.ok(service.includes('ECED_ACCOUNT_OBSERVED_ELSEWHERE'));
   assert.ok(service.includes('ECED_ACCOUNT_NOT_OBSERVED'));
+  assert.ok(service.includes("const PORTAL_ORIGIN = 'https://eced.csb.gov.tr'"));
+  assert.ok(service.includes('page.origin !== PORTAL_ORIGIN'));
+  assert.ok(service.includes('const REPORT_WINDOW_MS = 90_000'));
+  assert.ok(service.includes("interval '90 seconds'"));
   assert.ok(migration.includes('CREATE TABLE eced_browser_devices'));
   assert.ok(migration.includes('CREATE TABLE eced_browser_reports'));
   assert.ok(migration.includes('CREATE TABLE eced_account_claims'));
@@ -121,6 +125,13 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(worker.includes("'http_error'"));
   assert.ok(worker.includes("'network_error'"));
   assert.ok(worker.includes('sendResponse(await sendTabReport(tabs[0]))'));
+  assert.ok(worker.includes('const REQUEST_TIMEOUT_MS = 10_000'));
+  assert.ok(worker.includes('new AbortController()'));
+  assert.ok(worker.includes("'request_timeout'"));
+  assert.ok(worker.includes("acknowledgement?.queued !== true"));
+  assert.ok(worker.includes('const MAX_PARALLEL_REPORTS = 6'));
+  assert.ok(worker.includes('Promise.all(batch.map(tab => sendTabReport(tab)))'));
+  assert.ok(worker.includes("periodInMinutes:1"),'Older Chromium alarm fallback must be present.');
 
   assert.ok(contentScript.includes("location.origin !== 'https://eced.csb.gov.tr'"));
   assert.ok(contentScript.includes('__encevPulseAccountObserver'));
