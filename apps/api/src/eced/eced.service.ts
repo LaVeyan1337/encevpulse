@@ -6,7 +6,8 @@ import type { AuthUser } from '../auth/auth.service.js';
 
 const TOKEN = /^[A-Za-z0-9_-]{40,100}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const REPORT_WINDOW_MS = 60_000;
+const PORTAL_ORIGIN = 'https://eced.csb.gov.tr';
+const REPORT_WINDOW_MS = 90_000;
 const CLAIM_WINDOW_MS = 180_000;
 
 function clean(value: unknown, max: number): string {
@@ -134,7 +135,7 @@ export class EcedMonitorService {
       await client.query('BEGIN');
       const device = await this.findDeviceForToken(token, client, true);
       const page = urlParts(value.url);
-      if (!page.origin) invalid('Portal adresi güvenli bir HTTP(S) adresi olmalıdır.');
+      if (page.origin !== PORTAL_ORIGIN) invalid('Yalnızca resmî https://eced.csb.gov.tr portal adresleri raporlanabilir.');
       const accountName = clean(value.accountName, 100);
       const normalizedAccount = normalizeAccount(accountName);
       const accountSourceRaw = clean(value.accountSource, 16);
@@ -197,7 +198,7 @@ export class EcedMonitorService {
         throw new BadRequestException({ code: 'ECED_ACCOUNT_NOT_OBSERVED', message: 'Bu hesap henüz izin verilmiş bir tarayıcı sekmesinde gözlenmedi.' });
       }
       const activeElsewhere = await client.query(
-        "SELECT d.device_name FROM eced_browser_reports r JOIN eced_browser_devices d ON d.id=r.device_id WHERE r.normalized_account=$1 AND d.id<>$2 AND d.revoked_at IS NULL AND r.session_state='active' AND r.last_seen>now()-interval '60 seconds' LIMIT 1",
+        "SELECT d.device_name FROM eced_browser_reports r JOIN eced_browser_devices d ON d.id=r.device_id WHERE r.normalized_account=$1 AND d.id<>$2 AND d.revoked_at IS NULL AND r.session_state='active' AND r.last_seen>now()-interval '90 seconds' LIMIT 1",
         [normalizedAccount,deviceId],
       );
       if (activeElsewhere.rowCount) {
