@@ -4,14 +4,15 @@ import { test } from 'node:test';
 
 const read=(path)=>readFile(new URL(path,import.meta.url),'utf8');
 
-test('Sistem yönetimi hazır modülleri yönetir; ortak Drive ve tamamlanmamış Dilekçeler kapalı kalır',async()=>{
-  const [page,controller,access,activationMigration,notReadyMigration,directoryMigration,workspace]=await Promise.all([
+test('Sistem yönetimi tamamlanmamış Drive modülünü kapalı tutar; Dilekçeler etkin ve yetki kontrollüdür',async()=>{
+  const [page,controller,access,activationMigration,notReadyMigration,directoryMigration,petitionMigration,workspace]=await Promise.all([
     read('../app/routes/home.tsx'),
     read('../../api/src/auth/auth.controller.ts'),
     read('../../api/src/access-control/access-control.service.ts'),
     read('../../../drizzle/0021_notes_and_module_activation.sql'),
     read('../../../drizzle/0022_disable_incomplete_modules.sql'),
     read('../../../drizzle/0023_institution_directory_crud.sql'),
+    read('../../../drizzle/0024_petition_docx_workflow.sql'),
     read('../app/components/workspace.tsx'),
   ]);
   assert.ok(page.includes("adminTab==='modules'"));
@@ -19,7 +20,6 @@ test('Sistem yönetimi hazır modülleri yönetir; ortak Drive ve tamamlanmamı�
   assert.ok(page.includes('blocked[moduleKey]'));
   assert.ok(page.includes("drive:'Şirket dosya alanına erişim"));
   assert.ok(page.includes("institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur"));
-  assert.ok(page.includes("petitions:'Onaylı ortak şablon"));
   assert.ok(controller.includes("@Put('modules/:moduleKey')"));
   assert.ok(controller.includes('this.assertSystemAdmin(user)'));
   assert.ok(access.includes('CORE_MODULE_REQUIRED'));
@@ -33,8 +33,10 @@ test('Sistem yönetimi hazır modülleri yönetir; ortak Drive ve tamamlanmamı�
   assert.ok(directoryMigration.includes("UPDATE app_modules SET is_enabled = true WHERE module_key = 'institution_guide'"));
   assert.ok(directoryMigration.includes("('employee','institution_guide','view')"));
   assert.ok(directoryMigration.includes("('process_owner','institution_guide','create')"));
-  assert.ok(access.includes("const lockedOff=['drive','petitions'];"));
-  assert.ok(page.includes("petitions:'Mevcut taslak yalnızca tarayıcıda saklanan DOCX dosyasının değiştirilmemiş kopyasını indirir"));
+  assert.ok(access.includes("const lockedOff=['drive'];"));
+  assert.ok(petitionMigration.includes("UPDATE app_modules SET is_enabled = true WHERE module_key = 'petitions'"));
+  assert.ok(petitionMigration.includes("('employee','petitions','create')"));
+  assert.ok(petitionMigration.includes("('process_owner','petitions','manage')"));
   assert.ok(!/UPDATE app_modules[^;]*'drive'/.test(activationMigration));
   assert.ok(access.includes("'drive'"));
   assert.ok(workspace.includes('Sistem Yönetimi'));
