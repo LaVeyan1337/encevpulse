@@ -5,6 +5,14 @@ UPDATE app_modules
 SET is_enabled = true
 WHERE module_key IN ('calendar','institution_opinions','eced','notes','settings');
 
+-- Migration 0013 enabled Petitions before its DOCX field mapping and approval flow
+-- existed. Keep its data and role grants, but hide the incomplete workspace until ready.
+UPDATE app_modules SET is_enabled = false WHERE module_key = 'petitions';
+DELETE FROM role_module_permissions p
+USING roles r
+WHERE p.role_id = r.id AND r.code = 'system_admin'
+  AND p.module_key = 'petitions' AND p.permission_key = 'manage';
+
 -- Personal calendar access is safe because event ownership and visibility are enforced by CalendarService.
 INSERT INTO role_module_permissions(role_id,module_key,permission_key)
 SELECT r.id,'calendar',p.permission_key
