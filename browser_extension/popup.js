@@ -47,7 +47,36 @@ async function init() {
   if (detectedByPortal) $('status').textContent = 'Hesap portal ekranında görünen profil etiketinden otomatik tanındı. İsterseniz görünen etiketi manuel olarak değiştirebilirsiniz.';
   $('sessionState').value = (saved.sessionStates || {})[currentTabKey] || 'unknown';
   $('sectionLabel').value = (saved.sectionLabels || {})[currentTabKey] || '';
-  $('connection').textContent = saved.apiBase && saved.pairingToken ? 'Eşleştirme ayarlı' : 'Bağlantı gerekli';
+  const apiConfigured = Boolean(saved.apiBase && saved.pairingToken);
+  if (!apiConfigured) {
+    $('connection').textContent = 'Bağlantı gerekli';
+    $('connection').classList.remove('is-ok');
+    $('connection').classList.add('is-error');
+    $('status').textContent = 'PULSE API adresi ve eşleştirme anahtarını bağlantı ayarlarından kaydedin.';
+    return;
+  }
+  if (!allowed) {
+    $('connection').textContent = 'Portal izni gerekli';
+    $('connection').classList.remove('is-ok');
+    $('connection').classList.add('is-error');
+    $('status').textContent = 'Sinyal göndermek için önce bu resmî e-ÇED portalına site izni verin.';
+    return;
+  }
+  const portalPermission = await chrome.permissions.contains({origins:[currentOrigin+'/*']});
+  if (!portalPermission) {
+    $('connection').textContent = 'Portal izni gerekli';
+    $('connection').classList.remove('is-ok');
+    $('connection').classList.add('is-error');
+    $('status').textContent = 'Portal izni tarayıcıdan kaldırılmış. “Bu portalı izlemeye aç” düğmesiyle yeniden izin verin.';
+    return;
+  }
+  $('connection').textContent = 'Sinyal kontrol ediliyor…';
+  try {
+    const result = await chrome.runtime.sendMessage({type:'report-active-tab'});
+    showReportResult(result);
+  } catch {
+    showReportResult({ok:false,message:'PULSE sinyal sonucu alınamadı. Eklentiyi yenileyip yeniden deneyin.'});
+  }
 }
 $('enableSite').addEventListener('click',async()=>{
   if (!currentOrigin) return;

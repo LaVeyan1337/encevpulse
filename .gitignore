@@ -9,3 +9,5 @@ coverage/
 .react-router/
 *.tsbuildinfo
 .local-*.log
+
+.artifacts/
