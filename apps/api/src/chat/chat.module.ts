@@ -5,10 +5,11 @@ import { DatabaseModule } from '../database/database.module.js';
 import { ChatController } from './chat.controller.js';
 import { ChatEventsService } from './chat-events.service.js';
 import { ChatService } from './chat.service.js';
+import { ChatUploadGuard } from './chat-upload.guard.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, AccessControlModule],
   controllers: [ChatController],
-  providers: [ChatService,ChatEventsService],
+  providers: [ChatService,ChatEventsService,ChatUploadGuard],
 })
 export class ChatModule {}
