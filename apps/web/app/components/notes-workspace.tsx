@@ -2,22 +2,25 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Drawer } from './drawer';
 
 type Project = { id:string; name:string; status:string };
+type Task = {id:string;title:string;projectId:string|null;projectName:string|null};
 type Note = {
   id:string; title:string; body:string; tags:string[]; projectId:string|null;
-  projectName:string|null; version:number; archivedAt:string|null; createdAt:string; updatedAt:string;
+  projectName:string|null; taskId:string|null; taskTitle:string|null; version:number; archivedAt:string|null; createdAt:string; updatedAt:string;
 };
-type Draft = { title:string; body:string; tags:string; projectId:string };
+type Draft = { title:string; body:string; tags:string; projectId:string; taskId:string };
 
 export function NotesWorkspace({
-  request, projects, canCreate, canUpdate, canDelete,
+  request, projects, canCreate, canUpdate, canDelete, canViewTasks,
 }: {
   request:(path:string,method?:string,data?:unknown)=>Promise<Record<string,any>>;
   projects:Project[];
   canCreate:boolean;
   canUpdate:boolean;
   canDelete:boolean;
+  canViewTasks:boolean;
 }) {
   const [notes,setNotes]=useState<Note[]>([]);
+  const [taskOptions,setTaskOptions]=useState<Task[]>([]);
   const [view,setView]=useState<'active'|'archived'>('active');
   const [query,setQuery]=useState('');
   const [loading,setLoading]=useState(true);
@@ -26,7 +29,7 @@ export function NotesWorkspace({
   const [notice,setNotice]=useState('');
   const [drawerOpen,setDrawerOpen]=useState(false);
   const [editing,setEditing]=useState<Note|null>(null);
-  const [draft,setDraft]=useState<Draft>({title:'',body:'',tags:'',projectId:''});
+  const [draft,setDraft]=useState<Draft>({title:'',body:'',tags:'',projectId:'',taskId:''});
   const [formError,setFormError]=useState('');
 
   const load=useCallback(async()=>{
@@ -41,19 +44,28 @@ export function NotesWorkspace({
 
   useEffect(()=>{void load();},[load]);
 
+  useEffect(()=>{
+    let cancelled=false;
+    if(!canViewTasks){setTaskOptions([]);return;}
+    request('tasks?view=all&limit=100')
+      .then(result=>{if(!cancelled)setTaskOptions(Array.isArray(result.tasks)?result.tasks as Task:[]);})
+      .catch(()=>{if(!cancelled)setTaskOptions([]);});
+    return ()=>{cancelled=true;};
+  },[request,canViewTasks]);
+
   const visibleProjects=useMemo(()=>projects.filter(project=>project.status!=='archived'),[projects]);
 
   function openCreate() {
     if(!canCreate)return;
     setEditing(null);
-    setDraft({title:'',body:'',tags:'',projectId:''});
+    setDraft({title:'',body:'',tags:'',projectId:'',taskId:''});
     setFormError('');setError('');setNotice('');setDrawerOpen(true);
   }
 
   function openEdit(note:Note) {
     if(!canUpdate)return;
     setEditing(note);
-    setDraft({title:note.title,body:note.body,tags:note.tags.join(', '),projectId:note.projectId??''});
+    setDraft({title:note.title,body:note.body,tags:note.tags.join(', '),projectId:note.projectId??'',taskId:note.taskId??''});
     setFormError('');setError('');setNotice('');setDrawerOpen(true);
   }
 
@@ -67,7 +79,7 @@ export function NotesWorkspace({
     if(draft.body.length>20000){setFormError('Not metni 20.000 karakteri aşamaz.');return;}
     setSaving(true);setFormError('');
     try {
-      const payload={title:draft.title.trim(),body:draft.body,tags,projectId:draft.projectId||null,...(editing?{version:editing.version}:{})};
+      const payload={title:draft.title.trim(),body:draft.body,tags,projectId:draft.projectId||null,taskId:draft.taskId||null,...(editing?{version:editing.version}:{})};
       await request(editing?'notes/'+editing.id:'notes',editing?'PATCH':'POST',payload);
       setDrawerOpen(false);
       setNotice(editing?'Not güncellendi.':'Not oluşturuldu.');
@@ -119,7 +131,7 @@ export function NotesWorkspace({
           </button>
           {note.tags.length>0&&<div className="notes-tags">{note.tags.map(tag=><span key={tag}>{tag}</span>)}</div>}
           <div className="notes-card-footer">
-            <span>{note.projectName?('Proje · '+note.projectName):'Projeye bağlı değil'}</span>
+            <span>{[note.projectName?('Proje · '+note.projectName):'',note.taskTitle?('Görev · '+note.taskTitle):''].filter(Boolean).join(' · ')||'Bağlantı yok'}</span>
             {view==='active'&&canDelete?<button type="button" className="notes-card-action" onClick={()=>void archive(note)} disabled={saving}>Arşivle</button>:null}
             {view==='archived'&&canUpdate?<button type="button" className="notes-card-action" onClick={()=>void archive(note,true)} disabled={saving}>Geri yükle</button>:null}
           </div>
@@ -132,6 +144,10 @@ export function NotesWorkspace({
         <label><span>Not</span><textarea value={draft.body} onChange={event=>setDraft(current=>({...current,body:event.target.value}))} rows={12} maxLength={20000} placeholder="Notunuzu yazın…"/></label>
         <label><span>Etiketler</span><input value={draft.tags} onChange={event=>setDraft(current=>({...current,tags:event.target.value}))} placeholder="Örn. saha, toplantı, takip (virgülle ayırın)"/><small>En fazla 12 etiket, her biri en fazla 32 karakter.</small></label>
         <label><span>İlgili proje</span><select value={draft.projectId} onChange={event=>setDraft(current=>({...current,projectId:event.target.value}))}><option value="">Proje seçmeden kaydet</option>{visibleProjects.map(project=><option key={project.id} value={project.id}>{project.name}</option>)}</select><small>Yalnızca erişim yetkiniz olan projeler listelenir.</small></label>
+        {canViewTasks&&<label><span>İlgili görev</span><select value={draft.taskId} onChange={event=>{
+          const task=taskOptions.find(item=>item.id===event.target.value);
+          setDraft(current=>({...current,taskId:event.target.value,projectId:task?.projectId??''}));
+        }}><option value="">Göreve bağlamadan kaydet</option>{taskOptions.map(task=><option key={task.id} value={task.id}>{task.title}{task.projectName?' · '+task.projectName:''}</option>)}</select><small>Yalnızca erişim yetkiniz olan görevler listelenir; görev seçimi proje bağlantısını otomatik günceller.</small></label>}
         {formError&&<p className="auth-error" role="alert">{formError}</p>}
       </form>
     </Drawer>
