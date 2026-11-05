@@ -78,7 +78,7 @@ export function validateChatAttachmentFiles(files: UploadedChatFile[]): Validate
     totalBytes+=byteSize;
     const originalPath=String(file.originalname??'').replace(/\\/g,'/');
     const rawName=originalPath.split('/').pop()??'';
-    const originalName=rawName.normalize('NFC').replace(/[\\u0000-\\u001f\\u007f]/g,'').trim().slice(0,180);
+    const originalName=rawName.normalize('NFC').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,180);
     const extension=originalName.slice(originalName.lastIndexOf('.')).toLocaleLowerCase('en-US');
     const allowedMimes=EXTENSION_MIMES[extension];
     if(!originalName||!allowedMimes) throw invalid('Bu dosya türüne izin verilmiyor.');
