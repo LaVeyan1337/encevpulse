@@ -1,6 +1,39 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (takvim temeli ve görev/proje tarih entegrasyonu)
+**Son güncelleme:** 5 Kasım 2026 (bütünleşik test dalı; şirket içi dağıtım henüz yapılmadı)
+
+## Güncel yayın ve modül durumu — 5 Kasım 2026
+
+Bu belge geçmiş geliştirme notlarını korur. Aşağıdaki bölüm, önceki durum maddelerinin yerine geçen güncel yayın gerçeğidir.
+
+### Yayın durumu
+
+- Kaynaklar `release/company-internal-2026-11-05` dalında birleştirilmiştir; `main` dalına alınmamış ve şirket ağına dağıtılmamıştır.
+- Yerel geliştirme: Web `127.0.0.1:5173`, API `127.0.0.1:3000`, PostgreSQL `127.0.0.1:5432`. Bu adreslere yalnız aynı bilgisayardan erişilir.
+- Şirket çalışanlarının ortak erişimi için host bilgisayar, sabit/reserve edilmiş LAN IP, iç DNS, HTTPS reverse proxy, istemci CA sertifikası dağıtımı ve Firewall kapsamı henüz yapılandırılmamıştır.
+- 5 Kasım 2026 tarihli CI çalışması (workflow run `42018742609`) migration, API/web testleri, TypeScript, üretim derlemesi ve e-ÇED eklenti paketlemesini başarıyla tamamlamıştır. CI, gerçek tarayıcı görsel kabulü, şirket ağı dağıtımı, gerçek e-ÇED portalı veya farklı ağlarda WebRTC bağlantısı testi değildir.
+- Modülün veritabanında etkin olması, bu modülün bütün ürün kabul kriterlerini karşıladığı anlamına gelmez. Hazır olma kararı aşağıdaki işlev sınırları ve [MODULE_REQUIREMENTS.md](MODULE_REQUIREMENTS.md) üzerinden verilmelidir.
+
+### Modül işlev sınırları
+
+| Modül | Mevcut durum | Ürün kabulü açısından eksik / doğrulanmamış |
+|---|---|---|
+| Genel Bakış | Gerçek görev ve erişilebilir aktivite verileri kullanılır. | Hatırlatma zamanlayıcısı ve yasal süreç özetleri tamamlanmış değildir. |
+| Görevler & Süreç | Görev CRUD, Kanban/liste, temel yorum ve geçmiş API akışları vardır. | Takipçi, görev dosyası ve daha gelişmiş süreç iş akışları hazır değildir. |
+| Projeler | Proje oluşturma/düzenleme, sahip/üye, tarih, durum ve arşiv API akışları vardır. | Gerçek Windows tarayıcıda kullanıcı kabul testi yapılmamıştır; proje-belge ve tüm süreç ilişkileri tamamlanmış sayılmaz. |
+| Takvim | Etkinlik/toplantı ve görev/proje/ÇED tarihleri görünümü vardır; gün panelinden kayıt akışı bulunur. | Arka plan hatırlatmaları, kurum tatil takvimi ve doğrulanmış yasal süre motoru yoktur. |
+| Sohbet | Kalıcı mesaj API'si ve üç panelli arayüz; yanıt, reaksiyon, düzenleme/silme, okundu, arama ve görev bağlantısı kodda bulunur. | Gerçek tarayıcı/çok kullanıcı kabul testi yapılmamıştır. Dosya saklama, kurum politikası ve gerçek ağda SSE testi ayrıca doğrulanmalıdır. |
+| Sesli/görüntülü görüşme | Bire bir WebRTC denemesi ve ücretsiz STUN varsayılanı vardır. | TURN yoktur; bazı ağ çiftlerinde bağlantı kurulamayabilir. Gerçek cihaz/ağ/medya kalite testi yapılmamıştır. |
+| Kurum Görüşleri | Proje ilişkili kayıt, kurum, sorumlu, durum ve tarih alanları ile API/UI vardır. | Resmî iş günü/tatil/yasal süre motoru ve süreç sahibi onayı yoktur; ekranda girilen tarihler hukuki son tarih hesabı sayılmaz. |
+| Kurum Rehberi | Görüş kayıtlarından türetilmiş salt okunur iletişim görünümü vardır. | Bağımsız kurum kaydı oluşturma/düzenleme ve doğrulanmış kurum veri kaynağı yoktur; tam Kurum Rehberi kabulünü karşılamaz. |
+| Dilekçeler | DOCX şablonu tarayıcı profilinde saklanır ve içerik değiştirilmeden kopya indirilir. | Dinamik alan doldurma, gerçek belge üretim/önizleme, süreç durumu ve ortak kayıt/onay yoktur; tam Dilekçeler modülü değildir. |
+| e-ÇED Takip | Süreç kaydı ve tarayıcı eklentisi API rapor akışı vardır. | Gerçek e-ÇED hesabı/portal DOM ve profil sinyalleriyle canlı kabul testi yapılmamıştır; otomatik resmî sistem veri doğruluğu garantisi yoktur. |
+| Notlarım | Kişisel, sahip-kısıtlı not CRUD, etiket ve proje/görev bağlantıları vardır. | Paylaşım akışı kapsam dışıdır; kişisel notlar varsayılan olarak özel kalır. |
+| Bildirimler | Görev/sohbet olayları için uygulama içi bildirimler vardır. | Zamanlanmış yasal hatırlatma, kullanıcı tercihleri ve teslimat/yeniden deneme altyapısı tamamlanmamıştır. |
+| Ayarlar / Sistem Yönetimi | Kullanıcı/rol yönetimi, modül ve rol-izin yönetimi API/UI'si vardır. | Kurum SSO, ekip organizasyon eşitlemesi, tam sistem sağlık/entegrasyon yönetimi ve iki panelli ayar kapsamı tamamlanmamıştır. |
+| Belgeler / Ortak Drive | Kapalıdır. | Şirket dosya sunucusuna erişim için ayrıca açık izin ve kaynak izinlerini koruyan tasarım gerekir. NAS/SMB bağlantısı kurulmamıştır. |
+
+Bu tablo, test edilmiş fonksiyonel kapsamı ve açık işleri ayırır; uygulamayı şirket kullanımına hazır ilan etmez.
 
 ## Gerçekten uygulananlar
 
