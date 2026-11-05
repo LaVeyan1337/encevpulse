@@ -858,7 +858,7 @@ export default function Home() {
                         institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur; harici kurum sistemleriyle otomatik eşitleme bulunmaz.',
                       } as Record<string,string>)[module.moduleKey];
                       const moduleHint=({
-                        petitions:'Mevcut taslak yalnızca tarayıcıda saklanan DOCX dosyasının değiştirilmemiş kopyasını indirir; otomatik dilekçe üretimi değildir.',
+                        petitions:'Word şablonları sürümlenir; üretilen belgeler ilgili proje kaydıyla birlikte saklanır.',
                       } as Record<string,string>)[module.moduleKey];
                       return (
                         <div className="permission-module-row" key={module.moduleKey}>
