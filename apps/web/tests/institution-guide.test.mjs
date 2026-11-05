@@ -32,6 +32,8 @@ test('Kurum Rehberi ayrı, salt-okunur ve proje erişimiyle sınırlandırılmı
   assert.match(controller,/hasPermission\(user,'institution_opinions','view'\)/);
   assert.match(service,/JOIN ced_institution_opinions opinion ON opinion\.contact_id=contact\.id/);
   assert.match(service,/p\.created_by=\$1 OR p\.owner_user_id=\$1 OR EXISTS/);
+  assert.ok(service.includes('user.roles.includes(\'system_admin\')'));
+  assert.ok(service.includes('$2::boolean OR p.created_by=$1'));
   assert.match(migration,/UPDATE app_modules/);
   assert.match(migration,/institution_guide/);
   assert.match(migration,/SELECT r\.id,'institution_guide','view'/);
