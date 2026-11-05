@@ -22,7 +22,7 @@ test('Dilekçeler NAS/SMB erişimi olmadan PULSE veritabanında çalışır',asy
   assert.match(design,/yardımcı servis kurulmaz, başlatılmaz veya paketlenmez/);
 
   assert.match(component,/request\('petitions\/templates'\)/);
-  assert.match(component,/request\('petitions\/documents'\)/);
+  assert.match(component,/request\('petitions\/documents\?/);
   assert.match(component,/PULSE PostgreSQL/);
   assert.doesNotMatch(component,/indexedDB|localStorage|192\.168\.1\.55|smb:\/\/|file:\/\/|child_process|openfiles\.exe|NetFileEnum|raw\.githubusercontent\.com/i);
   assert.doesNotMatch(webPackage,/smb2|node-smb|child_process/i);
