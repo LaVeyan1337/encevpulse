@@ -106,12 +106,11 @@ export class AccessControlService {
       throw new BadRequestException({code:'INVALID_MODULE_STATE',message:'Modül durumu geçersiz.'});
     }
     const enabled=value.enabled;
-    const lockedOff=['drive','petitions','institution_guide'];
+    const lockedOff=['drive','petitions'];
     if(enabled&&lockedOff.includes(moduleKey)) {
       const messages:Record<string,string>={
         drive:'Ortak Drive, şirket dosya alanının kaynak yetkilerini koruyan bağlantısı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
         petitions:'Dilekçe şablon alan eşlemesi ve onaylı belge akışı tamamlanmadan bu modül açılamaz.',
-        institution_guide:'Kurum Rehberi şu anda Kurum Görüşleri içindeki iletişim alanlarında yer alıyor; ayrı modül akışı henüz hazır değil.',
       };
       throw new ConflictException({code:'MODULE_NOT_READY',message:messages[moduleKey]});
     }
