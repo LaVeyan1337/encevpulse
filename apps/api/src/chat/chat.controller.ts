@@ -9,6 +9,7 @@ import { AccessControlService } from '../access-control/access-control.service.j
 import type { ModuleAction } from '../access-control/access-control.service.js';
 import { ChatEventsService } from './chat-events.service.js';
 import { ChatService } from './chat.service.js';
+import { ChatCallsService } from './chat-calls.service.js';
 import { ChatUploadGuard } from './chat-upload.guard.js';
 import { ChatCallsService } from './chat-calls.service.js';
 import type { UploadedChatFile } from './chat-attachments.js';
@@ -39,6 +40,47 @@ export class ChatController {
         return false;
       }
     });
+  }
+
+  @Get('call-configuration')
+  async callConfiguration(@Req() request:Request) {
+    return this.calls.iceConfiguration(await this.authorize(request,'chat','view'));
+  }
+
+  @Get('calls/active')
+  async activeCall(@Req() request:Request) {
+    return this.calls.activeCall(await this.authorize(request,'chat','view'));
+  }
+
+  @Post('conversations/:id/calls')
+  @HttpCode(HttpStatus.CREATED)
+  async startCall(@Req() request:Request,@Param('id') id:string,@Body() body:unknown) {
+    return this.calls.startCall(await this.authorize(request,'chat','create',true),id,body);
+  }
+
+  @Post('calls/:id/accept')
+  async acceptCall(@Req() request:Request,@Param('id') id:string) {
+    return this.calls.acceptCall(await this.authorize(request,'chat','update',true),id);
+  }
+
+  @Post('calls/:id/decline')
+  async declineCall(@Req() request:Request,@Param('id') id:string) {
+    return this.calls.declineCall(await this.authorize(request,'chat','update',true),id);
+  }
+
+  @Post('calls/:id/end')
+  async endCall(@Req() request:Request,@Param('id') id:string) {
+    return this.calls.endCall(await this.authorize(request,'chat','update',true),id);
+  }
+
+  @Post('calls/:id/signals')
+  async sendCallSignal(@Req() request:Request,@Param('id') id:string,@Body() body:unknown) {
+    return this.calls.sendSignal(await this.authorize(request,'chat','update',true),id,body);
+  }
+
+  @Get('calls/:id/signals')
+  async listCallSignals(@Req() request:Request,@Param('id') id:string,@Query('afterId') afterId?:string) {
+    return this.calls.listSignals(await this.authorize(request,'chat','view'),id,afterId);
   }
 
   @Get('call-configuration')
