@@ -157,6 +157,16 @@ test('Çalışan rehberi ve üç panelli sohbet gerçek API uçlarına bağlanı
 });
 
 
+test('Sohbet metin gönderimi gerçek POST uç noktasıyla eşleşir ve CSRF başlığını kullanır', async () => {
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../../api/src/chat/chat.controller.ts', import.meta.url), 'utf8');
+  assert.match(chat, /request\('chat\/conversations\/\'\+targetConversationId\+'\/messages','POST'/);
+  assert.match(controller, /@Post\('conversations\/:id\/messages'\)/);
+  assert.match(workspace, /'X-CSRF-Token': csrfToken/);
+  assert.match(chat, /setSendState\('failed'\)/);
+});
+
 test('Çalışan rehberi gerçek kişi verisini kartlarda gösterir ve sohbet başlatır', async () => {
   const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
   const directory = await readFile(new URL('../app/components/people-directory.tsx', import.meta.url), 'utf8');
