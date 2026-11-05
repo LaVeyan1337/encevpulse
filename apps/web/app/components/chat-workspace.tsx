@@ -60,6 +60,7 @@ export function ChatWorkspace({
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const [mobileThreadOpen,setMobileThreadOpen]=useState(false);
+  const [mobileContextOpen,setMobileContextOpen]=useState(false);
   const [detail,setDetail]=useState<ChatDetail|null>(null);
   const [messages,setMessages]=useState<Message[]>([]);
   const [hasMoreMessages,setHasMoreMessages]=useState(false);
@@ -611,7 +612,7 @@ export function ChatWorkspace({
                     />}
                 <div><h2>{selected.displayName}</h2><span>{selected.type==='group'?detail.members.length+' üye':detail.members[0]?.jobTitle||detail.members[0]?.department||'Bire bir sohbet'}</span></div>
               </div>
-              <div className="chat-thread-actions"><span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span><button type="button" className="chat-icon-button" onClick={()=>setSideTab('members')} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
+              <div className="chat-thread-actions"><span className={'chat-live-indicator'+(realtimeConnected?'':' is-fallback')}><i/> {realtimeConnected?'Canlı bağlantı':'Yedek bağlantı'}</span><button type="button" className="chat-icon-button" onClick={()=>{setSideTab('members');setMobileContextOpen(true);}} title="Sohbet ayrıntıları" aria-label="Sohbet ayrıntıları">ⓘ</button></div>
             </header>
             {detail.pinned.length>0&&(
               <div className="chat-pinned-strip"><span>⌁ Sabit</span><strong>{detail.pinned[0].body}</strong><small>{detail.pinned[0].senderName}</small></div>
@@ -691,8 +692,8 @@ export function ChatWorkspace({
         )}
       </main>
 
-      <aside className="chat-context">
-        <div className="chat-context-tabs"><button type="button" className={sideTab==='members'?'active':''} onClick={()=>setSideTab('members')}>Üyeler</button><button type="button" className={sideTab==='pinned'?'active':''} onClick={()=>setSideTab('pinned')}>Sabitlenenler</button></div>
+      <aside className={"chat-context"+(mobileContextOpen?" mobile-context-open":"")}>
+        <div className="chat-context-tabs"><button type="button" className={sideTab==='members'?'active':''} onClick={()=>setSideTab('members')}>Üyeler</button><button type="button" className={sideTab==='pinned'?'active':''} onClick={()=>setSideTab('pinned')}>Sabitlenenler</button><button type="button" className="chat-context-close" onClick={()=>setMobileContextOpen(false)} aria-label="Ayrıntıları kapat">×</button></div>
         {!selected||!detail?<div className="chat-context-empty">Sohbet ayrıntıları seçildiğinde burada görünür.</div>:sideTab==='members'?(
           <>
             <div className="chat-context-heading"><strong>{detail.members.length} üye</strong>{selected.type==='group'&&canManage&&<button type="button" onClick={()=>setShowAddMembers(value=>!value)}>Üye ekle ＋</button>}</div>
