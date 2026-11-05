@@ -147,13 +147,10 @@ export class NotesService {
       ['projectId', 'project_id', value.projectId],
     ];
     const updates = fields.filter(([key]) => Object.hasOwn(value, key));
-    const assignments = updates.map(([, column], index) => `${column}=$${index + 3}`);
-    assignments.push('version=version+1', 'updated_at=now()');
-    const parameters = [id, user.id, ...updates.map(([key, , data]) => key === 'tags' ? data : data), value.version];
-    // Tags are bound as a PostgreSQL text array; the query never interpolates user values.
-    const setClause = assignments.slice(0, updates.length).map((item, index) =>
-      updates[index][0] === 'tags' ? item.replace('=\$', '=\$') + '::text[]' : item,
+    const setClause = updates.map(([key, column], index) =>
+      `${column}=$${index + 3}${key === 'tags' ? '::text[]' : ''}`,
     ).join(',');
+    const parameters = [id, user.id, ...updates.map(([, , data]) => data), value.version];
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
