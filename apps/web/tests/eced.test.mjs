@@ -124,6 +124,8 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
 
   assert.ok(contentScript.includes("location.origin !== 'https://eced.csb.gov.tr'"));
   assert.ok(contentScript.includes('__encevPulseAccountObserver'));
+  assert.ok(contentScript.includes("const SCRIPT_VERSION = '1.0.2'"));
+  assert.ok(contentScript.includes('window.__encevPulseAccountObserver === SCRIPT_VERSION'));
   assert.ok(contentScript.includes('PROFILE_SELECTORS'));
   assert.ok(contentScript.includes('findVisibleAccountName'));
   assert.ok(contentScript.includes('candidates.size === 1'));
