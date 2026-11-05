@@ -174,7 +174,7 @@ export function PetitionsWorkspace({
     setBusy(true);setError('');
     try{
       const result=await request('petitions/templates/'+templateId+'/versions');
-      setHistoryVersions(Array.isArray(result.versions)?result.versions as PetitionTemplateVersion:[]);
+      setHistoryVersions(Array.isArray(result.versions)?result.versions as PetitionTemplateVersion[]:[]);
     }catch(cause){setError(cause instanceof Error?cause.message:'Şablon geçmişi alınamadı.');setHistoryTemplateId(null);}
     finally{setBusy(false);}
   }
