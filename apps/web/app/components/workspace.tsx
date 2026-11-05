@@ -349,9 +349,11 @@ export function Workspace({
       }
       const result = response.status === 204 ? {} : await body(response);
       if (!response.ok) {
-        throw new Error(
-          typeof result.message === 'string' ? result.message : 'İşlem tamamlanamadı.',
-        );
+        const serverMessage = typeof result.message === 'string'
+          ? result.message
+          : `Sunucu isteği reddetti (HTTP ${response.status} ${response.statusText}).`;
+        const errorCode = typeof result.code === 'string' ? ` [${result.code}]` : '';
+        throw new Error(serverMessage + errorCode);
       }
       return result;
     },
