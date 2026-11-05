@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
@@ -91,6 +91,17 @@ export class ChatCallsService {
     await this.db.query(
       `UPDATE chat_calls SET status='missed',ended_at=now()
        WHERE status='ringing' AND expires_at<=now()`,
+    );
+    await this.db.query(
+      `UPDATE chat_calls call SET status='ended',ended_at=now()
+       WHERE call.status IN ('ringing','accepted')
+         AND (NOT EXISTS(
+           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call.conversation_id
+             AND cm.user_id=call.caller_user_id AND cm.left_at IS NULL
+         ) OR NOT EXISTS(
+           SELECT 1 FROM conversation_members cm WHERE cm.conversation_id=call.conversation_id
+             AND cm.user_id=call.callee_user_id AND cm.left_at IS NULL
+         ))`,
     );
     const result=await this.db.query(
       `SELECT call.id,call.conversation_id AS "conversationId",
