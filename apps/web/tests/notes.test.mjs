@@ -25,9 +25,10 @@ test('Notlarım gerçek API kullanır ve her sorguyu oturum sahibine sınırlar'
   assert.match(service,/user_note_audit_events/);
   assert.match(service,/NOTE_VERSION_CONFLICT/);
   assert.match(service,/assertTaskAccess/);
-  assert.match(service,/t\\.created_by=\\$2 OR t\\.assignee_id=\\$2/);
+  assert.ok(service.includes('t.created_by=$2 OR t.assignee_id=$2'));
+
   assert.match(component,/İlgili görev/);
-  assert.match(component,/request\\('tasks\\?view=all/);
+  assert.ok(component.includes("request('tasks?view=all"));
   assert.match(component,/taskId:note\.taskId/);
   assert.match(component,/Göreve bağlamadan kaydet/);
   assert.match(controller,/this\.access\.assertPermission/);
