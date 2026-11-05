@@ -289,7 +289,7 @@ function replaceWordText(xml: string, values: Record<string, string>): string {
     for (const match of plain.matchAll(tokenPattern)) {
       output += escapeXml(plain.slice(cursor, match.index));
       const key = match[1];
-      if (!Object.hasOwn(values, key)) throw new Error(\`Şablondaki \${key} alanı için değer bulunamadı.\`);
+      if (!Object.hasOwn(values, key)) throw new Error('Şablondaki ' + key + ' alanı için değer bulunamadı.');
       const clean = values[key].replace(/\u0000/g, '');
       output += clean.split(/\r\n|\r|\n/).map(escapeXml)
         .join('</w:t><w:br/><w:t xml:space="preserve">');
