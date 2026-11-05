@@ -121,7 +121,10 @@ export class NotesService {
   async create(user: AuthUser, input: unknown) {
     const value = validateNoteInput(input, true);
     if (value.projectId) await this.assertProjectAccess(user.id, value.projectId);
-    if (value.taskId) await this.assertTaskAccess(user.id, value.taskId);
+    const taskProjectId = value.taskId ? await this.assertTaskAccess(user.id, value.taskId) : null;
+    if (value.projectId && taskProjectId && value.projectId !== taskProjectId) {
+      throw invalid('Notun projesi, bağlı görevin projesiyle eşleşmelidir.');
+    }
     const client = await this.db.pool.connect();
     let id = '';
     try {
@@ -149,8 +152,19 @@ export class NotesService {
     assertUuid(id);
     const value = validateNoteInput(input, false);
     if (!Object.keys(value).some((key) => key !== 'version')) throw invalid('Güncellenecek bir alan bulunamadı.');
-    if (Object.hasOwn(value, 'projectId') && value.projectId) await this.assertProjectAccess(user.id, value.projectId);
-    if (Object.hasOwn(value, 'taskId') && value.taskId) await this.assertTaskAccess(user.id, value.taskId);
+    const current = await this.db.query<{projectId:string|null;taskId:string|null;archivedAt:Date|null}>(
+      'SELECT project_id AS "projectId",task_id AS "taskId",archived_at AS "archivedAt" FROM user_notes WHERE id=$1 AND owner_user_id=$2',
+      [id,user.id],
+    );
+    if (!current.rowCount) throw new NotFoundException({ code: 'NOTE_NOT_FOUND', message: 'Not bulunamadı.' });
+    if (current.rows[0].archivedAt) throw new ConflictException({ code: 'NOTE_ARCHIVED', message: 'Arşivlenmiş notu önce geri yükleyin.' });
+    const finalProjectId = Object.hasOwn(value,'projectId') ? value.projectId ?? null : current.rows[0].projectId;
+    const finalTaskId = Object.hasOwn(value,'taskId') ? value.taskId ?? null : current.rows[0].taskId;
+    if (finalProjectId) await this.assertProjectAccess(user.id, finalProjectId);
+    const taskProjectId = finalTaskId ? await this.assertTaskAccess(user.id, finalTaskId) : null;
+    if (finalProjectId && taskProjectId && finalProjectId !== taskProjectId) {
+      throw invalid('Notun projesi, bağlı görevin projesiyle eşleşmelidir.');
+    }
 
     const fields: Array<[keyof NoteInput, string, unknown]> = [
       ['title', 'title', value.title],
@@ -225,9 +239,9 @@ export class NotesService {
     return { success: true };
   }
 
-  private async assertTaskAccess(userId: string, taskId: string) {
-    const result = await this.db.query(
-      `SELECT 1 FROM tasks t
+  private async assertTaskAccess(userId: string, taskId: string): Promise<string | null> {
+    const result = await this.db.query<{projectId:string|null}>(
+      `SELECT t.project_id AS "projectId" FROM tasks t
        WHERE t.id=$1 AND t.archived_at IS NULL
          AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS(
            SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
@@ -235,6 +249,7 @@ export class NotesService {
       [taskId, userId],
     );
     if (!result.rowCount) throw new ForbiddenException({ code: 'TASK_ACCESS_DENIED', message: 'Bu göreve not bağlama yetkiniz bulunmuyor.' });
+    return result.rows[0].projectId;
   }
 
   private async assertProjectAccess(userId: string, projectId: string) {
