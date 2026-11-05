@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Post, Patch, Query, Req, Sse } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req, Res, Sse, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import type { AuthUser } from '../auth/auth.service.js';
 import type { MessageEvent } from '@nestjs/common';
