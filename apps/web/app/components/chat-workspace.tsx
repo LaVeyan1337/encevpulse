@@ -532,7 +532,7 @@ export function ChatWorkspace({
     };
     peer.onconnectionstatechange=()=>{
       if(peer.connectionState==='failed'){
-        setCallError('Ağ bağlantısı kurulamadı. Sunucu tarafında TURN hizmeti gerekebilir.');
+        setCallError('Bu ağlarda doğrudan bağlantı kurulamadı. TURN olmadan bazı NAT/güvenlik duvarı türlerinde arama mümkün olmayabilir; ücretli bir servise geçilmez.');
       }else if(peer.connectionState==='disconnected'){
         setCallError('Bağlantı kesildi; yeniden bağlanması bekleniyor.');
       }else if(peer.connectionState==='connected'){
@@ -1300,7 +1300,7 @@ export function ChatWorkspace({
                   <span>{remoteStream?'Ses bağlantısı etkin':'Karşı tarafın sesi bekleniyor…'}</span>
                 </div>
               )}
-              {!relayConfigured&&<p className="chat-call-network-note">TURN sunucusu ayarlı değil. Aynı ağda arama çalışabilir; farklı ev/ofis ağlarında bağlantı garanti değildir.</p>}
+              {!relayConfigured&&<p className="chat-call-network-note">Ücretsiz STUN ile doğrudan eşler arası bağlantı deneniyor; ek relay sunucusu veya ücretli servis kullanılmıyor. Bazı katı NAT/güvenlik duvarı ağlarında bağlantı kurulamayabilir.</p>}
               {callError&&<p className="chat-call-error" role="alert">{callError}</p>}
               <div className="chat-call-actions">
                 <button type="button" className={!microphoneEnabled?'is-off':''} onClick={toggleMicrophone} disabled={!localStream} aria-label={microphoneEnabled?'Mikrofonu kapat':'Mikrofonu aç'}>{microphoneEnabled?'🎙 Mikrofon':'Mikrofon kapalı'}</button>
