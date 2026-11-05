@@ -218,13 +218,30 @@ test('yerel auth akışı: e-posta/kullanıcı adı, CSRF, oturum, yönetici iş
       });
       assert.equal(protectedCore.response.status,409);
       assert.equal(protectedCore.body.code,'CORE_MODULE_REQUIRED');
+      const employeeSession=await login(baseUrl,email,PASSWORD);
       const nonAdminModuleChange=await api(baseUrl,'modules/calendar',{
-        method:'PUT',headers:{Cookie:(await login(baseUrl,email,PASSWORD)).cookie},
+        method:'PUT',headers:{Cookie:employeeSession.cookie,'X-CSRF-Token':employeeSession.csrfToken},
         body:JSON.stringify({enabled:false}),
       });
       assert.equal(nonAdminModuleChange.response.status,403);
 
-      const employeeSession=await login(baseUrl,email,PASSWORD);
+      const calendarOff=await api(baseUrl,'modules/calendar',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:false}),
+      });
+      assert.equal(calendarOff.response.status,200);
+      assert.equal(calendarOff.body.enabled,false);
+      const blockedCalendar=await fetch(`${baseUrl}/api/calendar?from=2026-01-01&to=2026-01-08`,{
+        headers:{Origin:ORIGIN,Cookie:employeeSession.cookie},
+      });
+      assert.equal(blockedCalendar.status,403);
+      const calendarOn=await api(baseUrl,'modules/calendar',{
+        method:'PUT',headers:{Cookie:adminSession.cookie,'X-CSRF-Token':adminSession.csrfToken},
+        body:JSON.stringify({enabled:true}),
+      });
+      assert.equal(calendarOn.response.status,200);
+      assert.equal(calendarOn.body.enabled,true);
+
       const myPermissions=await api(baseUrl,'permissions/me',{headers:{Cookie:employeeSession.cookie}});
       assert.equal(myPermissions.response.status,200);
       assert.ok(myPermissions.body.modules.find((module:any)=>module.moduleKey==='tasks').actions.includes('view'));
