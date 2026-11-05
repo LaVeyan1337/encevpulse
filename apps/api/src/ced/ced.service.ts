@@ -106,6 +106,160 @@ export class CedService {
     return { opinions: result.rows };
   }
 
+  async listDirectoryContacts(user: AuthUser) {
+    const result = await this.db.query(
+      `SELECT contact.id,contact.institution_name AS "institutionName",
+        contact.institution_type AS "institutionType",contact.website,
+        contact.contact_person AS "contactPerson",contact.title,contact.department,
+        contact.phone,contact.email,contact.address,contact.source_label AS "sourceLabel",
+        contact.source_reference AS "sourceReference",
+        contact.source_verified_at::text AS "verifiedAt",
+        verifier.display_name AS "verifiedByName",
+        contact.version,contact.created_at AS "createdAt",contact.updated_at AS "updatedAt",
+        (SELECT count(DISTINCT opinion.project_id)::int
+         FROM ced_institution_opinions opinion
+         JOIN projects p ON p.id=opinion.project_id AND p.archived_at IS NULL AND p.status<>'archived'
+         WHERE opinion.contact_id=contact.id AND opinion.archived_at IS NULL
+           AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+             SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
+           ))) AS "projectCount"
+       FROM ced_institution_contacts contact
+       LEFT JOIN users verifier ON verifier.id=contact.source_verified_by
+       WHERE contact.directory_visible=true AND contact.archived_at IS NULL
+       ORDER BY lower(contact.institution_name),lower(contact.contact_person),contact.created_at
+       LIMIT 1000`,
+      [user.id],
+    );
+    return { contacts: result.rows };
+  }
+
+  async createDirectoryContact(user: AuthUser, value: unknown) {
+    const payload = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {};
+    const draft = validateDirectoryContact(payload);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(
+        `INSERT INTO ced_institution_contacts(
+          institution_name,institution_type,website,contact_person,title,department,
+          phone,email,address,source_label,source_reference,source_verified_at,
+          source_verified_by,directory_visible,created_by,updated_by
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::date,$13,true,$14,$14)
+        RETURNING id,institution_name AS "institutionName",institution_type AS "institutionType",
+          website,contact_person AS "contactPerson",title,department,phone,email,address,
+          source_label AS "sourceLabel",source_reference AS "sourceReference",
+          source_verified_at::text AS "verifiedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [draft.institutionName,draft.institutionType,draft.website,draft.contactPerson,draft.title,
+          draft.department,draft.phone,draft.email,draft.address,draft.sourceLabel,draft.sourceReference,
+          draft.verifiedAt,draft.verifiedAt?user.id:null,user.id],
+      );
+      const contact = inserted.rows[0];
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'created',$3::text[])`,
+        [contact.id,user.id,Object.keys(draft)],
+      );
+      await client.query('COMMIT');
+      return { contact };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as {code?:string}).code === '23505') {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_EXISTS',message:'Bu kurum ve iletişim kişisi rehberde zaten bulunuyor. Mevcut kaydı açıp güncelleyin.'});
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateDirectoryContact(user: AuthUser, contactId: string, value: unknown) {
+    assertUuid(contactId,'Kurum');
+    const payload = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {};
+    assertKeys(payload,['expectedVersion','institutionName','institutionType','website','contactPerson',
+      'title','department','phone','email','address','sourceLabel','sourceReference','verifiedAt']);
+    assertVersion(payload.expectedVersion);
+    const expectedVersion = Number(payload.expectedVersion);
+    const data = {...payload};
+    delete data.expectedVersion;
+    const draft = validateDirectoryContact(data);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query<{version:number}>(
+        `SELECT version FROM ced_institution_contacts
+         WHERE id=$1 AND directory_visible=true AND archived_at IS NULL FOR UPDATE`,
+        [contactId],
+      );
+      if (!current.rowCount) throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Kurum rehberi kaydı bulunamadı.'});
+      if (current.rows[0].version !== expectedVersion) {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt başka bir kullanıcı tarafından değiştirilmiş. Güncel veriyi yenileyip tekrar deneyin.'});
+      }
+      const updated = await client.query(
+        `UPDATE ced_institution_contacts SET
+          institution_name=$1,institution_type=$2,website=$3,contact_person=$4,title=$5,department=$6,
+          phone=$7,email=$8,address=$9,source_label=$10,source_reference=$11,
+          source_verified_at=$12::date,source_verified_by=$13,updated_by=$14,updated_at=now(),version=version+1
+         WHERE id=$15 AND directory_visible=true AND archived_at IS NULL AND version=$16
+         RETURNING id,institution_name AS "institutionName",institution_type AS "institutionType",
+          website,contact_person AS "contactPerson",title,department,phone,email,address,
+          source_label AS "sourceLabel",source_reference AS "sourceReference",
+          source_verified_at::text AS "verifiedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [draft.institutionName,draft.institutionType,draft.website,draft.contactPerson,draft.title,
+          draft.department,draft.phone,draft.email,draft.address,draft.sourceLabel,draft.sourceReference,
+          draft.verifiedAt,draft.verifiedAt?user.id:null,user.id,contactId,expectedVersion],
+      );
+      if (!updated.rowCount) throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt değişmiş. Güncel veriyi yenileyip tekrar deneyin.'});
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'updated',$3::text[])`,
+        [contactId,user.id,Object.keys(draft)],
+      );
+      await client.query('COMMIT');
+      return {contact:updated.rows[0]};
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as {code?:string}).code === '23505') {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_EXISTS',message:'Bu kurum ve iletişim kişisi rehberde zaten bulunuyor.'});
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async archiveDirectoryContact(user: AuthUser, contactId: string) {
+    assertUuid(contactId,'Kurum');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query<{id:string}>(
+        `SELECT id FROM ced_institution_contacts
+         WHERE id=$1 AND directory_visible=true AND archived_at IS NULL FOR UPDATE`,
+        [contactId],
+      );
+      if (!current.rowCount) throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Kurum rehberi kaydı bulunamadı.'});
+      await client.query(
+        `UPDATE ced_institution_contacts
+         SET archived_at=now(),updated_by=$1,updated_at=now(),version=version+1
+         WHERE id=$2 AND directory_visible=true AND archived_at IS NULL`,
+        [user.id,contactId],
+      );
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'archived',ARRAY['archived_at']::text[])`,
+        [contactId,user.id],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async listInstitutionContacts(user: AuthUser) {
     const result = await this.db.query(
       `SELECT contact.id,contact.institution_name AS "institutionName",
@@ -792,23 +946,26 @@ export class CedService {
       draft.contactPhone || draft.contactEmail || draft.contactAddress);
     if (!hasDetails) return null;
     const existing = await client.query<{id:string}>(
-      `SELECT id FROM ced_institution_contacts
+      `SELECT id,directory_visible FROM ced_institution_contacts
        WHERE archived_at IS NULL
          AND lower(btrim(institution_name))=lower(btrim($1))
          AND lower(btrim(contact_person))=lower(btrim($2))
          AND lower(btrim(email))=lower(btrim($3))
-       ORDER BY updated_at DESC,id
+       ORDER BY directory_visible DESC,updated_at DESC,id
        LIMIT 1 FOR UPDATE`,
       [draft.institutionName,draft.contactPerson,draft.contactEmail],
     );
     if (existing.rowCount) {
-      await client.query(
-        `UPDATE ced_institution_contacts SET title=$1,department=$2,phone=$3,email=$4,address=$5,
-          updated_by=$6,updated_at=now()
-         WHERE id=$7`,
-        [draft.contactTitle,draft.contactDepartment,draft.contactPhone,draft.contactEmail,draft.contactAddress,userId,existing.rows[0].id],
-      );
-      return existing.rows[0].id;
+      const contact = existing.rows[0] as {id:string;directory_visible:boolean};
+      if (!contact.directory_visible) {
+        await client.query(
+          `UPDATE ced_institution_contacts SET title=$1,department=$2,phone=$3,email=$4,address=$5,
+            updated_by=$6,updated_at=now()
+           WHERE id=$7`,
+          [draft.contactTitle,draft.contactDepartment,draft.contactPhone,draft.contactEmail,draft.contactAddress,userId,contact.id],
+        );
+      }
+      return contact.id;
     }
     const inserted = await client.query<{id:string}>(
       `INSERT INTO ced_institution_contacts(
@@ -889,6 +1046,34 @@ function applicationSubmissionDate(value: unknown): string | null {
   }).format(new Date());
   if (date && date > today) throw invalid('Resmî başvuru tarihi gelecekte olamaz.');
   return date;
+}
+function validateDirectoryContact(value: Record<string, unknown>) {
+  assertKeys(value,['institutionName','institutionType','website','contactPerson','title','department',
+    'phone','email','address','sourceLabel','sourceReference','verifiedAt']);
+  const draft = {
+    institutionName: boundedText(value.institutionName,2,180,'Kurum adı'),
+    institutionType: boundedText(value.institutionType ?? '',0,120,'Kurum türü'),
+    website: boundedText(value.website ?? '',0,300,'Web sitesi'),
+    contactPerson: boundedText(value.contactPerson ?? '',0,160,'İletişim kişisi'),
+    title: boundedText(value.title ?? '',0,120,'Unvan'),
+    department: boundedText(value.department ?? '',0,120,'Birim'),
+    phone: boundedText(value.phone ?? '',0,60,'Telefon'),
+    email: boundedText(value.email ?? '',0,254,'E-posta'),
+    address: boundedText(value.address ?? '',0,400,'Adres'),
+    sourceLabel: boundedText(value.sourceLabel,2,180,'Kayıt kaynağı'),
+    sourceReference: boundedText(value.sourceReference ?? '',0,500,'Kaynak referansı'),
+    verifiedAt: optionalDate(value.verifiedAt,'Kaynak teyit tarihi'),
+  };
+  if(draft.email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(draft.email)) throw invalid('E-posta adresi geçersiz.');
+  if(draft.website) {
+    try {
+      const url=new URL(draft.website);
+      if(!['http:','https:'].includes(url.protocol)) throw new Error();
+    } catch {
+      throw invalid('Web sitesi http veya https adresi olmalıdır.');
+    }
+  }
+  return draft;
 }
 function validateOpinion(value: Record<string, unknown>) {
   const draft = {
