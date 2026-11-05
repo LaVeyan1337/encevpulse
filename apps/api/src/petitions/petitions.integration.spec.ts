@@ -212,7 +212,7 @@ test('Dilekçe API: ortak DOCX şablonu, sürüm, proje verisi, onay ve indirme'
     const outsiderRead=await api(base,outsider,'petitions/documents/'+document.id);
     assert.equal(outsiderRead.response.status,404,'Başka projenin dilekçesi gösterilmemeli.');
     const employeeApproval=await api(base,employee,'petitions/documents/'+document.id+'/status','PATCH',{
-      status:'in_review',version:1,note:'',
+      status:'approved',version:1,note:'',
     });
     assert.equal(employeeApproval.response.status,403,'Çalışan rolü belge onayı/değişiklik izni taşımaz.');
 
