@@ -67,6 +67,15 @@ export class ChatCallsService {
         `UPDATE chat_calls SET status='missed',ended_at=now()
          WHERE status='ringing' AND expires_at<=now()`,
       );
+      await client.query(
+        `UPDATE chat_calls call SET status='ended',ended_at=now()
+         WHERE call.status IN ('ringing','accepted')
+           AND (call.status='accepted' AND call.last_heartbeat_at<now()-interval '120 seconds'
+             OR NOT EXISTS(SELECT 1 FROM conversation_members member
+               WHERE member.conversation_id=call.conversation_id AND member.user_id=call.caller_user_id AND member.left_at IS NULL)
+             OR NOT EXISTS(SELECT 1 FROM conversation_members member
+               WHERE member.conversation_id=call.conversation_id AND member.user_id=call.callee_user_id AND member.left_at IS NULL))`,
+      );
       const busy=await client.query(
         `SELECT id FROM chat_calls WHERE status IN ('ringing','accepted')
           AND (caller_user_id=ANY($1::uuid[]) OR callee_user_id=ANY($1::uuid[]))
@@ -199,6 +208,12 @@ export class ChatCallsService {
       if(!call.rowCount)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
       const row=call.rows[0];
       if(user.id!==row.caller_user_id&&user.id!==row.callee_user_id)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
+      const participants=await client.query(
+        `SELECT count(*)::int AS count FROM conversation_members
+         WHERE conversation_id=$1 AND user_id=ANY($2::uuid[]) AND left_at IS NULL`,
+        [row.conversation_id,[row.caller_user_id,row.callee_user_id]],
+      );
+      if(participants.rows[0].count!==2)throw new NotFoundException({code:'CHAT_CALL_NOT_FOUND',message:'Arama bulunamadı.'});
       if(!['ringing','accepted'].includes(row.status))throw new ConflictException({code:'CHAT_CALL_CLOSED',message:'Sona ermiş aramaya sinyal gönderilemez.'});
       if(signalType==='offer'&&user.id!==row.caller_user_id)throw invalid('Arama teklifini yalnızca arayan taraf gönderebilir.');
       if(signalType==='answer'&&(user.id!==row.callee_user_id||row.status!=='accepted'))throw invalid('Arama yanıtı yalnızca aramayı kabul eden katılımcı tarafından gönderilebilir.');
