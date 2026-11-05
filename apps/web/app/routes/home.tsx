@@ -855,7 +855,7 @@ export default function Home() {
                       const lockedCore=['overview','tasks','users','permissions','settings'].includes(module.moduleKey);
                       const blockedReason=({
                         drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
-                        institution_guide:'Bağımsız kurum ekleme, düzenleme ve arşiv akışı tamamlanmadı. Proje kapsamlı rehber Kurum Görüşleri içinde kullanılabilir.',
+                        institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur; harici kurum sistemleriyle otomatik eşitleme bulunmaz.',
                         petitions:'Onaylı ortak şablon, alan eşleme, gerçek Word üretimi/önizleme ve kayıt-onay akışı tamamlanmadı.',
                       } as Record<string,string>)[module.moduleKey];
                       const moduleHint=({
