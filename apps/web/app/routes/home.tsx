@@ -1083,7 +1083,7 @@ export default function Home() {
           </section>
         )}
       </main>
-      <footer className="auth-footer">EnÇev</footer>
+      <footer className="auth-footer">ENÇEV ENERJİ</footer>
     </div>
   );
 }
