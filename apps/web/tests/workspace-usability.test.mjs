@@ -151,8 +151,10 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.chatCallsService,/CHAT_CALL_BUSY/);
   assert.match(source.chatCallsMigration,/CREATE TABLE chat_calls/);
   assert.match(source.chatCallsMigration,/CREATE TABLE chat_call_signals/);
-  assert.match(source.chatCallsMigration,/last_heartbeat_at/);
-  assert.match(source.chatCallsService,/last_heartbeat_at<now\\(\\)-interval '120 seconds'/);
+  assert.match(source.chatCallsMigration,/caller_heartbeat_at/);
+  assert.match(source.chatCallsMigration,/callee_heartbeat_at/);
+  assert.match(source.chatCallsService,/caller_heartbeat_at<now\\(\\)-interval '120 seconds'/);
+  assert.match(source.chatCallsService,/callee_heartbeat_at IS NULL/);
   assert.match(source.chatCallsDocs,/E2EE/);
   assert.match(source.chatCallsDocs,/TURN/);
 
