@@ -199,7 +199,7 @@ export function PetitionsWorkspace({projects,canCreate}:{projects:Project[];canC
     </header>
     {error&&<div className="petitions-alert" role="alert">{error}</div>}
     {notice&&<div className="petitions-notice" role="status"><span>{notice}</span><button type="button" onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
-    <p className="petitions-limit-note">Şablon bu tarayıcı profilinde saklanır; tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir. Sunucuya veya şirket NAS'ına aktarılmaz. Word alanları otomatik doldurulmaz.</p>
+    <p className="petitions-limit-note">Şablon bu tarayıcı profilinde saklanır. Tarayıcı verileri temizlenirse bu yerel kopya kaybolabilir. Sunucuya veya şirket NAS'ına aktarılmaz. Word alanları otomatik doldurulmaz.</p>
 
     <section className="petition-template-panel">
       <div className="petition-panel-heading"><div><h3>Word şablonu</h3><p>DOCX şablonu seçin.</p></div><span className={template?'template-ready':'template-missing'}>{loading?'Kontrol ediliyor…':template?'Şablon kayıtlı':'Şablon seçilmedi'}</span></div>
