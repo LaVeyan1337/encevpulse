@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "db:migrate": "tsx src/database/migrate.ts",
     "auth:bootstrap-admin": "tsx src/auth/bootstrap-admin.ts",
-    "test": "node --import tsx --test --test-concurrency=1 src/health/health.service.spec.ts src/auth/password-hasher.spec.ts src/auth/auth.integration.spec.ts src/tasks/tasks.integration.spec.ts src/chat/chat.integration.spec.ts src/chat/chat-attachments.spec.ts src/calendar/calendar.integration.spec.ts src/ced/ced.integration.spec.ts src/eced/eced.integration.spec.ts src/notes/notes.service.spec.ts src/petitions/docx-template.spec.ts src/petitions/petitions.integration.spec.ts",
+    "test": "node --import tsx --test --test-concurrency=1 src/health/health.service.spec.ts src/auth/password-hasher.spec.ts src/auth/auth.integration.spec.ts src/tasks/tasks.integration.spec.ts src/chat/chat.integration.spec.ts src/chat/chat-attachments.spec.ts src/calendar/calendar.integration.spec.ts src/ced/deadline-calculator.spec.ts src/ced/ced.integration.spec.ts src/eced/eced.integration.spec.ts src/notes/notes.service.spec.ts src/petitions/docx-template.spec.ts src/petitions/petitions.integration.spec.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {
