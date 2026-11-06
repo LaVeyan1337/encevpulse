@@ -647,6 +647,8 @@ export class CedService {
        LEFT JOIN ced_cases c ON c.id=o.case_id
        LEFT JOIN users owner ON owner.id=p.owner_user_id
        LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
+       LEFT JOIN ced_deadline_rule_versions deadlineVersion ON deadlineVersion.id=o.deadline_rule_version_id
+       LEFT JOIN ced_deadline_rule_families deadlineFamily ON deadlineFamily.id=deadlineVersion.rule_id
        WHERE o.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
          AND (o.case_id IS NULL OR c.archived_at IS NULL)
          AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
@@ -1754,7 +1756,7 @@ function validateOpinion(value: Record<string, unknown>) {
   };
   if(draft.deadlineBasis==='rule_calculated'&&(!draft.deadlineRuleVersionId||!draft.deadlineStartDate)) throw invalid('Kurala göre hesaplama için onaylı kural ve başlangıç tarihi seçilmelidir.');
   if(draft.deadlineBasis==='manual'&&(draft.deadlineRuleVersionId||draft.deadlineStartDate)) throw invalid('Manuel son tarih kural sürümü veya hesaplama başlangıcı içeremez.');
-  if (draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
+  if (draft.deadlineBasis==='manual' && draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
   if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
   if (draft.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contactEmail)) throw invalid('İlgili kişi e-posta adresi geçersiz.');
   return draft;
