@@ -6,8 +6,6 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from './institution-defaults.js';
 import { calculateDeadline } from './deadline-calculator.js';
 import type { DeadlineRule } from './deadline-calculator.js';
-import { calculateDeadline } from './deadline-calculator.js';
-import type { DeadlineRule } from './deadline-calculator.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
