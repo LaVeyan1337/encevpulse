@@ -550,7 +550,7 @@ export class CedService {
       previousStartDate!==(draft.deadlineStartDate??null);
 
     if(draft.deadlineBasis==='manual') {
-      if(old&&changed&&!draft.deadlineReason.trim()) {
+      if(old&&changed&&(!draft.deadlineReason.trim()||draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
         throw invalid('Son tarih değişikliğini veya kuraldan manuel tarihe geçişi açıklayan gerekçe zorunludur.');
       }
       return {
@@ -566,6 +566,9 @@ export class CedService {
       };
     }
 
+    if(old&&changed&&(!draft.deadlineReason.trim()||draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
+      throw invalid('Süre kuralı veya başlangıç tarihi değişikliğini açıklayan yeni gerekçe zorunludur.');
+    }
     const versionId=draft.deadlineRuleVersionId as string;
     const result=await client.query<any>(
       `SELECT version.*,family.current_version_id AS "currentVersionId",family.name AS "ruleName"
