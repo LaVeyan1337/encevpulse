@@ -443,9 +443,10 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(fakeCaseCheck.rowCount, 0, 'Kurum görüşleri boş bir ÇED dosyası üretmemeli.');
     const directOpinions = await api(base, processOwner, 'ced/opinions');
     const projectOpinions = directOpinions.data.opinions.filter((item: {projectId:string})=>item.projectId===opinionOnlyProjectId);
-    assert.equal(projectOpinions.length,10,'Varsayılan taslaklar ve eklenen kurum görüşleri birlikte görünmeli.');
+    assert.equal(projectOpinions.length,11,'Sekiz varsayılan taslak, süre kuralıyla oluşturulan kayıt ve iki doğrudan görüş görünmeli.');
     const projectRecordedOpinions = projectOpinions.filter((item: {status:string})=>item.status!=='draft');
-    assert.deepEqual(new Set(projectRecordedOpinions.map((item: {status:string})=>item.status)),new Set(['positive','revision']));
+    assert.equal(projectRecordedOpinions.length,3,'Süre kuralı kaydı ve iki doğrudan görüş taslak dışı kayıtlardır.');
+    assert.deepEqual(new Set(projectRecordedOpinions.map((item: {status:string})=>item.status)),new Set(['waiting','positive','revision']));
     const projectOpinionToUpdate = projectRecordedOpinions[0] as {id:string;version:number;subject:string};
     const updatedProjectOpinion = await api(base, processOwner, 'ced/opinions/' + projectOpinionToUpdate.id, 'PATCH', {
       version: projectOpinionToUpdate.version, subject: projectOpinionToUpdate.subject + ' · güncellendi',
