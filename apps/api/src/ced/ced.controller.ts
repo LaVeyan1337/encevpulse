@@ -19,6 +19,57 @@ export class CedController {
     return this.ced.listInstitutionOpinions(user);
   }
 
+  @Get('deadline-rules')
+  async listDeadlineRules(@Req() request:Request) {
+    await this.authorize(request,'institution_opinions','view');
+    return this.ced.listDeadlineRules();
+  }
+
+  @Get('deadline-rules/:ruleId/versions')
+  async listDeadlineRuleVersions(@Req() request:Request,@Param('ruleId') ruleId:string) {
+    await this.authorize(request,'institution_opinions','view');
+    return this.ced.listDeadlineRuleVersions(ruleId);
+  }
+
+  @Post('deadline-rules')
+  @HttpCode(HttpStatus.CREATED)
+  async createDeadlineRule(@Req() request:Request,@Body() body:unknown) {
+    return this.ced.createDeadlineRule(
+      await this.authorize(request,'institution_opinions','manage',true),body,
+    );
+  }
+
+  @Patch('deadline-rules/:ruleId/versions/:versionId')
+  async updateDeadlineRuleDraft(
+    @Req() request:Request,
+    @Param('ruleId') ruleId:string,
+    @Param('versionId') versionId:string,
+    @Body() body:unknown,
+  ) {
+    return this.ced.updateDeadlineRuleDraft(
+      await this.authorize(request,'institution_opinions','manage',true),ruleId,versionId,body,
+    );
+  }
+
+  @Post('deadline-rules/:ruleId/versions')
+  @HttpCode(HttpStatus.CREATED)
+  async createDeadlineRuleVersion(
+    @Req() request:Request,@Param('ruleId') ruleId:string,@Body() body:unknown,
+  ) {
+    return this.ced.createDeadlineRuleVersion(
+      await this.authorize(request,'institution_opinions','manage',true),ruleId,body,
+    );
+  }
+
+  @Post('deadline-rules/:ruleId/versions/:versionId/approve')
+  async approveDeadlineRuleVersion(
+    @Req() request:Request,@Param('ruleId') ruleId:string,@Param('versionId') versionId:string,
+  ) {
+    return this.ced.approveDeadlineRuleVersion(
+      await this.authorize(request,'institution_opinions','manage',true),ruleId,versionId,
+    );
+  }
+
   @Get('directory')
   async listDirectory(@Req() request: Request) {
     return this.ced.listDirectoryContacts(await this.authorize(request,'institution_guide','view'));
