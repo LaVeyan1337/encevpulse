@@ -4,6 +4,16 @@
 
 > **Güncel yayın durumu:** Bu bölüm kaynak alınmalıdır; aşağıdaki bazı eski teknik maddeler önceki geliştirme adımlarının tarihsel kaydıdır ve bu güncel özetle çelişen ifadeler geçerli kabul edilmez.
 
+## 6 Kasım 2026 — Doğrudan modül geliştirme
+
+- **Aktif çalışma dalı:** `work/encev-pulse-modules-2026-11-06`. Bu dal, PR birleştirme zincirinden bağımsız olarak modülleri doğrudan geliştirmek için açılmıştır. `main` ve `release/company-internal-2026-11-05` değiştirilmemiştir; bu dal şirket ortamına dağıtılmamıştır.
+- **Bu oturumda ele alınan modül:** e-ÇED Eklenti İzleme. Eşleştirme paneline kurulum adımları ve cihaz başına sinyal sağlığı (güncel/eski/henüz yok) eklendi. Ekran, cihazın en son raporunu esas alır.
+- **Tarayıcı eklentisi:** Manifest V3 sürümü 1.0.3. Kullanıcı resmî portal izin düğmesine bastığında ilk PULSE sinyali otomatik gönderilir ve API'nin gerçek kabul sonucu gösterilir. Kurulum dokümanı bu akışla güncellendi.
+- **Doğruluk sınırı:** “Sinyal güncel” yalnızca PULSE API'sinin son 90 saniyede rapor almasıdır; e-ÇED portal oturumunun resmî olarak açık veya doğrulanmış olduğu anlamına gelmez. Portal profil DOM seçicileri canlı oturumda henüz saha doğrulamasından geçmemiştir.
+- **ÇED test uyumu:** Manuel son tarih düzenleme isteği gerçek arayüz payload'ıyla hizalandı. Sonraki kontrol, süre kuralı örneği ve iki doğrudan kurum görüşü bulunan sentetik projede 11 kaydı beklemelidir.
+- **CI durumu:** Son doğrulama çalışması [42224999664](https://github.com/LaVeyan1337/encevpulse/actions/runs/42224999664) bu belge düzenlenirken çalışıyordu; test, TypeScript ve üretim derlemesi sonucu henüz onaylanmış değildir.
+- **Dağıtım:** Şirket çalışanlarının ortak erişimi henüz hazır değildir. HTTPS/LAN sunucusu ve gerçek Windows/Chrome/Edge çok kullanıcılı kabulü ayrıca yapılmalıdır.
+
 ## 5 Kasım 2026 — Güncel ürün ve yayın özeti
 
 - **Kaynak dal:** `feature/chat-conversation-isolation-20261105`. Bu dal, güncel web uygulamasının bütünleşik geliştirme dalıdır. `main` veya ayrı Git geçmişindeki eski masaüstü yayın dalı, bu web sürümüyle otomatik olarak aynı kabul edilmez.
