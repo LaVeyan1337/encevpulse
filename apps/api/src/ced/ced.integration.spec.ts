@@ -118,7 +118,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(ruleCreated.data.rule.draftVersion,1);
 
     const ruleDraftUpdate = await api(base,processOwner,
-      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId,'PATCH',ruleDraft);
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId,'PATCH',{...ruleDraft,dayCount:2});
     assert.equal(ruleDraftUpdate.response.status,200,JSON.stringify(ruleDraftUpdate.data));
     const beforeRuleApproval = await api(base,processOwner,'ced/deadline-rules');
     const unapproved = beforeRuleApproval.data.rules.find((rule:{id:string})=>rule.id===deadlineRuleId);
