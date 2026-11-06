@@ -72,6 +72,7 @@ export class CedController {
   }
 
   @Post('deadline-rules/:ruleId/versions/:versionId/approve')
+  @HttpCode(HttpStatus.OK)
   async approveDeadlineRuleVersion(
     @Req() request:Request,@Param('ruleId') ruleId:string,@Param('versionId') versionId:string,
   ) {
