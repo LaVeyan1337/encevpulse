@@ -395,6 +395,11 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const approveSecond=await api(base,processOwner,
       'ced/deadline-rules/'+deadlineRuleId+'/versions/'+secondRuleVersionId+'/approve','POST',{});
     assert.equal(approveSecond.response.status,200,JSON.stringify(approveSecond.data));
+    const historicalPreview=await api(base,processOwner,
+      'ced/deadline-rule-versions/'+firstRuleVersionId+'/preview?startDate=2026-11-06');
+    assert.equal(historicalPreview.response.status,200,
+      'Eski onaylı sürüm, o sürümle oluşturulan kayıtların yeniden açılabilmesi için önizlenebilmeli.');
+    assert.equal(historicalPreview.data.preview.deadlineDate,'2026-11-11');
     const staleRuleCreate=await api(base,processOwner,'ced/projects/'+opinionOnlyProjectId+'/opinions','POST',{
       institutionName:'CI Eski Kural',subject:'Eski sürüm yeni kayıtta kullanılamaz',
       status:'waiting',requestDate:'2026-11-06',deadlineBasis:'rule_calculated',
