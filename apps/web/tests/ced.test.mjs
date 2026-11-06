@@ -76,6 +76,22 @@ test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kull
   ]);
   assert.match(controller, /@Get\('opinions'\)/);
   assert.match(controller, /institution_opinions', 'view'/);
+  assert.match(controller, /deadline-rules/);
+  assert.match(controller, /deadline-rule-versions/);
+  assert.match(service, /async createDeadlineRule/);
+  assert.match(service, /async approveDeadlineRuleVersion/);
+  assert.match(service, /async previewDeadline/);
+  assert.match(service, /calculateDeadline/);
+  assert.match(service, /recordOpinionDeadlineEvent/);
+  assert.match(service, /deadlineReason/);
+  assert.match(service, /deadlineRuleVersionId/);
+  assert.match(component, /Onaylı süre kuralları/);
+  assert.match(component, /Son tarih yöntemi/);
+  assert.match(component, /Onaylı süre kuralı/);
+  assert.match(component, /deadline-rule-versions\\//);
+  assert.match(component, /deadlineNeedsReason/);
+  assert.match(component, /canManageRules/);
+
   assert.match(service, /async listInstitutionOpinions/);
   assert.match(service, /project_members pm/);
   assert.match(service, /p\.status<>'archived'/);
