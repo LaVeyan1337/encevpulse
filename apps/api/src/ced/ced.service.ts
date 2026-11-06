@@ -57,6 +57,7 @@ export class CedService {
         current.version AS "currentVersion",
         current.day_count AS "currentDayCount",
         current.day_type AS "currentDayType",
+        current.start_event_label AS "currentStartEventLabel",
         current.include_start_day AS "currentIncludeStartDay",
         current.due_date_adjustment AS "currentDueDateAdjustment",
         current.weekend_days AS "currentWeekendDays",
@@ -125,7 +126,7 @@ export class CedService {
     if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
     const result=await this.db.query(
       `SELECT version.id,version.version,version.status,version.day_count AS "dayCount",
-        version.day_type AS "dayType",version.include_start_day AS "includeStartDay",
+        version.day_type AS "dayType",version.start_event_label AS "startEventLabel",version.include_start_day AS "includeStartDay",
         version.due_date_adjustment AS "dueDateAdjustment",version.weekend_days AS "weekendDays",
         version.holiday_dates::text[] AS "holidayDates",version.calendar_name AS "calendarName",
         version.calendar_source_label AS "calendarSourceLabel",
@@ -161,12 +162,12 @@ export class CedService {
         `INSERT INTO ced_deadline_rule_versions(
           rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
           weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
-          calendar_verified_at,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
-        ) VALUES($1,1,'draft',$2,$3,$4,$5,$6::smallint[],$7::date[],$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+          calendar_verified_at,start_event_label,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,1,'draft',$2,$3,$4,$5,$6::smallint[],$7::date[],$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
         RETURNING id`,
         [ruleId,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
           draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
-          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.legalReference,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,
           draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
       );
       await client.query(
@@ -210,13 +211,13 @@ export class CedService {
         `UPDATE ced_deadline_rule_versions SET
           day_count=$1,day_type=$2,include_start_day=$3,due_date_adjustment=$4,
           weekend_days=$5::smallint[],holiday_dates=$6::date[],calendar_name=$7,
-          calendar_source_label=$8,calendar_source_reference=$9,calendar_verified_at=$10,
-          legal_reference=$11,rule_source_label=$12,rule_source_reference=$13,rule_notes=$14,
-          updated_by=$15,updated_at=now()
-         WHERE id=$16 AND rule_id=$17 AND status='draft'`,
+          calendar_source_label=$8,calendar_source_reference=$9,calendar_verified_at=$10,start_event_label=$11,
+          legal_reference=$12,rule_source_label=$13,rule_source_reference=$14,rule_notes=$15,
+          updated_by=$16,updated_at=now()
+         WHERE id=$17 AND rule_id=$18 AND status='draft'`,
         [draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,draft.weekendDays,
           draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,draft.calendarSourceReference,
-          draft.calendarVerifiedAt,draft.legalReference,draft.ruleSourceLabel,draft.ruleSourceReference,
+          draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,draft.ruleSourceLabel,draft.ruleSourceReference,
           draft.ruleNotes,user.id,versionId,ruleId],
       );
       await client.query(
