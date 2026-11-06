@@ -615,6 +615,8 @@ export class CedService {
          creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
          LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
+         LEFT JOIN ced_deadline_rule_versions deadlineVersion ON deadlineVersion.id=o.deadline_rule_version_id
+         LEFT JOIN ced_deadline_rule_families deadlineFamily ON deadlineFamily.id=deadlineVersion.rule_id
          WHERE o.project_id=$1 AND o.archived_at IS NULL
          ORDER BY o.deadline_date NULLS LAST,o.institution_name,o.created_at`,
         [projectId],
@@ -635,7 +637,11 @@ export class CedService {
         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",
         contact.title AS "contactTitle",contact.department AS "contactDepartment",contact.phone AS "contactPhone",
         contact.email AS "contactEmail",contact.address AS "contactAddress",
-        o.notes,o.version,o.updated_at AS "updatedAt"
+        o.notes,o.version,o.updated_at AS "updatedAt",
+        o.deadline_basis AS "deadlineBasis",o.deadline_rule_version_id AS "deadlineRuleVersionId",
+        o.deadline_start_date::text AS "deadlineStartDate",o.deadline_calculated_at AS "deadlineCalculatedAt",
+        o.deadline_reason AS "deadlineReason",deadlineVersion.version AS "deadlineRuleVersion",
+        deadlineFamily.name AS "deadlineRuleName"
        FROM ced_institution_opinions o
        JOIN projects p ON p.id=o.project_id
        LEFT JOIN ced_cases c ON c.id=o.case_id
@@ -1202,7 +1208,7 @@ export class CedService {
   async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     let opinionId = '';
@@ -1229,7 +1235,7 @@ export class CedService {
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     try {
@@ -1253,7 +1259,7 @@ export class CedService {
   async updateOpinion(user: AuthUser, opinionId: string, input: unknown) {
     assertUuid(opinionId, 'Kurum görüşü');
     const value = objectInput(input);
-    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
     assertVersion(value.version);
     if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
     const client = await this.db.pool.connect();
@@ -1696,6 +1702,10 @@ function validateOpinion(value: Record<string, unknown>) {
     status: enumValue(value.status ?? 'draft', OPINION_STATUSES, 'Kurum görüşü durumu') as OpinionStatus,
     requestDate: optionalDate(value.requestDate, 'Talep tarihi'),
     deadlineDate: optionalDate(value.deadlineDate, 'Son tarih'),
+    deadlineBasis: enumValue(value.deadlineBasis ?? 'manual',['manual','rule_calculated'] as const,'Son tarih türü'),
+    deadlineRuleVersionId: optionalUuid(value.deadlineRuleVersionId,'Süre kuralı sürümü'),
+    deadlineStartDate: optionalDate(value.deadlineStartDate,'Süre başlangıç tarihi'),
+    deadlineReason: boundedText(value.deadlineReason ?? '',0,1000,'Son tarih değişiklik gerekçesi'),
     responseDate: optionalDate(value.responseDate, 'Yanıt tarihi'),
     outgoingLetterNo: boundedText(value.outgoingLetterNo ?? '', 0, 100, 'Giden yazı numarası'),
     incomingLetterNo: boundedText(value.incomingLetterNo ?? '', 0, 100, 'Gelen yazı numarası'),
@@ -1707,6 +1717,8 @@ function validateOpinion(value: Record<string, unknown>) {
     contactAddress: boundedText(value.contactAddress ?? '', 0, 400, 'Adres'),
     notes: boundedText(value.notes ?? '', 0, 4000, 'Açıklama'),
   };
+  if(draft.deadlineBasis==='rule_calculated'&&(!draft.deadlineRuleVersionId||!draft.deadlineStartDate)) throw invalid('Kurala göre hesaplama için onaylı kural ve başlangıç tarihi seçilmelidir.');
+  if(draft.deadlineBasis==='manual'&&(draft.deadlineRuleVersionId||draft.deadlineStartDate)) throw invalid('Manuel son tarih kural sürümü veya hesaplama başlangıcı içeremez.');
   if (draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
   if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
   if (draft.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contactEmail)) throw invalid('İlgili kişi e-posta adresi geçersiz.');
