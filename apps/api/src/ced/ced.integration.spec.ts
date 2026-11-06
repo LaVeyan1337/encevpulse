@@ -103,6 +103,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
       calendarSourceLabel: 'Sentetik CI fikstürü',
       calendarSourceReference: 'CI-only test calendar',
       calendarVerifiedAt: '2026-10-01',
+      startEventLabel: 'Kurum yazısının evrak kayıt tarihi',
       legalReference: 'Yalnızca test verisi; mevzuat dayanağı değildir.',
       ruleSourceLabel: 'Sentetik CI fikstürü',
       ruleSourceReference: 'CI-only test rule fixture',
@@ -139,6 +140,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(preview.response.status,200,JSON.stringify(preview.data));
     assert.equal(preview.data.preview.deadlineDate,'2026-11-11',
       'Cuma başlangıcı, hafta sonu ve 9 Kasım tatili atlanarak Çarşamba hesaplanmalı.');
+    assert.equal(preview.data.rule.startEventLabel,ruleDraft.startEventLabel);
 
 
     const directoryDraft = {
@@ -345,6 +347,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
       deadlineBasis:'rule_calculated',
       deadlineRuleVersionId:firstRuleVersionId,
       deadlineStartDate:'2026-11-06',
+      deadlineStartEventLabel:ruleDraft.startEventLabel,
       deadlineReason:'Onaylı test kuralı ile başlangıç tarihi doğrulandı.',
     });
     assert.equal(calculatedOpinion.response.status,201,JSON.stringify(calculatedOpinion.data));
@@ -356,6 +359,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(calculatedRow.deadlineBasis,'rule_calculated');
     assert.equal(calculatedRow.deadlineRuleVersion,1);
     assert.equal(calculatedRow.deadlineRuleName,ruleDraft.name);
+    assert.equal(calculatedRow.deadlineStartEventLabel,ruleDraft.startEventLabel);
     assert.ok(calculatedRow.deadlineCalculatedAt);
 
     const invalidOverride=await api(base,processOwner,'ced/opinions/'+calculatedOpinionId,'PATCH',{
@@ -376,10 +380,11 @@ test('ÇED API: route-specific milestones, document completion and project acces
       deadlineReason:'Kurum yazısındaki özel süre notu nedeniyle sorumlu tarafından düzeltildi.',
     });
     assert.equal(validOverride.response.status,200,JSON.stringify(validOverride.data));
-    const deadlineHistory=await pool.query<{action:string;reason:string}>(
-      'SELECT action,reason FROM ced_opinion_deadline_events WHERE opinion_id=$1 ORDER BY created_at',[calculatedOpinionId],
+    const deadlineHistory=await pool.query<{action:string;reason:string;start_event_label:string}>(
+      'SELECT action,reason,start_event_label FROM ced_opinion_deadline_events WHERE opinion_id=$1 ORDER BY created_at',[calculatedOpinionId],
     );
     assert.deepEqual(deadlineHistory.rows.map(row=>row.action),['rule_applied','manual_override']);
+    assert.equal(deadlineHistory.rows[0].start_event_label,ruleDraft.startEventLabel);
     assert.match(deadlineHistory.rows[1].reason,/özel süre notu/);
 
     const secondRuleDraft={...ruleDraft};
