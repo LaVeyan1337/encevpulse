@@ -88,7 +88,7 @@ test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kull
   assert.match(component, /Onaylı süre kuralları/);
   assert.match(component, /Son tarih yöntemi/);
   assert.match(component, /Onaylı süre kuralı/);
-  assert.match(component, /deadline-rule-versions\\//);
+  assert.ok(component.includes('deadline-rule-versions/'));
   assert.match(component, /deadlineNeedsReason/);
   assert.match(component, /canManageRules/);
 
