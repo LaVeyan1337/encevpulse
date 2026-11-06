@@ -135,7 +135,7 @@ export function InstitutionOpinionsWorkspace({
   const [selectedProjectId,setSelectedProjectId]=useState(projectId??'');
   const [saving,setSaving]=useState(false);
   const [formError,setFormError]=useState('');
-  const [deadlinePreview,setDeadlinePreview]=useState<{deadlineDate:string;calendarDaysElapsed:number;dayCount:number;dayType:string}|null>(null);
+  const [deadlinePreview,setDeadlinePreview]=useState<{deadlineDate:string;calendarDaysElapsed:number;dayCount:number;dayType:string;startEventLabel:string}|null>(null);
   const [deadlinePreviewLoading,setDeadlinePreviewLoading]=useState(false);
   const [deadlinePreviewError,setDeadlinePreviewError]=useState('');
 
@@ -176,7 +176,7 @@ export function InstitutionOpinionsWorkspace({
     }
     setDeadlinePreview(null);setDeadlinePreviewError('');setDeadlinePreviewLoading(true);
     request('ced/deadline-rule-versions/'+draft.deadlineRuleVersionId+'/preview?startDate='+encodeURIComponent(draft.deadlineStartDate))
-      .then(result=>{if(active)setDeadlinePreview(result.preview??null);})
+      .then(result=>{if(active)setDeadlinePreview(result.preview?{...result.preview,startEventLabel:result.rule?.startEventLabel??''}:null);})
       .catch(cause=>{if(active)setDeadlinePreviewError(cause instanceof Error?cause.message:'Süre önizlemesi alınamadı.');})
       .finally(()=>{if(active)setDeadlinePreviewLoading(false);});
     return ()=>{active=false;};
@@ -333,9 +333,12 @@ export function InstitutionOpinionsWorkspace({
       ?current.weekendDays.filter(value=>value!==day):[...current.weekendDays,day]}));
   }
   function switchDeadlineBasis(basis:DeadlineBasis){
-    setDraft(current=>basis==='rule_calculated'
-      ?{...current,deadlineBasis:basis,deadlineDate:'',deadlineRuleVersionId:current.deadlineRuleVersionId||currentRules[0]?.currentVersionId||'',deadlineStartDate:current.deadlineStartDate||current.requestDate}
-      :{...current,deadlineBasis:basis,deadlineRuleVersionId:'',deadlineStartDate:''});
+    setDraft(current=>{
+      if(basis==='manual')return {...current,deadlineBasis:basis,deadlineRuleVersionId:'',deadlineStartDate:'',deadlineStartEventLabel:''};
+      const rule=currentRules.find(item=>item.currentVersionId===(current.deadlineRuleVersionId||currentRules[0]?.currentVersionId));
+      return {...current,deadlineBasis:basis,deadlineDate:'',deadlineRuleVersionId:current.deadlineRuleVersionId||currentRules[0]?.currentVersionId||'',
+        deadlineStartDate:current.deadlineStartDate||current.requestDate,deadlineStartEventLabel:rule?.currentStartEventLabel??current.deadlineStartEventLabel};
+    });
   }
 
   async function saveOpinion(event:FormEvent<HTMLFormElement>){
@@ -403,7 +406,7 @@ export function InstitutionOpinionsWorkspace({
         <div className="opinions-rule-main">
           <strong>{rule.name}</strong><span>{rule.description||'Açıklama girilmedi'}</span>
           {rule.currentVersionId
-            ?<small>Yürürlükte v{rule.currentVersion} · {rule.currentDayCount} {rule.currentDayType==='business_days'?'iş günü':'takvim günü'} · Onay: {rule.currentApprovedBy||'—'} · {dateTimeText(rule.currentApprovedAt)}</small>
+            ?<small>Yürürlükte v{rule.currentVersion} · {rule.currentDayCount} {rule.currentDayType==='business_days'?'iş günü':'takvim günü'} · Başlangıç olayı: {rule.currentStartEventLabel||'—'} · Onay: {rule.currentApprovedBy||'—'} · {dateTimeText(rule.currentApprovedAt)}</small>
             :<small className="opinions-rule-pending">Henüz onaylı sürüm yok; yeni kayıtlarda kullanılamaz.</small>}
         </div>
         <div className="opinions-rule-actions">
@@ -424,6 +427,7 @@ export function InstitutionOpinionsWorkspace({
         <div className="opinions-rule-form-grid">
           <label><span>Kural adı</span><input value={ruleForm.name} onChange={event=>setRuleForm(current=>({...current,name:event.target.value}))} minLength={2} maxLength={180} required/></label>
           <label><span>Açıklama</span><input value={ruleForm.description} onChange={event=>setRuleForm(current=>({...current,description:event.target.value}))} maxLength={1200}/></label>
+          <label className="opinions-rule-field-wide"><span>Süreyi başlatan olay</span><input value={ruleForm.startEventLabel} onChange={event=>setRuleForm(current=>({...current,startEventLabel:event.target.value}))} maxLength={240} placeholder="Kurum yazısının evrak kayıt tarihi" required/></label>
           <label><span>Süre</span><input type="number" min={1} max={3650} value={ruleForm.dayCount} onChange={event=>setRuleForm(current=>({...current,dayCount:event.target.value}))} required/></label>
           <label><span>Gün türü</span><select value={ruleForm.dayType} onChange={event=>setRuleForm(current=>({...current,dayType:event.target.value as DeadlineRuleForm['dayType']}))}>
             <option value="business_days">İş günü</option><option value="calendar_days">Takvim günü</option>
@@ -490,7 +494,7 @@ export function InstitutionOpinionsWorkspace({
         <td><span className={'opinions-status status-'+row.status}>{labels[row.status]??row.status}</span></td>
         <td>{dateText(row.requestDate)}</td><td>{dateText(row.deadlineDate)}</td>
         <td><div className="opinions-deadline-stack"><span className={'opinions-deadline deadline-'+deadline.tone}>{deadline.label}</span>
-          <small>{row.deadlineBasis==='rule_calculated'?'Kural v'+row.deadlineRuleVersion+' · '+(row.deadlineRuleName??'Onaylı kural'):'Manuel tarih'}</small></div></td><td>{dateText(row.responseDate)}</td>
+          <small>{row.deadlineBasis==='rule_calculated'?'Kural v'+row.deadlineRuleVersion+' · '+(row.deadlineRuleName??'Onaylı kural')+' · '+(row.deadlineStartEventLabel??'Başlangıç olayı belirtilmedi'):'Manuel tarih'}</small></div></td><td>{dateText(row.responseDate)}</td>
         <td className="opinions-row-actions">
           {canUpdate&&<button type="button" className="opinions-edit-button" onClick={()=>openEdit(row)}>Düzenle</button>}
           {canDelete&&<button type="button" className="opinions-delete-button" onClick={()=>void archiveOpinion(row)} disabled={deletingId===row.id}>{deletingId===row.id?'Kaldırılıyor…':'Kaldır'}</button>}
@@ -565,18 +569,23 @@ export function InstitutionOpinionsWorkspace({
               {!deadlineNeedsReason&&editing?.deadlineBasis==='rule_calculated'&&<p className="opinions-deadline-warning">Hesaplanan tarihten manuel tarihe geçiyorsunuz. Kaydetmeden önce gerekçe girmeniz gerekecek.</p>}
             </div>
             :<div className="opinions-rule-calculation-form">
-              <label><span>Onaylı süre kuralı</span><select value={draft.deadlineRuleVersionId} onChange={event=>setField('deadlineRuleVersionId',event.target.value)} required>
+              <label><span>Onaylı süre kuralı</span><select value={draft.deadlineRuleVersionId} onChange={event=>{
+                const id=event.target.value;
+                const rule=currentRules.find(item=>item.currentVersionId===id);
+                setDraft(current=>({...current,deadlineRuleVersionId:id,deadlineStartEventLabel:rule?.currentStartEventLabel??(selectedLegacyRule?.deadlineRuleVersionId===id?selectedLegacyRule.deadlineStartEventLabel:'')}));
+              }} required>
                 <option value="">Kural seçin</option>
                 {currentRules.map(rule=><option key={rule.currentVersionId??rule.id} value={rule.currentVersionId??''}>{rule.name} · v{rule.currentVersion} · {rule.currentDayCount} {rule.currentDayType==='business_days'?'iş günü':'takvim günü'}</option>)}
                 {selectedLegacyRule&&!currentRules.some(rule=>rule.currentVersionId===draft.deadlineRuleVersionId)&&
                   <option value={selectedLegacyRule.deadlineRuleVersionId??''}>{selectedLegacyRule.deadlineRuleName??'Önceki kural'} · v{selectedLegacyRule.deadlineRuleVersion} (kayıtlı sürüm)</option>}
               </select></label>
-              <label><span>Süre başlangıç tarihi</span><input type="date" value={draft.deadlineStartDate} onChange={event=>setField('deadlineStartDate',event.target.value)} required/></label>
+              <div className="opinions-rule-event-note"><strong>Süreyi başlatan olay</strong><span>{deadlinePreview?.startEventLabel||draft.deadlineStartEventLabel||selectedRule?.currentStartEventLabel||selectedLegacyRule?.deadlineStartEventLabel||'Kural olay bilgisi yükleniyor…'}</span></div>
+              <label><span>Bu olayın gerçekleştiği tarih</span><input type="date" value={draft.deadlineStartDate} onChange={event=>setField('deadlineStartDate',event.target.value)} required/></label>
               <div className="opinions-deadline-preview" role="status">
                 {deadlinePreviewLoading?<span>Son tarih hesaplanıyor…</span>
                 :deadlinePreviewError?<span className="opinions-rule-error">{deadlinePreviewError}</span>
                 :deadlinePreview?<><strong>Hesaplanan son tarih: {dateText(deadlinePreview.deadlineDate)}</strong>
-                  <span>{deadlinePreview.dayCount} {deadlinePreview.dayType==='business_days'?'iş günü':'takvim günü'} · Başlangıç {dateText(draft.deadlineStartDate)}</span></>
+                  <span>{deadlinePreview.dayCount} {deadlinePreview.dayType==='business_days'?'iş günü':'takvim günü'} · {deadlinePreview.startEventLabel} · {dateText(draft.deadlineStartDate)}</span></>
                 :<span>Hesaplama için kural ve başlangıç tarihi seçin.</span>}
               </div>
               {deadlineNeedsReason&&<label className="opinions-rule-field-wide"><span>Kural / başlangıç değişiklik gerekçesi *</span><textarea rows={2} maxLength={1000} value={draft.deadlineReason} onChange={event=>setField('deadlineReason',event.target.value)} required/></label>}
