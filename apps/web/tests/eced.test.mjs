@@ -22,7 +22,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   const packagedManifest = buildManifestForApi(manifest,'https://pulse.example.test/api');
   assert.ok(packagedManifest.optional_host_permissions.includes('https://pulse.example.test/*'));
   assert.ok(packagedManifest.optional_host_permissions.includes('https://eced.csb.gov.tr/*'));
-  assert.equal(packagedManifest.version,'1.0.2');
+  assert.equal(packagedManifest.version,'1.0.3');
   assert.equal(buildManifestForApi(manifest,'https://pulse.example.test/api').optional_host_permissions
     .filter((permission)=>permission==='https://pulse.example.test/*').length,1);
   assert.equal(normalizeApiBase('http://127.0.0.1:3000/api'),'http://127.0.0.1:3000/api');
@@ -59,6 +59,11 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(component.includes('Bağlantı doğrulanamadı'));
 
   assert.ok(component.includes('eced-pairing-panel'));
+  assert.ok(component.includes('eced-setup-guide'));
+  assert.ok(component.includes('latestReportByDevice'));
+  assert.ok(component.includes('Sinyal güncel'));
+  assert.ok(component.includes('Sinyal eski'));
+  assert.ok(component.includes('Henüz sinyal yok'));
   assert.ok(component.indexOf('eced-pairing-panel') > component.indexOf('eced-seen-panel'));
   assert.ok(styles.includes('.eced-overview-panel'));
   assert.ok(styles.includes('.eced-overview-account.tone-busy'));
@@ -98,6 +103,8 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(popup.includes("accountSources[currentTabKey]='manual'"));
   assert.ok(popup.includes('detectedByPortal'));
   assert.ok(popup.includes('showReportResult'));
+  assert.ok(popup.includes('portal izni verildi. PULSE bağlantısı ve ilk sinyal kontrol ediliyor…'));
+  assert.ok(popup.includes('showReportResult(result, detectorReady'));
   assert.ok(popup.includes('Sinyal kontrol ediliyor…'));
   assert.ok(popup.includes("const result = await chrome.runtime.sendMessage({type:'report-active-tab'})"));
   assert.ok(popup.includes("await chrome.runtime.sendMessage({type:'report-active-tab'})"));
@@ -135,7 +142,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
 
   assert.ok(contentScript.includes("location.origin !== 'https://eced.csb.gov.tr'"));
   assert.ok(contentScript.includes('__encevPulseAccountObserver'));
-  assert.ok(contentScript.includes("const SCRIPT_VERSION = '1.0.2'"));
+  assert.ok(contentScript.includes("const SCRIPT_VERSION = '1.0.3'"));
   assert.ok(contentScript.includes('window.__encevPulseAccountObserver === SCRIPT_VERSION'));
   assert.ok(contentScript.includes('PROFILE_SELECTORS'));
   assert.ok(contentScript.includes('findVisibleAccountName'));
