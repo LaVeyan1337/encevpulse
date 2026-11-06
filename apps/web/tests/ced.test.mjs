@@ -96,7 +96,7 @@ test('Kurum Görüşleri ekranı ayrı yetkili listeyi ve proje kapsamını kull
   assert.match(service, /project_members pm/);
   assert.match(service, /p\.status<>'archived'/);
   assert.match(component, /request\('ced\/opinions'\)/);
-  assert.match(component, /mevzuattaki iş günü veya resmî tatil hesabı değildir/);
+  assert.match(component, /Manuel tarihler otomatik mevzuat hesabı sayılmaz/);
   assert.match(workspace, /hasModulePermission\('institution_opinions'\)/);
   assert.match(workspace, /projectTab === 'opinions'/);
   assert.match(styles, /\.opinions-table/);
