@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ENCEV PULSE e-ÇED İzleyici",
   "description": "Kullanıcının izin verdiği e-ÇED sekmelerinden görünür hesap etiketi ve sınırlı sekme sinyali gönderir.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "permissions": [
     "storage",
     "tabs",
