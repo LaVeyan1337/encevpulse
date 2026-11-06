@@ -1221,12 +1221,12 @@ export class CedService {
       const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{id:string}>(
-        \`INSERT INTO ced_institution_opinions(
+        `INSERT INTO ced_institution_opinions(
           project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
           outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
           deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
         ) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$16,$17,$17) RETURNING id\`,
+          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$16,$17,$17) RETURNING id`,
         [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,deadline.deadlineDate,
           draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,
           deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,deadline.deadlineReason,user.id],
@@ -1255,12 +1255,12 @@ export class CedService {
       const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{id:string}>(
-        \`INSERT INTO ced_institution_opinions(
+        `INSERT INTO ced_institution_opinions(
           project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
           outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
           deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id\`,
+          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id`,
         [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,
           deadline.deadlineDate,draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,
           draft.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
@@ -1287,12 +1287,12 @@ export class CedService {
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        \`SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
+        `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
           o.deadline_start_date::text AS deadline_start_date,o.response_date::text AS response_date,
           contact.title AS contact_title,contact.department AS contact_department,
           contact.phone AS contact_phone,contact.email AS contact_email,contact.address AS contact_address
          FROM ced_institution_opinions o LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id
-         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o\`,
+         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
         [opinionId],
       );
       if (!found.rowCount) throw new NotFoundException({code:'CED_OPINION_NOT_FOUND',message:'Kurum görüşü kaydı bulunamadı.'});
@@ -1327,13 +1327,13 @@ export class CedService {
       const deadline=await this.resolveOpinionDeadline(client,merged,user.id,old);
       const contactId=await this.saveInstitutionContact(client,user.id,merged);
       await client.query(
-        \`UPDATE ced_institution_opinions SET
+        `UPDATE ced_institution_opinions SET
           institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
           outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,
           deadline_basis=$12,deadline_rule_version_id=$13,deadline_start_date=$14,
           deadline_calculated_at=CASE WHEN $12='rule_calculated' THEN now() ELSE NULL END,
           deadline_reason=$15,updated_by=$16,updated_at=now(),version=version+1
-         WHERE id=$17\`,
+         WHERE id=$17`,
         [merged.institutionName,merged.subject,merged.status,merged.requestDate,deadline.deadlineDate,
           merged.responseDate,merged.outgoingLetterNo,merged.incomingLetterNo,merged.contactPerson,contactId,
           merged.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
