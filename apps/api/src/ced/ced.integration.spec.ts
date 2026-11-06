@@ -454,7 +454,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(updatedProjectOpinion.response.status,200,JSON.stringify(updatedProjectOpinion.data));
     const beforeCase = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId);
     assert.equal(beforeCase.data.case,null,'Kurum görüşü için gerçek süreç kaydı oluşana kadar ÇED dosyası olmamalı.');
-    assert.equal(beforeCase.data.opinions.length,10,'ÇED dosyası olmadan varsayılanlar ve proje görüşleri okunabilmeli.');
+    assert.equal(beforeCase.data.opinions.length,11,'ÇED dosyası olmadan varsayılanlar ve proje görüşleri okunabilmeli.');
     const ptdCreated = await api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId, 'POST', {
       routeCode: 'ek2_ptd', fileNumber: 'PTD-' + suffix,
     });
