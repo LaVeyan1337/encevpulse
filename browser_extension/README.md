@@ -1,4 +1,4 @@
-# ENCEV PULSE e-ÇED İzleyici (Manifest V3)
+# ENCEV PULSE e-ÇED İzleyici (Manifest V3 · 1.0.3)
 
 Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED sekmelerine ait sınırlı sinyalleri PULSE'a gönderir. Parola, çerez, form alanı, localStorage/sessionStorage, ağ istekleri, sayfa HTML'i veya tüm sayfa metni toplanmaz. Portal izni yalnızca resmî `https://eced.csb.gov.tr` origin'i için istenir; API izni ise yalnızca PULSE bağlantısı için ayrıca istenir. Yerel geliştirme kullanımı için `http://127.0.0.1` ve `http://localhost` API origin'leri tanımlıdır.
 
@@ -16,7 +16,7 @@ Bu eklenti, kullanıcının açıkça izin verdiği tarayıcı profilinde e-ÇED
 4. Chrome veya Edge'de `chrome://extensions` veya `edge://extensions` adresini açın.
 5. Geliştirici modunu açın ve **Paketlenmemiş öğe yükle** ile `.artifacts/browser-extension` klasörünü seçin.
 6. Eklenti seçeneklerinden aynı PULSE API adresini ve tek seferlik eşleştirme anahtarını girin. Eklenti, API bağlantısını doğrulamadan yeni ayarları kaydetmez ve yalnızca manifestteki sunucu hostu için izin ister. Genel `https://*/*` izni kullanılmaz.
-7. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. Kurulum/güncelleme sonrasında eklenti açık ve izinli portal sekmelerine yeniden bağlanmayı dener; tarayıcı yeniden başladığında da aynı işlem yapılır.
+7. e-ÇED sekmesine geçin. Eklenti menüsünde **Bu portalı izlemeye aç** düğmesine basın ve site iznini verin. İzin verildiğinde eklenti ilk PULSE sinyalini otomatik gönderir; ayrıca “Seçimlerimi kaydet ve sinyal gönder” düğmesine basmanız gerekmez. Hesap etiketi eksikse yine manuel girebilirsiniz. Kurulum/güncelleme sonrasında eklenti açık ve izinli portal sekmelerine yeniden bağlanmayı dener; tarayıcı yeniden başladığında da aynı işlem yapılır.
 8. Portal sekmesindeki eklenti penceresi açıldığında bağlantı sinyali otomatik test edilir. **Seçimlerimi kaydet ve sinyal gönder** düğmesi hesap etiketi/oturum seçimini kaydeder ve tekrar rapor gönderir. PULSE API yanıtı doğrudan gösterilir: başarılı HTTP yanıtı, HTTP hata kodu, eksik portal/API izni, eşleştirme sorunu ve ağ hatası birbirinden ayrılır. Sonra PULSE'un e-ÇED ekranında son sinyali kontrol edin. Rapor isteği 10 saniyede zaman aşımına uğrar; sunucunun yalnızca HTTP 2xx dönmesi başarı sayılmaz, API'nin `queued: true` kabul yanıtı da doğrulanır. Birden fazla açık portal sekmesi sınırlı paralellikle raporlanır.
 
 Canlı sinyal, son rapordan itibaren 90 saniye içinde taze kabul edilir. Tarayıcı alarmının gecikmesi tek başına cihazı hemen eski duruma düşürmez.
@@ -40,6 +40,8 @@ Canlı sinyal, son rapordan itibaren 90 saniye içinde taze kabul edilir. Taray�
 - Eklenti e-ÇED sunucusundan oturum doğrulaması yapmaz. Görünür profil etiketi hesap adının ekranda olduğunu gösterir; kimlik doğrulamasına ilişkin resmî kanıt değildir.
 - Sekme kapatıldığında veya başka origin'e gittiğinde o sekmenin yerel hesap etiketi temizlenir.
 - Eşleştirme iptal edilirse sunucu eski token'ı reddeder. Eklenti token'ı tarayıcı eklenti ayarlarından da temizlenebilir.
+
+1.0.3 sürümünde portal izni verildikten sonra ilk sinyal otomatik gönderilir. PULSE ekranındaki cihaz kartında “Sinyal güncel” durumunu ve eklenti penceresindeki “Sinyal ulaştı” sonucunu kontrol edin.
 
 ## Güncelleme
 
