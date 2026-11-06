@@ -453,7 +453,8 @@ export class CedService {
         contact.email AS "contactEmail",contact.address AS "contactAddress",
         o.notes,o.version,o.updated_at AS "updatedAt",
         o.deadline_basis AS "deadlineBasis",o.deadline_rule_version_id AS "deadlineRuleVersionId",
-        o.deadline_start_date::text AS "deadlineStartDate",o.deadline_calculated_at AS "deadlineCalculatedAt",
+        o.deadline_start_date::text AS "deadlineStartDate",o.deadline_start_event_label AS "deadlineStartEventLabel",
+        o.deadline_calculated_at AS "deadlineCalculatedAt",
         o.deadline_reason AS "deadlineReason",deadlineVersion.version AS "deadlineRuleVersion",
         deadlineFamily.name AS "deadlineRuleName"
        FROM ced_institution_opinions o
@@ -1025,7 +1026,7 @@ export class CedService {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
     assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
-      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
       'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
       'contactAddress','notes']);
     const draft = validateOpinion(value);
@@ -1040,12 +1041,12 @@ export class CedService {
         `INSERT INTO ced_institution_opinions(
           project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
           outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
-          deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
-        ) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$16,$17,$17) RETURNING id`,
+          deadline_start_date,deadline_start_event_label,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id`,
         [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,deadline.deadlineDate,
           draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,
-          deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,deadline.deadlineReason,user.id],
+          deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id],
       );
       opinionId=inserted.rows[0].id;
       await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline);
@@ -1060,7 +1061,7 @@ export class CedService {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
     assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
-      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
       'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
       'contactAddress','notes']);
     const draft = validateOpinion(value);
@@ -1074,13 +1075,13 @@ export class CedService {
         `INSERT INTO ced_institution_opinions(
           project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
           outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
-          deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
-        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id`,
+          deadline_start_date,deadline_start_event_label,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$18,$19,$19) RETURNING id`,
         [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,
           deadline.deadlineDate,draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,
           draft.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
-          deadline.deadlineReason,user.id],
+          deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id],
       );
       await this.recordOpinionDeadlineEvent(client,inserted.rows[0].id,user.id,deadline);
       await this.audit(client,caseId,'institution_opinion',inserted.rows[0].id,'created',{...draft,deadline},user.id);
@@ -1128,6 +1129,7 @@ export class CedService {
         deadlineBasis:Object.hasOwn(value,'deadlineBasis')?value.deadlineBasis:old.deadline_basis,
         deadlineRuleVersionId:Object.hasOwn(value,'deadlineRuleVersionId')?value.deadlineRuleVersionId:old.deadline_rule_version_id,
         deadlineStartDate:Object.hasOwn(value,'deadlineStartDate')?value.deadlineStartDate:old.deadline_start_date,
+        deadlineStartEventLabel:Object.hasOwn(value,'deadlineStartEventLabel')?value.deadlineStartEventLabel:old.deadline_start_event_label,
         deadlineReason:Object.hasOwn(value,'deadlineReason')?value.deadlineReason:old.deadline_reason,
         responseDate:Object.hasOwn(value,'responseDate')?value.responseDate:old.response_date,
         outgoingLetterNo:Object.hasOwn(value,'outgoingLetterNo')?value.outgoingLetterNo:old.outgoing_letter_no,
@@ -1146,14 +1148,14 @@ export class CedService {
         `UPDATE ced_institution_opinions SET
           institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
           outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,
-          deadline_basis=$12,deadline_rule_version_id=$13,deadline_start_date=$14,
+          deadline_basis=$12,deadline_rule_version_id=$13,deadline_start_date=$14,deadline_start_event_label=$15,
           deadline_calculated_at=CASE WHEN $12='rule_calculated' THEN now() ELSE NULL END,
-          deadline_reason=$15,updated_by=$16,updated_at=now(),version=version+1
-         WHERE id=$17`,
+          deadline_reason=$16,updated_by=$17,updated_at=now(),version=version+1
+         WHERE id=$18`,
         [merged.institutionName,merged.subject,merged.status,merged.requestDate,deadline.deadlineDate,
           merged.responseDate,merged.outgoingLetterNo,merged.incomingLetterNo,merged.contactPerson,contactId,
           merged.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
-          deadline.deadlineReason,user.id,opinionId],
+          deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id,opinionId],
       );
       await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline,old);
       if(old.case_id)await this.audit(client,old.case_id,'institution_opinion',opinionId,'updated',{...merged,deadline},user.id);
@@ -1568,6 +1570,7 @@ function validateOpinion(value: Record<string, unknown>) {
     deadlineBasis: enumValue(value.deadlineBasis ?? 'manual',['manual','rule_calculated'] as const,'Son tarih türü'),
     deadlineRuleVersionId: optionalUuid(value.deadlineRuleVersionId,'Süre kuralı sürümü'),
     deadlineStartDate: optionalDate(value.deadlineStartDate,'Süre başlangıç tarihi'),
+    deadlineStartEventLabel: boundedText(value.deadlineStartEventLabel??'',0,240,'Süre başlangıç olayı'),
     deadlineReason: boundedText(value.deadlineReason ?? '',0,1000,'Son tarih değişiklik gerekçesi'),
     responseDate: optionalDate(value.responseDate, 'Yanıt tarihi'),
     outgoingLetterNo: boundedText(value.outgoingLetterNo ?? '', 0, 100, 'Giden yazı numarası'),
@@ -1581,7 +1584,7 @@ function validateOpinion(value: Record<string, unknown>) {
     notes: boundedText(value.notes ?? '', 0, 4000, 'Açıklama'),
   };
   if(draft.deadlineBasis==='rule_calculated'&&(!draft.deadlineRuleVersionId||!draft.deadlineStartDate)) throw invalid('Kurala göre hesaplama için onaylı kural ve başlangıç tarihi seçilmelidir.');
-  if(draft.deadlineBasis==='manual'&&(draft.deadlineRuleVersionId||draft.deadlineStartDate)) throw invalid('Manuel son tarih kural sürümü veya hesaplama başlangıcı içeremez.');
+  if(draft.deadlineBasis==='manual'&&(draft.deadlineRuleVersionId||draft.deadlineStartDate||draft.deadlineStartEventLabel)) throw invalid('Manuel son tarih kural sürümü veya hesaplama başlangıcı içeremez.');
   if (draft.deadlineBasis==='manual' && draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
   if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
   if (draft.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contactEmail)) throw invalid('İlgili kişi e-posta adresi geçersiz.');
