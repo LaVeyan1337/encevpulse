@@ -3,12 +3,12 @@ let currentOrigin = '';
 let currentTabKey = '';
 let currentTabId = null;
 const PORTAL_ORIGIN = 'https://eced.csb.gov.tr';
-function showReportResult(result) {
+function showReportResult(result, extra = '') {
   const ok = result?.ok === true;
   $('connection').textContent = ok ? 'Sinyal ulaştı' : 'Bağlantı sorunu';
   $('connection').classList.toggle('is-ok', ok);
   $('connection').classList.toggle('is-error', !ok);
-  $('status').textContent = result?.message || 'Sinyal sonucu alınamadı. Eklentiyi yenileyip yeniden deneyin.';
+  $('status').textContent = (result?.message || 'Sinyal sonucu alınamadı. Eklentiyi yenileyip yeniden deneyin.') + extra;
 }
 async function init() {
   const tabs = await chrome.tabs.query({active:true,lastFocusedWindow:true});
@@ -98,9 +98,15 @@ $('enableSite').addEventListener('click',async()=>{
   } catch {
     // The user has granted portal access; do not reload or navigate their active page.
   }
-  $('status').textContent = detectorReady
-    ? 'Site izni verildi. Görünür profil etiketi otomatik algılanırsa hesap listesine eklenir; bulunamazsa etiketi manuel girebilirsiniz.'
-    : 'Site izni verildi ancak algılayıcı bu sekmeye eklenemedi. Sayfayı kendiniz yenileyip eklentiyi tekrar açın. Parola veya çerez okunmaz.';
+  $('status').textContent = 'Portal izni verildi. PULSE bağlantısı ve ilk sinyal kontrol ediliyor…';
+  try {
+    const result = await chrome.runtime.sendMessage({type:'report-active-tab'});
+    showReportResult(result, detectorReady
+      ? ''
+      : ' Görünür profil algılayıcısı bu sekmeye eklenemedi; hesap etiketi gerekirse elle girilebilir.');
+  } catch {
+    showReportResult({ok:false,message:'Portal izni verildi ancak ilk PULSE sinyali gönderilemedi. Bağlantı ayarlarını kontrol edin.'});
+  }
 });
 $('save').addEventListener('click',async()=>{
   if (!currentOrigin) return;
