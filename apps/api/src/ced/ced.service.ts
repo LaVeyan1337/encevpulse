@@ -288,8 +288,9 @@ export class CedService {
       );
       if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
       const row=await client.query<any>(
-        `SELECT * FROM ced_deadline_rule_versions
-         WHERE id=$1 AND rule_id=$2 FOR UPDATE`,
+        `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso
+         FROM ced_deadline_rule_versions version
+         WHERE version.id=$1 AND version.rule_id=$2 FOR UPDATE`,
         [versionId,ruleId],
       );
       if(!row.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural taslağı bulunamadı.'});
@@ -1757,7 +1758,7 @@ function validateStoredDeadlineRule(row:any) {
     throw invalid('Süre kuralı parametreleri geçersiz; kural onaylanamaz.');
   }
   const weekends=(row.weekend_days??[]).map(Number);
-  const holidays=(row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value));
+  const holidays=(row.holiday_dates_iso??row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value));
   if(weekends.some((day:number)=>!Number.isInteger(day)||day<0||day>6)||new Set(weekends).size!==weekends.length) {
     throw invalid('Çalışma takvimindeki hafta sonu günleri geçersiz.');
   }
