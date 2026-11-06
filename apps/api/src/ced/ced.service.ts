@@ -106,7 +106,7 @@ export class CedService {
       dayCount:Number(row.day_count),dayType:row.day_type,
       includeStartDay:Boolean(row.include_start_day),dueDateAdjustment:row.due_date_adjustment,
       weekendDays:(row.weekend_days??[]).map(Number),
-      holidayDates:(row.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10)),
+      holidayDates:(row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
     });
     return {preview:calculation,rule:{id:row.rule_id,versionId:row.id,name:row.ruleName,version:Number(row.version),
       legalReference:row.legal_reference,ruleSourceLabel:row.rule_source_label,
@@ -587,7 +587,7 @@ export class CedService {
       includeStartDay:Boolean(version.include_start_day),
       dueDateAdjustment:version.due_date_adjustment,
       weekendDays:(version.weekend_days??[]).map(Number),
-      holidayDates:(version.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10)),
+      holidayDates:(version.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
     } satisfies DeadlineRule);
     return {
       deadlineDate:calculation.deadlineDate,
@@ -1738,6 +1738,14 @@ function validateDeadlineRuleInput(value:Record<string,unknown>,includeFamilyFie
   };
 }
 
+function normalizeStoredDate(value:unknown):string {
+  if(value instanceof Date&&Number.isFinite(value.getTime()))return value.toISOString().slice(0,10);
+  if(typeof value==='string'&&DATE.test(value))return value;
+  const parsed=new Date(String(value));
+  if(Number.isFinite(parsed.getTime()))return parsed.toISOString().slice(0,10);
+  throw invalid('Saklanan çalışma takvimi tarihi geçerli bir gün değil.');
+}
+
 function validateStoredDeadlineRule(row:any) {
   const dayType=row.day_type;
   const adjustment=row.due_date_adjustment;
@@ -1747,7 +1755,7 @@ function validateStoredDeadlineRule(row:any) {
     throw invalid('Süre kuralı parametreleri geçersiz; kural onaylanamaz.');
   }
   const weekends=(row.weekend_days??[]).map(Number);
-  const holidays=(row.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10));
+  const holidays=(row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value));
   if(weekends.some((day:number)=>!Number.isInteger(day)||day<0||day>6)||new Set(weekends).size!==weekends.length) {
     throw invalid('Çalışma takvimindeki hafta sonu günleri geçersiz.');
   }
