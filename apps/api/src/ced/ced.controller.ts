@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { AccessControlService } from '../access-control/access-control.service.js';
@@ -23,6 +23,16 @@ export class CedController {
   async listDeadlineRules(@Req() request:Request) {
     await this.authorize(request,'institution_opinions','view');
     return this.ced.listDeadlineRules();
+  }
+
+  @Get('deadline-rule-versions/:versionId/preview')
+  async previewDeadline(
+    @Req() request:Request,
+    @Param('versionId') versionId:string,
+    @Query('startDate') startDate:string,
+  ) {
+    const user=await this.authorize(request,'institution_opinions','view');
+    return this.ced.previewDeadline(user,versionId,startDate);
   }
 
   @Get('deadline-rules/:ruleId/versions')
