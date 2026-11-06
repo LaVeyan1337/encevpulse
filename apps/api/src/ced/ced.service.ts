@@ -254,12 +254,12 @@ export class CedService {
         `INSERT INTO ced_deadline_rule_versions(
           rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
           weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
-          calendar_verified_at,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
-        ) VALUES($1,$2,'draft',$3,$4,$5,$6,$7::smallint[],$8::date[],$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+          calendar_verified_at,start_event_label,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,$2,'draft',$3,$4,$5,$6,$7::smallint[],$8::date[],$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$18)
         RETURNING id`,
         [ruleId,versionNumber,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
           draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
-          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.legalReference,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,
           draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
       );
       await client.query(
