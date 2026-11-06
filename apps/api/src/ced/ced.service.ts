@@ -320,6 +320,95 @@ export class CedService {
     } finally {client.release();}
   }
 
+  private async resolveOpinionDeadline(client:PoolClient,draft:ReturnType<typeof validateOpinion>,_userId:string,old?:any) {
+    const previousBasis=old?.deadline_basis??'manual';
+    const previousDate=old?.deadline_date??null;
+    const previousVersionId=old?.deadline_rule_version_id??null;
+    const previousStartDate=old?.deadline_start_date??null;
+    const changed=!old||
+      previousBasis!==draft.deadlineBasis||
+      previousDate!==draft.deadlineDate||
+      previousVersionId!==(draft.deadlineRuleVersionId??null)||
+      previousStartDate!==(draft.deadlineStartDate??null);
+
+    if(draft.deadlineBasis==='manual') {
+      if(old&&changed&&(!draft.deadlineReason.trim()||
+        draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
+        throw invalid('Son tarih değişikliğini veya kuraldan manuel tarihe geçişi açıklayan yeni gerekçe zorunludur.');
+      }
+      return {
+        deadlineDate:draft.deadlineDate??null,
+        deadlineBasis:'manual' as const,
+        deadlineRuleVersionId:null,
+        deadlineStartDate:null,
+        deadlineStartEventLabel:'',
+        deadlineReason:draft.deadlineReason,
+        changed,
+        eventAction:!old?(draft.deadlineDate?'manual_set':null):
+          !changed?null:!draft.deadlineDate?'cleared':previousBasis==='rule_calculated'?'manual_override':'manual_set',
+      };
+    }
+
+    if(old&&changed&&(!draft.deadlineReason.trim()||
+      draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
+      throw invalid('Süre kuralı veya başlangıç tarihi değişikliğini açıklayan yeni gerekçe zorunludur.');
+    }
+    const versionId=draft.deadlineRuleVersionId as string;
+    const result=await client.query<any>(
+      `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso,
+        family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+       FROM ced_deadline_rule_versions version
+       JOIN ced_deadline_rule_families family ON family.id=version.rule_id
+       WHERE version.id=$1 AND version.status='approved'
+         AND family.is_active=true AND family.archived_at IS NULL`,
+      [versionId],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_APPROVED',message:'Seçilen süre kuralı onaylı değil veya artık kullanılamıyor. Kural listesini yenileyin.'});
+    const version=result.rows[0];
+    if(draft.deadlineStartEventLabel&&draft.deadlineStartEventLabel!==version.start_event_label) {
+      throw new ConflictException({code:'CED_DEADLINE_START_EVENT_MISMATCH',message:'Süreyi başlatan olay, seçilen kural sürümüyle eşleşmiyor. Kuralı yenileyip tekrar deneyin.'});
+    }
+    if(version.currentVersionId!==versionId&&previousVersionId!==versionId) {
+      throw new ConflictException({code:'CED_DEADLINE_RULE_SUPERSEDED',message:'Yeni görüşlerde yalnızca güncel onaylı kural sürümü seçilebilir.'});
+    }
+    validateStoredDeadlineRule(version);
+    const calculation=calculateDeadline(draft.deadlineStartDate as string,{
+      dayCount:Number(version.day_count),dayType:version.day_type,
+      includeStartDay:Boolean(version.include_start_day),dueDateAdjustment:version.due_date_adjustment,
+      weekendDays:(version.weekend_days??[]).map(Number),
+      holidayDates:(version.holiday_dates_iso??version.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
+    });
+    return {
+      deadlineDate:calculation.deadlineDate,
+      deadlineBasis:'rule_calculated' as const,
+      deadlineRuleVersionId:versionId,
+      deadlineStartDate:draft.deadlineStartDate,
+      deadlineStartEventLabel:version.start_event_label,
+      deadlineReason:draft.deadlineReason,
+      changed,
+      eventAction:!old||changed?'rule_applied':null,
+      ruleName:version.ruleName,
+      ruleVersion:Number(version.version),
+      calculation,
+    };
+  }
+
+  private async recordOpinionDeadlineEvent(
+    client:PoolClient,opinionId:string,userId:string,deadline:any,old?:any,
+  ) {
+    if(!deadline.eventAction)return;
+    await client.query(
+      `INSERT INTO ced_opinion_deadline_events(
+        opinion_id,actor_user_id,action,old_deadline_date,new_deadline_date,
+        old_rule_version_id,new_rule_version_id,start_date,start_event_label,reason,details
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [opinionId,userId,deadline.eventAction,old?.deadline_date??null,deadline.deadlineDate,
+        old?.deadline_rule_version_id??null,deadline.deadlineRuleVersionId??null,
+        deadline.deadlineStartDate??null,deadline.deadlineStartEventLabel??'',
+        deadline.deadlineReason??'',deadline.calculation??{}],
+    );
+  }
+
   async getProjectCase(user: AuthUser, projectId: string, includeOpinions: boolean) {
     assertUuid(projectId, 'Proje');
     const client = await this.db.pool.connect();
