@@ -98,11 +98,10 @@ export class CedService {
        FROM ced_deadline_rule_versions version
        JOIN ced_deadline_rule_families family ON family.id=version.rule_id
        WHERE version.id=$1 AND version.status='approved'
-         AND family.current_version_id=version.id
          AND family.is_active=true AND family.archived_at IS NULL`,
       [versionId],
     );
-    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_CURRENT',message:'Önizleme için güncel ve onaylı bir kural sürümü seçin.'});
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_APPROVED',message:'Önizleme için onaylı bir kural sürümü seçin.'});
     const row=result.rows[0];
     validateStoredDeadlineRule(row);
     const calculation=calculateDeadline(startDate,{
