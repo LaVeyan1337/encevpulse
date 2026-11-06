@@ -187,7 +187,8 @@ export class CedService {
 
   async updateDeadlineRuleDraft(user:AuthUser,ruleId:string,versionId:string,input:unknown) {
     assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
-    const draft=validateDeadlineRuleInput(input,true);
+    const value=objectInput(input);
+    const draft=validateDeadlineRuleInput(value,true);
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -236,7 +237,8 @@ export class CedService {
 
   async createDeadlineRuleVersion(user:AuthUser,ruleId:string,input:unknown) {
     assertUuid(ruleId,'Süre kuralı');
-    const draft=validateDeadlineRuleInput(input,false);
+    const value=objectInput(input);
+    const draft=validateDeadlineRuleInput(value,false);
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
