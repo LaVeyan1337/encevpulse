@@ -124,6 +124,8 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const beforeRuleApproval = await api(base,processOwner,'ced/deadline-rules');
     const unapproved = beforeRuleApproval.data.rules.find((rule:{id:string})=>rule.id===deadlineRuleId);
     assert.ok(unapproved);
+    assert.equal(unapproved.name,ruleDraft.name,'Taslak düzenlemesi kural adını güncellemelidir.');
+    assert.equal(unapproved.description,ruleDraft.description,'Taslak düzenlemesi kural açıklamasını güncellemelidir.');
     assert.equal(unapproved.currentVersionId,null,'Taslak kural onaylanmadan hesaplamada kullanılmamalı.');
     assert.equal(unapproved.draftVersion,1);
 
