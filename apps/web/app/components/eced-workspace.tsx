@@ -27,9 +27,13 @@ function ageText(value:string):string {
   if(seconds<86400)return String(Math.floor(seconds/3600))+' sa önce';
   return String(Math.floor(seconds/86400))+' gün önce';
 }
+function signalIsFresh(value:string|null|undefined,staleAfterSeconds:number):boolean {
+  if(!value)return false;
+  const stamp=Date.parse(value);
+  return Number.isFinite(stamp)&&Date.now()-stamp<=staleAfterSeconds*1000&&stamp<=Date.now()+60_000;
+}
 function stateOf(report:Report,staleAfterSeconds:number):{tone:Tone;label:string;fresh:boolean} {
-  const stamp=Date.parse(report.lastSeen);
-  const fresh=Number.isFinite(stamp)&&Date.now()-stamp<=staleAfterSeconds*1000&&stamp<=Date.now()+60_000;
+  const fresh=signalIsFresh(report.lastSeen,staleAfterSeconds);
   if(!fresh)return {tone:'stale',label:'Sinyal eski',fresh:false};
   if(report.sessionState==='active')return {tone:'active',label:report.tabActive?'Oturum gözlendi · açık sekme':'Oturum gözlendi · arka plan',fresh:true};
   if(report.sessionState==='logged_out')return {tone:'logged-out',label:'Oturum kapalı olarak işaretlendi',fresh:true};
@@ -118,6 +122,15 @@ export function EcedWorkspace({
     }
     return {active,loggedOut,unknown,stale,conflicts:conflictedAccounts.size};
   },[reports,staleAfter,conflictedAccounts]);
+
+  const latestReportByDevice=useMemo(()=>{
+    const latest=new Map<string,Report>();
+    for(const report of reports){
+      const previous=latest.get(report.deviceId);
+      if(!previous||Date.parse(report.lastSeen)>Date.parse(previous.lastSeen))latest.set(report.deviceId,report);
+    }
+    return latest;
+  },[reports]);
 
   async function createPairing(){
     if(!canCreate||deviceName.trim().length<2)return;
@@ -232,6 +245,15 @@ export function EcedWorkspace({
         <label><span>Bilgisayar / profil adı</span><input value={deviceName} onChange={event=>setDeviceName(event.target.value)} maxLength={80} minLength={2} placeholder="Örn. Ofis PC · Edge" required /></label>
         <button type="submit" disabled={busy||deviceName.trim().length<2}>{busy?'İşleniyor…':'Eşleştirme anahtarı oluştur'}</button>
       </form>}
+      <div className="eced-setup-guide">
+        <strong>Eklentiyi bağlama</strong>
+        <ol>
+          <li>Chrome veya Edge profilinde ENCEV PULSE e-ÇED İzleyici eklentisini açın.</li>
+          <li><b>Bağlantı ayarları</b> bölümüne bu ekranda verilen API adresini ve tek seferlik anahtarı girip bağlantıyı doğrulayın.</li>
+          <li><b>eced.csb.gov.tr</b> sekmesine dönün, <b>Bu portalı izlemeye aç</b> iznini verin. İlk sinyalden sonra bu ekranı yenileyin.</li>
+        </ol>
+        <p>Her tarayıcı profili ayrı eşleştirilir. Yeni eklenti paketi yüklendiğinde gerekirse yeni anahtar oluşturun.</p>
+      </div>
       {pairing&&showToken&&<div className="eced-pairing-secret">
         <div><strong>{pairing.deviceName} için yeni anahtar</strong><p>Bu anahtar yalnızca bu ekranda gösterilir. Eklentiye güvenli şekilde kaydedin; daha sonra yeniden görüntülenemez.</p></div>
         <label><span>API adresi</span><input readOnly value={pairing.apiBase} onFocus={event=>event.currentTarget.select()}/></label>
@@ -239,10 +261,28 @@ export function EcedWorkspace({
         <div className="eced-secret-actions"><button type="button" onClick={()=>void copyToken()}>Anahtarı kopyala</button><button type="button" className="subtle" onClick={()=>{setPairing(null);setShowToken(false);}}>Gizle</button></div>
       </div>}
       {devices.length===0?<div className="eced-monitor-empty compact">Henüz tarayıcı eşleştirilmedi. Eşleştirme oluşturduktan sonra Chrome / Edge eklentisini yükleyin.</div>
-      :<div className="eced-device-list">{devices.map(device=><article key={device.id}>
-        <div className="eced-device-icon">◎</div><div className="eced-device-copy"><strong>{device.deviceName}</strong><span>Oluşturuldu: {dateText(device.createdAt)}</span><small>Son sinyal: {dateText(device.lastSeenAt)}</small></div>
-        {canDelete&&<button type="button" className="eced-device-revoke" disabled={busy} onClick={()=>void revokeDevice(device)}>Eşleştirmeyi iptal et</button>}
-      </article>)}</div>}
+      :<div className="eced-device-list">{devices.map(device=>{
+        const latest=latestReportByDevice.get(device.id);
+        const signalAt=latest?.lastSeen??device.lastSeenAt;
+        const fresh=signalIsFresh(signalAt,staleAfter);
+        const signalLabel=!signalAt?'Henüz sinyal yok':fresh?'Sinyal güncel':'Sinyal eski';
+        const signalTone=!signalAt?'is-never':fresh?'is-fresh':'is-stale';
+        const signalHelp=!signalAt
+          ?'Eklenti bağlantı ayarlarında API adresi ve anahtarı doğrulayın; ardından portal iznini verin.'
+          :fresh?'PULSE sunucusuna son 90 saniye içinde rapor ulaştı.'
+          :'Son sinyal 90 saniyeyi aştı. Eklenti penceresinden bağlantıyı ve portal iznini kontrol edin.';
+        return <article key={device.id}>
+          <div className="eced-device-icon">◎</div>
+          <div className="eced-device-copy">
+            <strong>{device.deviceName}</strong>
+            <span>Oluşturuldu: {dateText(device.createdAt)}</span>
+            <small>Son sinyal: {dateText(signalAt)}{latest?' · '+browserName(latest.browser):''}</small>
+            <span className={'eced-device-signal '+signalTone}>{signalLabel}</span>
+            {(!signalAt||!fresh)&&<small className="eced-device-guidance">{signalHelp}</small>}
+          </div>
+          {canDelete&&<button type="button" className="eced-device-revoke" disabled={busy} onClick={()=>void revokeDevice(device)}>Eşleştirmeyi iptal et</button>}
+        </article>;
+      })}</div>}
       <p className="eced-security-note">Eklenti yalnızca izin verilen portal sekmesinin adresini, başlığını, sekme etkinliğini ve sizin seçtiğiniz görünür hesap etiketini gönderir. Parola, çerez, form alanı, localStorage / sessionStorage veya sayfa HTML içeriği okunmaz. Bu gözlem, e-ÇED sunucusundan doğrulanmış kimlik kanıtı değildir.</p>
     </section>
   </section>;
