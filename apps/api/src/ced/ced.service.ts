@@ -510,6 +510,92 @@ export class CedService {
     finally {client.release();}
   }
 
+  private async resolveOpinionDeadline(client:PoolClient,draft:any,userId:string,old?:any) {
+    const previousBasis=old?.deadline_basis??'manual';
+    const previousDate=old?.deadline_date??null;
+    const previousVersionId=old?.deadline_rule_version_id??null;
+    const previousStartDate=old?.deadline_start_date??null;
+    const changed=!old ||
+      previousBasis!==draft.deadlineBasis ||
+      previousDate!==draft.deadlineDate ||
+      previousVersionId!==(draft.deadlineRuleVersionId??null) ||
+      previousStartDate!==(draft.deadlineStartDate??null);
+
+    if(draft.deadlineBasis==='manual') {
+      if(old&&changed&&!draft.deadlineReason.trim()) {
+        throw invalid('Son tarih değişikliğini veya kuraldan manuel tarihe geçişi açıklayan gerekçe zorunludur.');
+      }
+      return {
+        deadlineDate:draft.deadlineDate??null,
+        deadlineBasis:'manual',
+        deadlineRuleVersionId:null,
+        deadlineStartDate:null,
+        deadlineReason:draft.deadlineReason,
+        deadlineCalculatedAt:null,
+        changed,
+        eventAction:!old?(draft.deadlineDate?'manual_set':null):
+          !changed?null:!draft.deadlineDate?'cleared':previousBasis==='rule_calculated'?'manual_override':'manual_set',
+      };
+    }
+
+    const versionId=draft.deadlineRuleVersionId as string;
+    const result=await client.query<any>(
+      \`SELECT version.*,family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+       FROM ced_deadline_rule_versions version
+       JOIN ced_deadline_rule_families family ON family.id=version.rule_id
+       WHERE version.id=$1 AND version.status='approved'
+         AND family.is_active=true AND family.archived_at IS NULL\`,
+      [versionId],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_APPROVED',message:'Seçilen süre kuralı onaylı değil veya artık kullanılamıyor. Kural listesini yenileyin.'});
+    const version=result.rows[0];
+    if(version.currentVersionId!==versionId&&previousVersionId!==versionId) {
+      throw new ConflictException({code:'CED_DEADLINE_RULE_SUPERSEDED',message:'Yeni görüşlerde yalnızca güncel onaylı kural sürümü seçilebilir.'});
+    }
+    validateStoredDeadlineRule(version);
+    const calculation=calculateDeadline(draft.deadlineStartDate,{
+      dayCount:Number(version.day_count),
+      dayType:version.day_type,
+      includeStartDay:Boolean(version.include_start_day),
+      dueDateAdjustment:version.due_date_adjustment,
+      weekendDays:(version.weekend_days??[]).map(Number),
+      holidayDates:(version.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10)),
+    } satisfies DeadlineRule);
+    return {
+      deadlineDate:calculation.deadlineDate,
+      deadlineBasis:'rule_calculated',
+      deadlineRuleVersionId:versionId,
+      deadlineStartDate:draft.deadlineStartDate,
+      deadlineReason:draft.deadlineReason,
+      deadlineCalculatedAt:null,
+      changed,
+      eventAction:!old||changed?'rule_applied':null,
+      ruleName:version.ruleName,
+      ruleVersion:Number(version.version),
+      calculation,
+    };
+  }
+
+  private async recordOpinionDeadlineEvent(
+    client:PoolClient,
+    opinionId:string,
+    userId:string,
+    deadline:any,
+    old?:any,
+  ) {
+    if(!deadline.eventAction)return;
+    await client.query(
+      \`INSERT INTO ced_opinion_deadline_events(
+        opinion_id,actor_user_id,action,old_deadline_date,new_deadline_date,
+        old_rule_version_id,new_rule_version_id,start_date,reason,details
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)\`,
+      [opinionId,userId,deadline.eventAction,old?.deadline_date??null,deadline.deadlineDate,
+        old?.deadline_rule_version_id??null,deadline.deadlineRuleVersionId??null,
+        deadline.deadlineStartDate??null,deadline.deadlineReason??'',
+        deadline.calculation??{}],
+    );
+  }
+
   async getProjectCase(user: AuthUser, projectId: string, includeOpinions: boolean) {
     assertUuid(projectId, 'Proje');
     const client = await this.db.pool.connect();
@@ -1537,6 +1623,72 @@ function validateDirectoryContact(value: Record<string, unknown>) {
   }
   return draft;
 }
+function validateDeadlineRuleInput(value:Record<string,unknown>,includeFamilyFields:boolean) {
+  const allowed=['dayCount','dayType','includeStartDay','dueDateAdjustment','weekendDays','holidayDates',
+    'calendarName','calendarSourceLabel','calendarSourceReference','calendarVerifiedAt',
+    'legalReference','ruleSourceLabel','ruleSourceReference','ruleNotes',...(includeFamilyFields?['name','description']:[])];
+  assertKeys(value,allowed);
+  const name=includeFamilyFields?boundedText(value.name,2,180,'Kural adı'):'';
+  const description=includeFamilyFields?boundedText(value.description??'',0,1200,'Kural açıklaması'):'';
+  if(!Number.isInteger(value.dayCount)||Number(value.dayCount)<1||Number(value.dayCount)>3650) {
+    throw invalid('Süre 1 ile 3650 gün arasında olmalıdır.');
+  }
+  const dayType=enumValue(value.dayType,['calendar_days','business_days'] as const,'Süre türü');
+  if(typeof value.includeStartDay!=='boolean')throw invalid('Başlangıç gününün sayılıp sayılmayacağı seçilmelidir.');
+  const dueDateAdjustment=enumValue(value.dueDateAdjustment??'none',
+    ['none','next_business_day','previous_business_day'] as const,'Son gün düzeltme kuralı');
+  if(!Array.isArray(value.weekendDays)||value.weekendDays.length>7||
+    value.weekendDays.some(day=>!Number.isInteger(day)||Number(day)<0||Number(day)>6)||
+    new Set(value.weekendDays).size!==value.weekendDays.length) {
+    throw invalid('Hafta sonu günleri 0–6 aralığında, tekrarsız olmalıdır.');
+  }
+  if(!Array.isArray(value.holidayDates)||value.holidayDates.length>1200)throw invalid('Tatil listesi geçersiz veya 1200 tarihi aşıyor.');
+  const holidayDates=value.holidayDates.map(value=>optionalDate(value,'Resmî tatil tarihi') as string);
+  if(new Set(holidayDates).size!==holidayDates.length)throw invalid('Tatil listesinde aynı tarih birden fazla kez bulunamaz.');
+  const calendarName=boundedText(value.calendarName??'',0,180,'Çalışma takvimi adı');
+  const calendarSourceLabel=boundedText(value.calendarSourceLabel??'',0,180,'Takvim kaynağı');
+  const calendarSourceReference=boundedText(value.calendarSourceReference??'',0,1200,'Takvim kaynak referansı');
+  const calendarVerifiedAt=optionalDate(value.calendarVerifiedAt,'Takvim teyit tarihi');
+  const legalReference=boundedText(value.legalReference,3,600,'Mevzuat / kural dayanağı');
+  const ruleSourceLabel=boundedText(value.ruleSourceLabel,2,180,'Kural kaynağı');
+  const ruleSourceReference=boundedText(value.ruleSourceReference,2,1200,'Kural kaynak referansı');
+  const ruleNotes=boundedText(value.ruleNotes??'',0,3000,'Kural açıklaması');
+  if(dayType==='business_days'||dueDateAdjustment!=='none') {
+    if(calendarName.length<2||calendarSourceLabel.length<2||calendarSourceReference.length<2||
+      !calendarVerifiedAt||value.weekendDays.length===0) {
+      throw invalid('İş günü veya son gün düzeltmesi için hafta sonları, tatil takvimi, kaynak referansı ve teyit tarihi zorunludur.');
+    }
+  }
+  return {
+    name,description,dayCount:Number(value.dayCount),dayType,includeStartDay:value.includeStartDay,
+    dueDateAdjustment,weekendDays:(value.weekendDays as number[]).slice().sort((a,b)=>a-b),
+    holidayDates,calendarName,calendarSourceLabel,calendarSourceReference,calendarVerifiedAt,
+    legalReference,ruleSourceLabel,ruleSourceReference,ruleNotes,
+  };
+}
+
+function validateStoredDeadlineRule(row:any) {
+  const dayType=row.day_type;
+  const adjustment=row.due_date_adjustment;
+  if(!Number.isInteger(Number(row.day_count))||Number(row.day_count)<1||Number(row.day_count)>3650||
+    !['calendar_days','business_days'].includes(dayType)||
+    !['none','next_business_day','previous_business_day'].includes(adjustment)) {
+    throw invalid('Süre kuralı parametreleri geçersiz; kural onaylanamaz.');
+  }
+  const weekends=(row.weekend_days??[]).map(Number);
+  const holidays=(row.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10));
+  if(weekends.some((day:number)=>!Number.isInteger(day)||day<0||day>6)||new Set(weekends).size!==weekends.length) {
+    throw invalid('Çalışma takvimindeki hafta sonu günleri geçersiz.');
+  }
+  if(dayType==='business_days'||adjustment!=='none') {
+    if(weekends.length===0||!row.calendar_name||!row.calendar_source_label||
+      !row.calendar_source_reference||!row.calendar_verified_at) {
+      throw invalid('İş günü hesabı için çalışma takvimi kaynağı ve teyit bilgisi eksik.');
+    }
+  }
+  for(const holiday of holidays)optionalDate(holiday,'Resmî tatil tarihi');
+}
+
 function validateOpinion(value: Record<string, unknown>) {
   const draft = {
     institutionName: boundedText(value.institutionName, 2, 180, 'Kurum adı'),
