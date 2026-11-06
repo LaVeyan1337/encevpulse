@@ -421,7 +421,12 @@ export class CedService {
     if (!found.rowCount) {
       const opinions = includeOpinions ? await this.db.query(
         `SELECT o.id,o.case_id AS "caseId",o.institution_name AS "institutionName",o.subject,o.status,
-         o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",
+         o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",
+         o.deadline_basis AS "deadlineBasis",o.deadline_rule_version_id AS "deadlineRuleVersionId",
+         o.deadline_start_date::text AS "deadlineStartDate",o.deadline_start_event_label AS "deadlineStartEventLabel",
+         o.deadline_calculated_at AS "deadlineCalculatedAt",o.deadline_reason AS "deadlineReason",
+         deadlineVersion.version AS "deadlineRuleVersion",deadlineFamily.name AS "deadlineRuleName",
+         o.response_date::text AS "responseDate",
          o.outgoing_letter_no AS "outgoingLetterNo",o.incoming_letter_no AS "incomingLetterNo",
          o.contact_person AS "contactPerson",contact.title AS "contactTitle",contact.department AS "contactDepartment",
          contact.phone AS "contactPhone",contact.email AS "contactEmail",contact.address AS "contactAddress",
@@ -1095,7 +1100,7 @@ export class CedService {
     assertUuid(opinionId, 'Kurum görüşü');
     const value = objectInput(input);
     assertKeys(value, ['version','institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
-      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
       'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
       'contactAddress','notes']);
     assertVersion(value.version);
