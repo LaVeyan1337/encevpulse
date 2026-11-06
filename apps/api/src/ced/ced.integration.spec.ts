@@ -369,6 +369,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
       deadlineBasis:'manual',
       deadlineRuleVersionId:null,
       deadlineStartDate:null,
+      deadlineStartEventLabel:'',
       deadlineDate:'2026-11-12',
       deadlineReason:'',
     });
