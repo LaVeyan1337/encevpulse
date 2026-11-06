@@ -25,6 +25,7 @@ CREATE TABLE ced_deadline_rule_versions (
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved')),
   day_count integer NOT NULL CHECK (day_count BETWEEN 1 AND 3650),
   day_type text NOT NULL CHECK (day_type IN ('calendar_days','business_days')),
+  start_event_label text NOT NULL CHECK (length(btrim(start_event_label)) BETWEEN 2 AND 240),
   include_start_day boolean NOT NULL DEFAULT false,
   due_date_adjustment text NOT NULL DEFAULT 'none'
     CHECK (due_date_adjustment IN ('none','next_business_day','previous_business_day')),
@@ -122,13 +123,14 @@ ALTER TABLE ced_institution_opinions
     CHECK (deadline_basis IN ('manual','rule_calculated')),
   ADD COLUMN deadline_rule_version_id uuid REFERENCES ced_deadline_rule_versions(id) ON DELETE RESTRICT,
   ADD COLUMN deadline_start_date date,
+  ADD COLUMN deadline_start_event_label text NOT NULL DEFAULT '' CHECK (length(deadline_start_event_label) <= 240),
   ADD COLUMN deadline_calculated_at timestamptz,
   ADD COLUMN deadline_reason text NOT NULL DEFAULT '' CHECK (length(deadline_reason) <= 1000),
   ADD CONSTRAINT ced_opinion_deadline_basis_shape CHECK (
     (deadline_basis='manual' AND deadline_rule_version_id IS NULL AND
-      deadline_start_date IS NULL AND deadline_calculated_at IS NULL) OR
+      deadline_start_date IS NULL AND deadline_start_event_label='' AND deadline_calculated_at IS NULL) OR
     (deadline_basis='rule_calculated' AND deadline_rule_version_id IS NOT NULL AND
-      deadline_start_date IS NOT NULL AND deadline_calculated_at IS NOT NULL AND
+      deadline_start_date IS NOT NULL AND length(btrim(deadline_start_event_label))>=2 AND deadline_calculated_at IS NOT NULL AND
       deadline_date IS NOT NULL)
   );
 
@@ -146,6 +148,7 @@ CREATE TABLE ced_opinion_deadline_events (
   old_rule_version_id uuid REFERENCES ced_deadline_rule_versions(id) ON DELETE RESTRICT,
   new_rule_version_id uuid REFERENCES ced_deadline_rule_versions(id) ON DELETE RESTRICT,
   start_date date,
+  start_event_label text NOT NULL DEFAULT '' CHECK (length(start_event_label) <= 240),
   reason text NOT NULL DEFAULT '' CHECK (length(reason) <= 1000),
   details jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
