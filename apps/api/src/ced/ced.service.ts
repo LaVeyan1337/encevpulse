@@ -187,7 +187,7 @@ export class CedService {
 
   async updateDeadlineRuleDraft(user:AuthUser,ruleId:string,versionId:string,input:unknown) {
     assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
-    const draft=validateDeadlineRuleInput(input,false);
+    const draft=validateDeadlineRuleInput(input,true);
     const client=await this.db.pool.connect();
     try {
       await client.query('BEGIN');
