@@ -113,7 +113,8 @@ export class CedService {
     return {preview:calculation,rule:{id:row.rule_id,versionId:row.id,name:row.ruleName,version:Number(row.version),
       legalReference:row.legal_reference,ruleSourceLabel:row.rule_source_label,
       ruleSourceReference:row.rule_source_reference,calendarName:row.calendar_name,
-      calendarSourceLabel:row.calendar_source_label,calendarVerifiedAt:row.calendar_verified_at}};
+      calendarSourceLabel:row.calendar_source_label,calendarVerifiedAt:row.calendar_verified_at,
+      startEventLabel:row.start_event_label}};
   }
 
   async listDeadlineRuleVersions(ruleId:string) {
@@ -1481,11 +1482,12 @@ function validateDirectoryContact(value: Record<string, unknown>) {
 }
 function validateDeadlineRuleInput(value:Record<string,unknown>,includeFamilyFields:boolean) {
   const allowed=['dayCount','dayType','includeStartDay','dueDateAdjustment','weekendDays','holidayDates',
-    'calendarName','calendarSourceLabel','calendarSourceReference','calendarVerifiedAt',
+    'calendarName','calendarSourceLabel','calendarSourceReference','calendarVerifiedAt','startEventLabel',
     'legalReference','ruleSourceLabel','ruleSourceReference','ruleNotes',...(includeFamilyFields?['name','description']:[])];
   assertKeys(value,allowed);
   const name=includeFamilyFields?boundedText(value.name,2,180,'Kural adı'):'';
   const description=includeFamilyFields?boundedText(value.description??'',0,1200,'Kural açıklaması'):'';
+  const startEventLabel=boundedText(value.startEventLabel,2,240,'Süreyi başlatan olay');
   if(!Number.isInteger(value.dayCount)||Number(value.dayCount)<1||Number(value.dayCount)>3650) {
     throw invalid('Süre 1 ile 3650 gün arasında olmalıdır.');
   }
@@ -1519,7 +1521,7 @@ function validateDeadlineRuleInput(value:Record<string,unknown>,includeFamilyFie
     name,description,dayCount:Number(value.dayCount),dayType,includeStartDay:value.includeStartDay,
     dueDateAdjustment,weekendDays:(value.weekendDays as number[]).slice().sort((a,b)=>a-b),
     holidayDates,calendarName,calendarSourceLabel,calendarSourceReference,calendarVerifiedAt,
-    legalReference,ruleSourceLabel,ruleSourceReference,ruleNotes,
+    startEventLabel,legalReference,ruleSourceLabel,ruleSourceReference,ruleNotes,
   };
 }
 
@@ -1533,6 +1535,9 @@ function normalizeStoredDate(value:unknown):string {
 
 function validateStoredDeadlineRule(row:any) {
   const dayType=row.day_type;
+  if(typeof row.start_event_label!=='string'||row.start_event_label.trim().length<2||row.start_event_label.length>240) {
+    throw invalid('Süreyi başlatan olay tanımlanmamış veya geçersiz.');
+  }
   const adjustment=row.due_date_adjustment;
   if(!Number.isInteger(Number(row.day_count))||Number(row.day_count)<1||Number(row.day_count)>3650||
     !['calendar_days','business_days'].includes(dayType)||
