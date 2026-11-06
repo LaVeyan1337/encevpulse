@@ -6,6 +6,8 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from './institution-defaults.js';
 import { calculateDeadline } from './deadline-calculator.js';
 import type { DeadlineRule } from './deadline-calculator.js';
+import { calculateDeadline } from './deadline-calculator.js';
+import type { DeadlineRule } from './deadline-calculator.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -288,6 +290,224 @@ export class CedService {
       await client.query('ROLLBACK').catch(()=>undefined);
       throw error;
     } finally {client.release();}
+  }
+
+  async listDeadlineRules() {
+    const result=await this.db.query(
+      \`SELECT family.id,family.name,family.description,
+        family.current_version_id AS "currentVersionId",
+        current.version AS "currentVersion",current.day_count AS "currentDayCount",
+        current.day_type AS "currentDayType",current.include_start_day AS "currentIncludeStartDay",
+        current.due_date_adjustment AS "currentDueDateAdjustment",
+        current.weekend_days AS "currentWeekendDays",current.holiday_dates::text[] AS "currentHolidayDates",
+        current.calendar_name AS "currentCalendarName",current.calendar_source_label AS "currentCalendarSourceLabel",
+        current.calendar_source_reference AS "currentCalendarSourceReference",
+        current.calendar_verified_at::text AS "currentCalendarVerifiedAt",
+        current.legal_reference AS "currentLegalReference",
+        current.rule_source_label AS "currentRuleSourceLabel",
+        current.rule_source_reference AS "currentRuleSourceReference",
+        current.rule_notes AS "currentRuleNotes",current.approved_at AS "currentApprovedAt",
+        currentApprover.display_name AS "currentApprovedBy",
+        draft.id AS "draftVersionId",draft.version AS "draftVersion",draft.status AS "draftStatus"
+       FROM ced_deadline_rule_families family
+       LEFT JOIN ced_deadline_rule_versions current ON current.id=family.current_version_id
+       LEFT JOIN users currentApprover ON currentApprover.id=current.approved_by
+       LEFT JOIN LATERAL (
+         SELECT id,version,status FROM ced_deadline_rule_versions
+         WHERE rule_id=family.id AND status='draft' ORDER BY version DESC LIMIT 1
+       ) draft ON true
+       WHERE family.is_active=true AND family.archived_at IS NULL
+       ORDER BY lower(family.name),family.created_at\`,
+    );
+    return {rules:result.rows};
+  }
+
+  async listDeadlineRuleVersions(ruleId:string) {
+    assertUuid(ruleId,'Süre kuralı');
+    const family=await this.db.query<{id:string}>(
+      \`SELECT id FROM ced_deadline_rule_families
+       WHERE id=$1 AND is_active=true AND archived_at IS NULL\`,[ruleId],
+    );
+    if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+    const result=await this.db.query(
+      \`SELECT version.id,version.version,version.status,version.day_count AS "dayCount",
+        version.day_type AS "dayType",version.include_start_day AS "includeStartDay",
+        version.due_date_adjustment AS "dueDateAdjustment",version.weekend_days AS "weekendDays",
+        version.holiday_dates::text[] AS "holidayDates",version.calendar_name AS "calendarName",
+        version.calendar_source_label AS "calendarSourceLabel",
+        version.calendar_source_reference AS "calendarSourceReference",
+        version.calendar_verified_at::text AS "calendarVerifiedAt",
+        version.legal_reference AS "legalReference",version.rule_source_label AS "ruleSourceLabel",
+        version.rule_source_reference AS "ruleSourceReference",version.rule_notes AS "ruleNotes",
+        version.created_at AS "createdAt",creator.display_name AS "createdByName",
+        version.approved_at AS "approvedAt",approver.display_name AS "approvedByName"
+       FROM ced_deadline_rule_versions version
+       JOIN users creator ON creator.id=version.created_by
+       LEFT JOIN users approver ON approver.id=version.approved_by
+       WHERE version.rule_id=$1 ORDER BY version.version DESC\`,[ruleId],
+    );
+    return {versions:result.rows};
+  }
+
+  async createDeadlineRule(user:AuthUser,input:unknown) {
+    const draft=validateDeadlineRuleInput(objectInput(input),true);
+    const client=await this.db.pool.connect();
+    let ruleId='';
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        \`INSERT INTO ced_deadline_rule_families(name,description,created_by)
+         VALUES($1,$2,$3) RETURNING id\`,[draft.name,draft.description,user.id],
+      );
+      ruleId=family.rows[0].id;
+      const version=await client.query<{id:string}>(
+        \`INSERT INTO ced_deadline_rule_versions(
+          rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
+          weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
+          calendar_verified_at,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,1,'draft',$2,$3,$4,$5,$6::smallint[],$7::date[],$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+        RETURNING id\`,
+        [ruleId,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
+          draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.legalReference,
+          draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
+      );
+      await client.query(
+        \`INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'created',$4)\`,
+        [ruleId,version.rows[0].id,user.id,{version:1,name:draft.name,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {rule:{id:ruleId,name:draft.name,description:draft.description,draftVersionId:version.rows[0].id,draftVersion:1}};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if((error as {code?:string}).code==='23505')throw new ConflictException({code:'CED_DEADLINE_RULE_NAME_EXISTS',message:'Bu adla etkin bir süre kuralı zaten var.'});
+      throw error;
+    } finally {client.release();}
+  }
+
+  async updateDeadlineRuleDraft(user:AuthUser,ruleId:string,versionId:string,input:unknown) {
+    assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
+    const draft=validateDeadlineRuleInput(objectInput(input),true);
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        \`SELECT id FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE\`,[ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const current=await client.query<{id:string;status:string;version:number}>(
+        \`SELECT id,status,version FROM ced_deadline_rule_versions
+         WHERE id=$1 AND rule_id=$2 FOR UPDATE\`,[versionId,ruleId],
+      );
+      if(!current.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural sürümü bulunamadı.'});
+      if(current.rows[0].status!=='draft')throw new ConflictException({code:'CED_DEADLINE_RULE_IMMUTABLE',message:'Onaylanmış kural sürümü değiştirilemez; yeni sürüm oluşturun.'});
+      await client.query(
+        \`UPDATE ced_deadline_rule_families SET name=$1,description=$2,updated_at=now() WHERE id=$3\`,
+        [draft.name,draft.description,ruleId],
+      );
+      await client.query(
+        \`UPDATE ced_deadline_rule_versions SET
+          day_count=$1,day_type=$2,include_start_day=$3,due_date_adjustment=$4,
+          weekend_days=$5::smallint[],holiday_dates=$6::date[],calendar_name=$7,
+          calendar_source_label=$8,calendar_source_reference=$9,calendar_verified_at=$10,
+          legal_reference=$11,rule_source_label=$12,rule_source_reference=$13,rule_notes=$14,
+          updated_by=$15,updated_at=now()
+         WHERE id=$16 AND rule_id=$17 AND status='draft'\`,
+        [draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,draft.weekendDays,
+          draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,draft.calendarSourceReference,
+          draft.calendarVerifiedAt,draft.legalReference,draft.ruleSourceLabel,draft.ruleSourceReference,
+          draft.ruleNotes,user.id,versionId,ruleId],
+      );
+      await client.query(
+        \`INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'draft_updated',$4)\`,
+        [ruleId,versionId,user.id,{version:current.rows[0].version,name:draft.name,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {ruleId,versionId,updated:true};
+    } catch(error) {await client.query('ROLLBACK').catch(()=>undefined);throw error;}
+    finally {client.release();}
+  }
+
+  async createDeadlineRuleVersion(user:AuthUser,ruleId:string,input:unknown) {
+    assertUuid(ruleId,'Süre kuralı');
+    const draft=validateDeadlineRuleInput(objectInput(input),false);
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string;name:string;description:string}>(
+        \`SELECT id,name,description FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE\`,[ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const previous=await client.query<{version:number}>(
+        'SELECT COALESCE(max(version),0)::int AS version FROM ced_deadline_rule_versions WHERE rule_id=$1',[ruleId],
+      );
+      const versionNumber=previous.rows[0].version+1;
+      const created=await client.query<{id:string}>(
+        \`INSERT INTO ced_deadline_rule_versions(
+          rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
+          weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
+          calendar_verified_at,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,$2,'draft',$3,$4,$5,$6,$7::smallint[],$8::date[],$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+        RETURNING id\`,
+        [ruleId,versionNumber,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
+          draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.legalReference,
+          draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
+      );
+      await client.query(
+        \`INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'created',$4)\`,
+        [ruleId,created.rows[0].id,user.id,{version:versionNumber,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {rule:{id:ruleId,name:family.rows[0].name,description:family.rows[0].description,
+        draftVersionId:created.rows[0].id,draftVersion:versionNumber}};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if((error as {code?:string}).code==='23505')throw new ConflictException({code:'CED_DEADLINE_DRAFT_EXISTS',message:'Bu kuralın bekleyen bir taslağı zaten var. Önce bu taslağı düzenleyin veya onaylayın.'});
+      throw error;
+    } finally {client.release();}
+  }
+
+  async approveDeadlineRuleVersion(user:AuthUser,ruleId:string,versionId:string) {
+    assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        \`SELECT id FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE\`,[ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const row=await client.query<any>(
+        \`SELECT * FROM ced_deadline_rule_versions WHERE id=$1 AND rule_id=$2 FOR UPDATE\`,[versionId,ruleId],
+      );
+      if(!row.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural taslağı bulunamadı.'});
+      if(row.rows[0].status!=='draft')throw new ConflictException({code:'CED_DEADLINE_ALREADY_APPROVED',message:'Bu kural sürümü zaten onaylanmış.'});
+      validateStoredDeadlineRule(row.rows[0]);
+      const updated=await client.query(
+        \`UPDATE ced_deadline_rule_versions
+         SET status='approved',approved_by=$1,approved_at=now(),updated_by=$1,updated_at=now()
+         WHERE id=$2 AND status='draft' RETURNING version\`,
+        [user.id,versionId],
+      );
+      await client.query(
+        \`UPDATE ced_deadline_rule_families SET current_version_id=$1,updated_at=now() WHERE id=$2\`,
+        [versionId,ruleId],
+      );
+      await client.query(
+        \`INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'approved',$4)\`,
+        [ruleId,versionId,user.id,{version:updated.rows[0].version}],
+      );
+      await client.query('COMMIT');
+      return {ruleId,versionId,approved:true,version:updated.rows[0].version};
+    } catch(error) {await client.query('ROLLBACK').catch(()=>undefined);throw error;}
+    finally {client.release();}
   }
 
   async getProjectCase(user: AuthUser, projectId: string, includeOpinions: boolean) {
