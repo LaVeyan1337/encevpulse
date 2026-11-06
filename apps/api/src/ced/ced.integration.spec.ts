@@ -571,6 +571,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
         await cleanup.query('UPDATE ced_deadline_rule_families SET current_version_id=NULL WHERE id=ANY($1::uuid[])',[deadlineRuleIds]);
       }
       await cleanup.query('ALTER TABLE ced_deadline_rule_audit_events ENABLE TRIGGER ced_deadline_rule_audit_events_append_only');
+      await cleanup.query('ALTER TABLE ced_deadline_rule_versions DISABLE TRIGGER ced_deadline_rule_versions_immutable');
       await cleanup.query('ALTER TABLE ced_audit_events DISABLE TRIGGER ced_audit_events_append_only');
       if (caseId) {
         await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [caseId]);
@@ -597,6 +598,7 @@ test('ÇED API: route-specific milestones, document completion and project acces
       await cleanup.query('ALTER TABLE ced_audit_events ENABLE TRIGGER ced_audit_events_append_only');
       if(deadlineRuleIds.length) {
         await cleanup.query('DELETE FROM ced_deadline_rule_versions WHERE rule_id=ANY($1::uuid[])',[deadlineRuleIds]);
+        await cleanup.query('ALTER TABLE ced_deadline_rule_versions ENABLE TRIGGER ced_deadline_rule_versions_immutable');
         await cleanup.query('DELETE FROM ced_deadline_rule_families WHERE id=ANY($1::uuid[])',[deadlineRuleIds]);
       }
       if (projectIds.length) {
