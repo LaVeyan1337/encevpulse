@@ -89,6 +89,34 @@ export class CedService {
     return {rules:result.rows};
   }
 
+  async previewDeadline(user:AuthUser,versionId:string,startDateValue:unknown) {
+    assertUuid(versionId,'Kural sürümü');
+    const startDate=optionalDate(startDateValue,'Süre başlangıç tarihi');
+    if(!startDate)throw invalid('Süre başlangıç tarihi seçilmelidir.');
+    const result=await this.db.query<any>(
+      \`SELECT version.*,family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+       FROM ced_deadline_rule_versions version
+       JOIN ced_deadline_rule_families family ON family.id=version.rule_id
+       WHERE version.id=$1 AND version.status='approved'
+         AND family.current_version_id=version.id
+         AND family.is_active=true AND family.archived_at IS NULL\`,
+      [versionId],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_CURRENT',message:'Önizleme için güncel ve onaylı bir kural sürümü seçin.'});
+    const row=result.rows[0];
+    validateStoredDeadlineRule(row);
+    const calculation=calculateDeadline(startDate,{
+      dayCount:Number(row.day_count),dayType:row.day_type,
+      includeStartDay:Boolean(row.include_start_day),dueDateAdjustment:row.due_date_adjustment,
+      weekendDays:(row.weekend_days??[]).map(Number),
+      holidayDates:(row.holiday_dates??[]).map((value:unknown)=>String(value).slice(0,10)),
+    });
+    return {preview:calculation,rule:{id:row.rule_id,versionId:row.id,name:row.ruleName,version:Number(row.version),
+      legalReference:row.legal_reference,ruleSourceLabel:row.rule_source_label,
+      ruleSourceReference:row.rule_source_reference,calendarName:row.calendar_name,
+      calendarSourceLabel:row.calendar_source_label,calendarVerifiedAt:row.calendar_verified_at}};
+  }
+
   async listDeadlineRuleVersions(ruleId:string) {
     assertUuid(ruleId,'Süre kuralı');
     const family=await this.db.query<{id:string}>(
