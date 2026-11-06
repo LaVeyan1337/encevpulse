@@ -1750,6 +1750,7 @@ export function Workspace({
               canCreate={hasModulePermission('institution_opinions','create')}
               canUpdate={hasModulePermission('institution_opinions','update')}
               canDelete={hasModulePermission('institution_opinions','delete')}
+              canManageRules={hasModulePermission('institution_opinions','manage')}
               canOpenProject={hasModulePermission('projects')}
               onOpenProject={(projectId) => { void openProject(projectId, 'opinions'); }}
             />
@@ -2620,6 +2621,7 @@ export function Workspace({
                     canCreate={hasModulePermission('institution_opinions','create')}
                     canUpdate={hasModulePermission('institution_opinions','update')}
                     canDelete={hasModulePermission('institution_opinions','delete')}
+              canManageRules={hasModulePermission('institution_opinions','manage')}
                     canOpenProject={false}
                     onOpenProject={()=>{}}
                   />
