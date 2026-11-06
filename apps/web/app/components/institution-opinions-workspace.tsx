@@ -7,13 +7,13 @@ type DeadlineBasis = 'manual' | 'rule_calculated';
 type ProjectOption={id:string;name:string;status:string};
 type Draft={
   institutionName:string;subject:string;status:Status;requestDate:string;deadlineDate:string;
-  deadlineBasis:DeadlineBasis;deadlineRuleVersionId:string;deadlineStartDate:string;deadlineReason:string;
+  deadlineBasis:DeadlineBasis;deadlineRuleVersionId:string;deadlineStartDate:string;deadlineStartEventLabel:string;deadlineReason:string;
   responseDate:string;outgoingLetterNo:string;incomingLetterNo:string;contactPerson:string;
   contactTitle:string;contactDepartment:string;contactPhone:string;contactEmail:string;contactAddress:string;notes:string;
 };
 const emptyDraft=():Draft=>({
   institutionName:'',subject:'',status:'waiting',requestDate:'',deadlineDate:'',
-  deadlineBasis:'manual',deadlineRuleVersionId:'',deadlineStartDate:'',deadlineReason:'',
+  deadlineBasis:'manual',deadlineRuleVersionId:'',deadlineStartDate:'',deadlineStartEventLabel:'',deadlineReason:'',
   responseDate:'',outgoingLetterNo:'',incomingLetterNo:'',contactPerson:'',contactTitle:'',
   contactDepartment:'',contactPhone:'',contactEmail:'',contactAddress:'',notes:'',
 });
@@ -21,7 +21,7 @@ type Row = {
   id:string;caseId:string|null;projectId:string;projectName:string;fileNumber:string;
   ecedReference:string;projectOwnerName:string|null;institutionName:string;subject:string;status:Status;
   requestDate:string|null;deadlineDate:string|null;deadlineBasis:DeadlineBasis;
-  deadlineRuleVersionId:string|null;deadlineStartDate:string|null;deadlineCalculatedAt:string|null;
+  deadlineRuleVersionId:string|null;deadlineStartDate:string|null;deadlineStartEventLabel:string;deadlineCalculatedAt:string|null;
   deadlineReason:string;deadlineRuleVersion:number|null;deadlineRuleName:string|null;
   responseDate:string|null;outgoingLetterNo:string;incomingLetterNo:string;contactPerson:string;
   contactTitle:string|null;contactDepartment:string|null;contactPhone:string|null;contactEmail:string|null;
@@ -29,7 +29,7 @@ type Row = {
 };
 type DeadlineRule={
   id:string;name:string;description:string;currentVersionId:string|null;currentVersion:number|null;
-  currentDayCount:number|null;currentDayType:'calendar_days'|'business_days'|null;
+  currentDayCount:number|null;currentDayType:'calendar_days'|'business_days'|null;currentStartEventLabel:string|null;
   currentIncludeStartDay:boolean|null;currentDueDateAdjustment:string|null;
   currentWeekendDays:number[]|null;currentHolidayDates:string[]|null;
   currentCalendarName:string|null;currentCalendarSourceLabel:string|null;
@@ -41,20 +41,20 @@ type DeadlineRule={
 type DeadlineRuleForm={
   name:string;description:string;dayCount:string;dayType:'calendar_days'|'business_days';
   includeStartDay:boolean;dueDateAdjustment:'none'|'next_business_day'|'previous_business_day';
-  weekendDays:number[];holidayDatesText:string;calendarName:string;calendarSourceLabel:string;
+  weekendDays:number[];holidayDatesText:string;startEventLabel:string;calendarName:string;calendarSourceLabel:string;
   calendarSourceReference:string;calendarVerifiedAt:string;legalReference:string;
   ruleSourceLabel:string;ruleSourceReference:string;ruleNotes:string;
 };
 type RuleVersion={
   id:string;version:number;status:'draft'|'approved';dayCount:number;dayType:'calendar_days'|'business_days';
   includeStartDay:boolean;dueDateAdjustment:'none'|'next_business_day'|'previous_business_day';
-  weekendDays:number[];holidayDates:string[];calendarName:string;calendarSourceLabel:string;
+  startEventLabel:string;weekendDays:number[];holidayDates:string[];calendarName:string;calendarSourceLabel:string;
   calendarSourceReference:string;calendarVerifiedAt:string|null;legalReference:string;
   ruleSourceLabel:string;ruleSourceReference:string;ruleNotes:string;
 };
 const emptyRuleForm=():DeadlineRuleForm=>({
   name:'',description:'',dayCount:'',dayType:'business_days',includeStartDay:false,dueDateAdjustment:'none',
-  weekendDays:[0,6],holidayDatesText:'',calendarName:'',calendarSourceLabel:'',
+  weekendDays:[0,6],holidayDatesText:'',startEventLabel:'',calendarName:'',calendarSourceLabel:'',
   calendarSourceReference:'',calendarVerifiedAt:'',legalReference:'',ruleSourceLabel:'',
   ruleSourceReference:'',ruleNotes:'',
 });
@@ -104,6 +104,7 @@ function toRuleForm(value:any,name='',description=''):DeadlineRuleForm{
     name,description,dayCount:String(value.dayCount??''),dayType:value.dayType??'business_days',
     includeStartDay:Boolean(value.includeStartDay),dueDateAdjustment:value.dueDateAdjustment??'none',
     weekendDays:Array.isArray(value.weekendDays)?value.weekendDays.map(Number):[],
+    startEventLabel:value.startEventLabel??'',
     holidayDatesText:Array.isArray(value.holidayDates)?value.holidayDates.join('\n'):'',
     calendarName:value.calendarName??'',calendarSourceLabel:value.calendarSourceLabel??'',
     calendarSourceReference:value.calendarSourceReference??'',calendarVerifiedAt:value.calendarVerifiedAt??'',
@@ -213,7 +214,7 @@ export function InstitutionOpinionsWorkspace({
       institutionName:row.institutionName,subject:row.subject,status:row.status,
       requestDate:row.requestDate??'',deadlineDate:row.deadlineDate??'',
       deadlineBasis:row.deadlineBasis??'manual',deadlineRuleVersionId:row.deadlineRuleVersionId??'',
-      deadlineStartDate:row.deadlineStartDate??'',deadlineReason:row.deadlineReason??'',
+      deadlineStartDate:row.deadlineStartDate??'',deadlineStartEventLabel:row.deadlineStartEventLabel??'',deadlineReason:row.deadlineReason??'',
       responseDate:row.responseDate??'',outgoingLetterNo:row.outgoingLetterNo??'',
       incomingLetterNo:row.incomingLetterNo??'',contactPerson:row.contactPerson??'',
       contactTitle:row.contactTitle??'',contactDepartment:row.contactDepartment??'',
@@ -246,6 +247,7 @@ export function InstitutionOpinionsWorkspace({
     const payload:Record<string,unknown>={
       dayCount:Number(ruleForm.dayCount),dayType:ruleForm.dayType,includeStartDay:ruleForm.includeStartDay,
       dueDateAdjustment:ruleForm.dueDateAdjustment,weekendDays:ruleForm.weekendDays,holidayDates:holidays,
+      startEventLabel:ruleForm.startEventLabel,
       calendarName:ruleForm.calendarName,calendarSourceLabel:ruleForm.calendarSourceLabel,
       calendarSourceReference:ruleForm.calendarSourceReference,calendarVerifiedAt:ruleForm.calendarVerifiedAt||null,
       legalReference:ruleForm.legalReference,ruleSourceLabel:ruleForm.ruleSourceLabel,
@@ -278,6 +280,7 @@ export function InstitutionOpinionsWorkspace({
       dayCount:rule.currentDayCount,dayType:rule.currentDayType,
       includeStartDay:rule.currentIncludeStartDay,dueDateAdjustment:rule.currentDueDateAdjustment,
       weekendDays:rule.currentWeekendDays,holidayDates:rule.currentHolidayDates,
+      startEventLabel:rule.currentStartEventLabel,
       calendarName:rule.currentCalendarName,calendarSourceLabel:rule.currentCalendarSourceLabel,
       calendarSourceReference:rule.currentCalendarSourceReference,calendarVerifiedAt:rule.currentCalendarVerifiedAt,
       legalReference:rule.currentLegalReference,ruleSourceLabel:rule.currentRuleSourceLabel,
@@ -357,6 +360,7 @@ export function InstitutionOpinionsWorkspace({
       requestDate:draft.requestDate||null,deadlineBasis:draft.deadlineBasis,
       deadlineRuleVersionId:draft.deadlineBasis==='rule_calculated'?draft.deadlineRuleVersionId:null,
       deadlineStartDate:draft.deadlineBasis==='rule_calculated'?draft.deadlineStartDate:null,
+      deadlineStartEventLabel:draft.deadlineBasis==='rule_calculated'?draft.deadlineStartEventLabel:'',
       deadlineReason:draft.deadlineReason.trim(),responseDate:draft.responseDate||null,
       outgoingLetterNo:draft.outgoingLetterNo,incomingLetterNo:draft.incomingLetterNo,
       contactPerson:draft.contactPerson,contactTitle:draft.contactTitle,contactDepartment:draft.contactDepartment,
