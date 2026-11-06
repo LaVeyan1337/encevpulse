@@ -1208,109 +1208,144 @@ export class CedService {
   async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     let opinionId = '';
     try {
       await client.query('BEGIN');
-      // Lock the project row to serialize simultaneous submissions without creating a fake ÇED case.
       await this.assertProjectAccess(client, projectId, user.id, true);
+      const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{id:string}>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
-         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
-        [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
-          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+        \`INSERT INTO ced_institution_opinions(
+          project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
+          outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
+          deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$16,$17,$17) RETURNING id\`,
+        [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,deadline.deadlineDate,
+          draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,
+          deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,deadline.deadlineReason,user.id],
       );
       opinionId=inserted.rows[0].id;
-      await this.auditProject(client,projectId,'institution_opinion',opinionId,'created',draft,user.id);
+      await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline);
+      await this.auditProject(client,projectId,'institution_opinion',opinionId,'created',{...draft,deadline},user.id);
       await client.query('COMMIT');
-    } catch(error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-    return { ok:true, projectId, opinionId, caseId: null };
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
+    return {ok:true,projectId,opinionId,caseId:null};
   }
 
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
       const current = await this.loadAccessibleCase(client, caseId, user.id, true);
+      const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
-         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING id`,
-        [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
-          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+      const inserted = await client.query<{id:string}>(
+        \`INSERT INTO ced_institution_opinions(
+          project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
+          outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
+          deadline_start_date,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id\`,
+        [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,
+          deadline.deadlineDate,draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,
+          draft.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
+          deadline.deadlineReason,user.id],
       );
-      await this.audit(client, caseId, 'institution_opinion', inserted.rows[0].id, 'created', draft, user.id);
+      await this.recordOpinionDeadlineEvent(client,inserted.rows[0].id,user.id,deadline);
+      await this.audit(client,caseId,'institution_opinion',inserted.rows[0].id,'created',{...draft,deadline},user.id);
       await client.query('COMMIT');
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-    return { ok: true, caseId };
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
+    return {ok:true,caseId};
   }
 
   async updateOpinion(user: AuthUser, opinionId: string, input: unknown) {
     assertUuid(opinionId, 'Kurum görüşü');
     const value = objectInput(input);
-    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'deadlineBasis', 'deadlineRuleVersionId', 'deadlineStartDate', 'deadlineReason', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['version','institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     assertVersion(value.version);
     if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
       const found = await client.query<any>(
-        `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
-          o.response_date::text AS response_date,contact.title AS contact_title,contact.department AS contact_department,
+        \`SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
+          o.deadline_start_date::text AS deadline_start_date,o.response_date::text AS response_date,
+          contact.title AS contact_title,contact.department AS contact_department,
           contact.phone AS contact_phone,contact.email AS contact_email,contact.address AS contact_address
          FROM ced_institution_opinions o LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id
-         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
+         WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o\`,
         [opinionId],
       );
-      if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
-      const old = found.rows[0];
-      await this.assertProjectAccess(client, old.project_id, user.id);
-      if (old.case_id) {
-        const linkedCase = await client.query('SELECT 1 FROM ced_cases WHERE id=$1 AND archived_at IS NULL',[old.case_id]);
-        if (!linkedCase.rowCount) throw new ConflictException({code:'CED_OPINION_CASE_ARCHIVED',message:'Bu görüş eski bir ÇED kaydına bağlı. Önce arşiv durumu kontrol edilmelidir.'});
+      if (!found.rowCount) throw new NotFoundException({code:'CED_OPINION_NOT_FOUND',message:'Kurum görüşü kaydı bulunamadı.'});
+      const old=found.rows[0];
+      await this.assertProjectAccess(client,old.project_id,user.id);
+      if(old.case_id) {
+        const linkedCase=await client.query('SELECT 1 FROM ced_cases WHERE id=$1 AND archived_at IS NULL',[old.case_id]);
+        if(!linkedCase.rowCount)throw new ConflictException({code:'CED_OPINION_CASE_ARCHIVED',message:'Bu görüş eski bir ÇED kaydına bağlı. Önce arşiv durumu kontrol edilmelidir.'});
       }
-      if (old.version !== Number(value.version)) throw new ConflictException({ code: 'CED_OPINION_CHANGED', message: 'Kurum görüşü başka bir işlemde güncellendi.' });
-      const merged = validateOpinion({
-        institutionName: Object.hasOwn(value, 'institutionName') ? value.institutionName : old.institution_name,
-        subject: Object.hasOwn(value, 'subject') ? value.subject : old.subject,
-        status: Object.hasOwn(value, 'status') ? value.status : old.status,
-        requestDate: Object.hasOwn(value, 'requestDate') ? value.requestDate : old.request_date,
-        deadlineDate: Object.hasOwn(value, 'deadlineDate') ? value.deadlineDate : old.deadline_date,
-        responseDate: Object.hasOwn(value, 'responseDate') ? value.responseDate : old.response_date,
-        outgoingLetterNo: Object.hasOwn(value, 'outgoingLetterNo') ? value.outgoingLetterNo : old.outgoing_letter_no,
-        incomingLetterNo: Object.hasOwn(value, 'incomingLetterNo') ? value.incomingLetterNo : old.incoming_letter_no,
-        contactPerson: Object.hasOwn(value, 'contactPerson') ? value.contactPerson : old.contact_person,
-        contactTitle: Object.hasOwn(value, 'contactTitle') ? value.contactTitle : old.contact_title ?? '',
-        contactDepartment: Object.hasOwn(value, 'contactDepartment') ? value.contactDepartment : old.contact_department ?? '',
-        contactPhone: Object.hasOwn(value, 'contactPhone') ? value.contactPhone : old.contact_phone ?? '',
-        contactEmail: Object.hasOwn(value, 'contactEmail') ? value.contactEmail : old.contact_email ?? '',
-        contactAddress: Object.hasOwn(value, 'contactAddress') ? value.contactAddress : old.contact_address ?? '',
-        notes: Object.hasOwn(value, 'notes') ? value.notes : old.notes,
+      if(old.version!==Number(value.version))throw new ConflictException({code:'CED_OPINION_CHANGED',message:'Kurum görüşü başka bir işlemde güncellendi.'});
+      const merged=validateOpinion({
+        institutionName:Object.hasOwn(value,'institutionName')?value.institutionName:old.institution_name,
+        subject:Object.hasOwn(value,'subject')?value.subject:old.subject,
+        status:Object.hasOwn(value,'status')?value.status:old.status,
+        requestDate:Object.hasOwn(value,'requestDate')?value.requestDate:old.request_date,
+        deadlineDate:Object.hasOwn(value,'deadlineDate')?value.deadlineDate:old.deadline_date,
+        deadlineBasis:Object.hasOwn(value,'deadlineBasis')?value.deadlineBasis:old.deadline_basis,
+        deadlineRuleVersionId:Object.hasOwn(value,'deadlineRuleVersionId')?value.deadlineRuleVersionId:old.deadline_rule_version_id,
+        deadlineStartDate:Object.hasOwn(value,'deadlineStartDate')?value.deadlineStartDate:old.deadline_start_date,
+        deadlineReason:Object.hasOwn(value,'deadlineReason')?value.deadlineReason:old.deadline_reason,
+        responseDate:Object.hasOwn(value,'responseDate')?value.responseDate:old.response_date,
+        outgoingLetterNo:Object.hasOwn(value,'outgoingLetterNo')?value.outgoingLetterNo:old.outgoing_letter_no,
+        incomingLetterNo:Object.hasOwn(value,'incomingLetterNo')?value.incomingLetterNo:old.incoming_letter_no,
+        contactPerson:Object.hasOwn(value,'contactPerson')?value.contactPerson:old.contact_person,
+        contactTitle:Object.hasOwn(value,'contactTitle')?value.contactTitle:old.contact_title??'',
+        contactDepartment:Object.hasOwn(value,'contactDepartment')?value.contactDepartment:old.contact_department??'',
+        contactPhone:Object.hasOwn(value,'contactPhone')?value.contactPhone:old.contact_phone??'',
+        contactEmail:Object.hasOwn(value,'contactEmail')?value.contactEmail:old.contact_email??'',
+        contactAddress:Object.hasOwn(value,'contactAddress')?value.contactAddress:old.contact_address??'',
+        notes:Object.hasOwn(value,'notes')?value.notes:old.notes,
       });
-      const contactId = await this.saveInstitutionContact(client, user.id, merged);
+      const deadline=await this.resolveOpinionDeadline(client,merged,user.id,old);
+      const contactId=await this.saveInstitutionContact(client,user.id,merged);
       await client.query(
-        `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
-         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,updated_by=$12,updated_at=now(),version=version+1 WHERE id=$13`,
-        [merged.institutionName, merged.subject, merged.status, merged.requestDate, merged.deadlineDate, merged.responseDate,
-          merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, contactId, merged.notes, user.id, opinionId],
+        \`UPDATE ced_institution_opinions SET
+          institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
+          outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,
+          deadline_basis=$12,deadline_rule_version_id=$13,deadline_start_date=$14,
+          deadline_calculated_at=CASE WHEN $12='rule_calculated' THEN now() ELSE NULL END,
+          deadline_reason=$15,updated_by=$16,updated_at=now(),version=version+1
+         WHERE id=$17\`,
+        [merged.institutionName,merged.subject,merged.status,merged.requestDate,deadline.deadlineDate,
+          merged.responseDate,merged.outgoingLetterNo,merged.incomingLetterNo,merged.contactPerson,contactId,
+          merged.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
+          deadline.deadlineReason,user.id,opinionId],
       );
-      if (old.case_id) await this.audit(client, old.case_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
-      else await this.auditProject(client, old.project_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
+      await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline,old);
+      if(old.case_id)await this.audit(client,old.case_id,'institution_opinion',opinionId,'updated',{...merged,deadline},user.id);
+      else await this.auditProject(client,old.project_id,'institution_opinion',opinionId,'updated',{...merged,deadline},user.id);
       await client.query('COMMIT');
-      return { ok: true, caseId: old.case_id, projectId: old.project_id };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
+      return {ok:true,caseId:old.case_id,projectId:old.project_id};
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
   }
 
   async createIdkMeeting(user: AuthUser, caseId: string, input: unknown) {
