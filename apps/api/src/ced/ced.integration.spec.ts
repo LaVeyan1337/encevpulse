@@ -568,6 +568,18 @@ test('ÇED API: route-specific milestones, document completion and project acces
     try {
       await cleanup.query('BEGIN');
       await cleanup.query('ALTER TABLE ced_opinion_deadline_events DISABLE TRIGGER ced_opinion_deadline_events_append_only');
+      // Remove deadline events for every opinion created under this test's own
+      // cases/projects before deleting those opinions. The audit FK is RESTRICT
+      // by design, so deleting only the rule-calculated fixture is insufficient.
+      await cleanup.query(
+        `DELETE FROM ced_opinion_deadline_events
+         WHERE opinion_id IN (
+           SELECT id FROM ced_institution_opinions
+           WHERE ($1::uuid IS NOT NULL AND case_id=$1)
+              OR project_id=ANY($2::uuid[])
+         )`,
+        [caseId || null, projectIds],
+      );
       if(deadlineOpinionIds.length) {
         await cleanup.query('DELETE FROM ced_opinion_deadline_events WHERE opinion_id=ANY($1::uuid[])',[deadlineOpinionIds]);
       }
