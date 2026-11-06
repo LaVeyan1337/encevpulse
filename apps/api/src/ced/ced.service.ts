@@ -92,7 +92,8 @@ export class CedService {
     const startDate=optionalDate(startDateValue,'Süre başlangıç tarihi');
     if(!startDate)throw invalid('Süre başlangıç tarihi seçilmelidir.');
     const result=await this.db.query<any>(
-      `SELECT version.*,family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+      `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso,
+        family.current_version_id AS "currentVersionId",family.name AS "ruleName"
        FROM ced_deadline_rule_versions version
        JOIN ced_deadline_rule_families family ON family.id=version.rule_id
        WHERE version.id=$1 AND version.status='approved'
@@ -106,7 +107,7 @@ export class CedService {
       dayCount:Number(row.day_count),dayType:row.day_type,
       includeStartDay:Boolean(row.include_start_day),dueDateAdjustment:row.due_date_adjustment,
       weekendDays:(row.weekend_days??[]).map(Number),
-      holidayDates:(row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
+      holidayDates:(row.holiday_dates_iso??row.holiday_dates).map((value:unknown)=>normalizeStoredDate(value)),
     });
     return {preview:calculation,rule:{id:row.rule_id,versionId:row.id,name:row.ruleName,version:Number(row.version),
       legalReference:row.legal_reference,ruleSourceLabel:row.rule_source_label,
@@ -509,7 +510,7 @@ export class CedService {
       );
       if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
       const row=await client.query<any>(
-        `SELECT * FROM ced_deadline_rule_versions WHERE id=$1 AND rule_id=$2 FOR UPDATE`,[versionId,ruleId],
+        `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso FROM ced_deadline_rule_versions version WHERE version.id=$1 AND version.rule_id=$2 FOR UPDATE`,[versionId,ruleId],
       );
       if(!row.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural taslağı bulunamadı.'});
       if(row.rows[0].status!=='draft')throw new ConflictException({code:'CED_DEADLINE_ALREADY_APPROVED',message:'Bu kural sürümü zaten onaylanmış.'});
@@ -568,7 +569,8 @@ export class CedService {
     }
     const versionId=draft.deadlineRuleVersionId as string;
     const result=await client.query<any>(
-      `SELECT version.*,family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+      `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso,
+       family.current_version_id AS "currentVersionId",family.name AS "ruleName"
        FROM ced_deadline_rule_versions version
        JOIN ced_deadline_rule_families family ON family.id=version.rule_id
        WHERE version.id=$1 AND version.status='approved'
@@ -587,7 +589,7 @@ export class CedService {
       includeStartDay:Boolean(version.include_start_day),
       dueDateAdjustment:version.due_date_adjustment,
       weekendDays:(version.weekend_days??[]).map(Number),
-      holidayDates:(version.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
+      holidayDates:(version.holiday_dates_iso??version.holiday_dates).map((value:unknown)=>normalizeStoredDate(value)),
     } satisfies DeadlineRule);
     return {
       deadlineDate:calculation.deadlineDate,
