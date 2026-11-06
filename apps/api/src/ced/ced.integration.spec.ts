@@ -598,9 +598,9 @@ test('ÇED API: route-specific milestones, document completion and project acces
       await cleanup.query('ALTER TABLE ced_audit_events ENABLE TRIGGER ced_audit_events_append_only');
       if(deadlineRuleIds.length) {
         await cleanup.query('DELETE FROM ced_deadline_rule_versions WHERE rule_id=ANY($1::uuid[])',[deadlineRuleIds]);
-        await cleanup.query('ALTER TABLE ced_deadline_rule_versions ENABLE TRIGGER ced_deadline_rule_versions_immutable');
         await cleanup.query('DELETE FROM ced_deadline_rule_families WHERE id=ANY($1::uuid[])',[deadlineRuleIds]);
       }
+      await cleanup.query('ALTER TABLE ced_deadline_rule_versions ENABLE TRIGGER ced_deadline_rule_versions_immutable');
       if (projectIds.length) {
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM project_audit_events WHERE project_id=ANY($1::uuid[])', [projectIds]);
