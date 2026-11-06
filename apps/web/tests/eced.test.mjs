@@ -103,7 +103,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(popup.includes("accountSources[currentTabKey]='manual'"));
   assert.ok(popup.includes('detectedByPortal'));
   assert.ok(popup.includes('showReportResult'));
-  assert.ok(popup.includes('portal izni verildi. PULSE bağlantısı ve ilk sinyal kontrol ediliyor…'));
+  assert.ok(popup.includes('Portal izni verildi. PULSE bağlantısı ve ilk sinyal kontrol ediliyor…'));
   assert.ok(popup.includes('showReportResult(result, detectorReady'));
   assert.ok(popup.includes('Sinyal kontrol ediliyor…'));
   assert.ok(popup.includes("const result = await chrome.runtime.sendMessage({type:'report-active-tab'})"));
