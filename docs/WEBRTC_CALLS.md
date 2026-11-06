@@ -11,12 +11,14 @@
 ## STUN ve TURN
 Uygulama, arama başlatıldığında API'den kullanıcıya özgü ICE sunucu yapılandırması alır.
 
-- CHAT_STUN_URLS: virgülle ayrılmış STUN URL listesi. Örnek biçim: `stun:stun.example.com:3478`.
-- CHAT_TURN_URLS: virgülle ayrılmış TURN/TURNS URL listesi. Örnek biçim: `turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349?transport=tcp`.
-- CHAT_TURN_SHARED_SECRET: coturn sunucusunun `static-auth-secret` değeriyle aynı, en az 32 karakterlik gizli anahtar.
-- CHAT_TURN_TTL_SECONDS: geçici TURN kimliğinin ömrü; 600–86400 saniye aralığında. Varsayılan 43200 saniyedir.
+- CHAT_STUN_URLS: isteğe bağlı, virgülle ayrılmış STUN URL listesi. Boş bırakılırsa ücretsiz `stun:stun.l.google.com:19302` varsayılan olarak kullanılır; istenirse şirketin kendi STUN adresleriyle değiştirilebilir.
+- CHAT_TURN_URLS: isteğe bağlı TURN/TURNS URL listesi. Örnek biçim: `turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349?transport=tcp`.
+- CHAT_TURN_SHARED_SECRET: yalnız TURN kullanılıyorsa coturn sunucusunun `static-auth-secret` değeriyle aynı, en az 32 karakterlik gizli anahtar.
+- CHAT_TURN_TTL_SECONDS: TURN kullanılıyorsa geçici kimliğin ömrü; 600–86400 saniye aralığında. Varsayılan 43200 saniyedir.
 
-TURN geçici kimlik bilgileri coturn REST shared-secret yöntemine göre HMAC-SHA1 ile üretilir; uzun ömürlü kullanıcı/parola tarayıcıya verilmez. TURN yapılandırması olmadan tarayıcı yalnızca yerel/uygun ağ eşleşmelerini deneyebilir. Bu, farklı ev/ofis ağlarında çağrının kesin kurulacağı anlamına gelmez. İnternet üzerinden güvenilir NAT geçişi için erişilebilir ve doğru yapılandırılmış TURN/TLS hizmeti gerekir.
+**Ücretsiz varsayılan kurulumda TURN yoktur ve ek sunucu kurulmaz.** STUN yalnızca eşlerin genel ağ adreslerini keşfetmesine yardım eder; ses/video trafiğini taşımaz. Pek çok ağda doğrudan WebRTC bağlantısı kurulur. Ancak simetrik NAT, katı güvenlik duvarı veya UDP engeli olan bazı ev/ofis/mobil ağ kombinasyonlarında TURN olmadan bağlantı kurulamayabilir. Bu durumda özellik ücretli hizmete otomatik geçmez; kullanıcıya bağlantı kurulamadığı bildirilir. İleride kurumun zaten işlettiği uygun bir relay varsa, isteğe bağlı TURN yapılandırılabilir.
+
+TURN geçici kimlik bilgileri coturn REST shared-secret yöntemine göre HMAC-SHA1 ile üretilir; uzun ömürlü kullanıcı/parola tarayıcıya verilmez.
 
 ## Dağıtım gereksinimleri
 - Gerçek kullanıcılar için HTTPS zorunludur; tarayıcı mikrofon/kamera izinleri güvenli bağlam ister (localhost geliştirme istisnası).

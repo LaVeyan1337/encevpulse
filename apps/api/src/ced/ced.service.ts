@@ -4,6 +4,8 @@ import type { PoolClient } from 'pg';
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
 import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from './institution-defaults.js';
+import { calculateDeadline } from './deadline-calculator.js';
+import type { DeadlineRule } from './deadline-calculator.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,6 +50,366 @@ const BASE_STAGES: Array<{
 export class CedService {
   constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
 
+  async listDeadlineRules() {
+    const result=await this.db.query(
+      `SELECT family.id,family.name,family.description,
+        family.current_version_id AS "currentVersionId",
+        current.version AS "currentVersion",
+        current.day_count AS "currentDayCount",
+        current.day_type AS "currentDayType",
+        current.start_event_label AS "currentStartEventLabel",
+        current.include_start_day AS "currentIncludeStartDay",
+        current.due_date_adjustment AS "currentDueDateAdjustment",
+        current.weekend_days AS "currentWeekendDays",
+        current.holiday_dates::text[] AS "currentHolidayDates",
+        current.calendar_name AS "currentCalendarName",
+        current.calendar_source_label AS "currentCalendarSourceLabel",
+        current.calendar_source_reference AS "currentCalendarSourceReference",
+        current.calendar_verified_at::text AS "currentCalendarVerifiedAt",
+        current.legal_reference AS "currentLegalReference",
+        current.rule_source_label AS "currentRuleSourceLabel",
+        current.rule_source_reference AS "currentRuleSourceReference",
+        current.rule_notes AS "currentRuleNotes",
+        current.approved_at AS "currentApprovedAt",
+        currentApprover.display_name AS "currentApprovedBy",
+        draft.id AS "draftVersionId",draft.version AS "draftVersion",
+        draft.status AS "draftStatus"
+       FROM ced_deadline_rule_families family
+       LEFT JOIN ced_deadline_rule_versions current ON current.id=family.current_version_id
+       LEFT JOIN users currentApprover ON currentApprover.id=current.approved_by
+       LEFT JOIN LATERAL (
+         SELECT id,version,status FROM ced_deadline_rule_versions
+         WHERE rule_id=family.id AND status='draft'
+         ORDER BY version DESC LIMIT 1
+       ) draft ON true
+       WHERE family.is_active=true AND family.archived_at IS NULL
+       ORDER BY lower(family.name),family.created_at`,
+    );
+    return {rules:result.rows};
+  }
+
+  async previewDeadline(user:AuthUser,versionId:string,startDateValue:unknown) {
+    assertUuid(versionId,'Kural sürümü');
+    const startDate=optionalDate(startDateValue,'Süre başlangıç tarihi');
+    if(!startDate)throw invalid('Süre başlangıç tarihi seçilmelidir.');
+    const result=await this.db.query<any>(
+      `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso,
+        family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+       FROM ced_deadline_rule_versions version
+       JOIN ced_deadline_rule_families family ON family.id=version.rule_id
+       WHERE version.id=$1 AND version.status='approved'
+         AND family.is_active=true AND family.archived_at IS NULL`,
+      [versionId],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_APPROVED',message:'Önizleme için onaylı bir kural sürümü seçin.'});
+    const row=result.rows[0];
+    validateStoredDeadlineRule(row);
+    const calculation=calculateDeadline(startDate,{
+      dayCount:Number(row.day_count),dayType:row.day_type,
+      includeStartDay:Boolean(row.include_start_day),dueDateAdjustment:row.due_date_adjustment,
+      weekendDays:(row.weekend_days??[]).map(Number),
+      holidayDates:(row.holiday_dates_iso??row.holiday_dates).map((value:unknown)=>normalizeStoredDate(value)),
+    });
+    return {preview:calculation,rule:{id:row.rule_id,versionId:row.id,name:row.ruleName,version:Number(row.version),
+      legalReference:row.legal_reference,ruleSourceLabel:row.rule_source_label,
+      ruleSourceReference:row.rule_source_reference,calendarName:row.calendar_name,
+      calendarSourceLabel:row.calendar_source_label,calendarVerifiedAt:row.calendar_verified_at,
+      startEventLabel:row.start_event_label}};
+  }
+
+  async listDeadlineRuleVersions(ruleId:string) {
+    assertUuid(ruleId,'Süre kuralı');
+    const family=await this.db.query<{id:string}>(
+      `SELECT id FROM ced_deadline_rule_families
+       WHERE id=$1 AND is_active=true AND archived_at IS NULL`,
+      [ruleId],
+    );
+    if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+    const result=await this.db.query(
+      `SELECT version.id,version.version,version.status,version.day_count AS "dayCount",
+        version.day_type AS "dayType",version.start_event_label AS "startEventLabel",version.include_start_day AS "includeStartDay",
+        version.due_date_adjustment AS "dueDateAdjustment",version.weekend_days AS "weekendDays",
+        version.holiday_dates::text[] AS "holidayDates",version.calendar_name AS "calendarName",
+        version.calendar_source_label AS "calendarSourceLabel",
+        version.calendar_source_reference AS "calendarSourceReference",
+        version.calendar_verified_at::text AS "calendarVerifiedAt",
+        version.legal_reference AS "legalReference",version.rule_source_label AS "ruleSourceLabel",
+        version.rule_source_reference AS "ruleSourceReference",version.rule_notes AS "ruleNotes",
+        version.created_at AS "createdAt",creator.display_name AS "createdByName",
+        version.approved_at AS "approvedAt",approver.display_name AS "approvedByName"
+       FROM ced_deadline_rule_versions version
+       JOIN users creator ON creator.id=version.created_by
+       LEFT JOIN users approver ON approver.id=version.approved_by
+       WHERE version.rule_id=$1 ORDER BY version.version DESC`,
+      [ruleId],
+    );
+    return {versions:result.rows};
+  }
+
+  async createDeadlineRule(user:AuthUser,input:unknown) {
+    const value=objectInput(input);
+    const draft=validateDeadlineRuleInput(value,true);
+    const client=await this.db.pool.connect();
+    let ruleId='';
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        `INSERT INTO ced_deadline_rule_families(name,description,created_by)
+         VALUES($1,$2,$3) RETURNING id`,
+        [draft.name,draft.description,user.id],
+      );
+      ruleId=family.rows[0].id;
+      const version=await client.query<{id:string}>(
+        `INSERT INTO ced_deadline_rule_versions(
+          rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
+          weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
+          calendar_verified_at,start_event_label,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,1,'draft',$2,$3,$4,$5,$6::smallint[],$7::date[],$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+        RETURNING id`,
+        [ruleId,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
+          draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,
+          draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
+      );
+      await client.query(
+        `INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'created',$4)`,
+        [ruleId,version.rows[0].id,user.id,{version:1,name:draft.name,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {rule:{id:ruleId,name:draft.name,description:draft.description,draftVersionId:version.rows[0].id,draftVersion:1}};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if((error as {code?:string}).code==='23505')throw new ConflictException({code:'CED_DEADLINE_RULE_NAME_EXISTS',message:'Bu adla etkin bir süre kuralı zaten var.'});
+      throw error;
+    } finally {client.release();}
+  }
+
+  async updateDeadlineRuleDraft(user:AuthUser,ruleId:string,versionId:string,input:unknown) {
+    assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
+    const draft=validateDeadlineRuleInput(input,true);
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        `SELECT id FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE`,
+        [ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const current=await client.query<{id:string;status:string;version:number}>(
+        `SELECT id,status,version FROM ced_deadline_rule_versions
+         WHERE id=$1 AND rule_id=$2 FOR UPDATE`,
+        [versionId,ruleId],
+      );
+      if(!current.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural sürümü bulunamadı.'});
+      if(current.rows[0].status!=='draft')throw new ConflictException({code:'CED_DEADLINE_RULE_IMMUTABLE',message:'Onaylanmış kural sürümü değiştirilemez; yeni sürüm oluşturun.'});
+      await client.query(
+        `UPDATE ced_deadline_rule_families SET name=$1,description=$2,updated_at=now() WHERE id=$3`,
+        [draft.name,draft.description,ruleId],
+      );
+      await client.query(
+        `UPDATE ced_deadline_rule_versions SET
+          day_count=$1,day_type=$2,include_start_day=$3,due_date_adjustment=$4,
+          weekend_days=$5::smallint[],holiday_dates=$6::date[],calendar_name=$7,
+          calendar_source_label=$8,calendar_source_reference=$9,calendar_verified_at=$10,start_event_label=$11,
+          legal_reference=$12,rule_source_label=$13,rule_source_reference=$14,rule_notes=$15,
+          updated_by=$16,updated_at=now()
+         WHERE id=$17 AND rule_id=$18 AND status='draft'`,
+        [draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,draft.weekendDays,
+          draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,draft.calendarSourceReference,
+          draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,draft.ruleSourceLabel,draft.ruleSourceReference,
+          draft.ruleNotes,user.id,versionId,ruleId],
+      );
+      await client.query(
+        `INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'draft_updated',$4)`,
+        [ruleId,versionId,user.id,{version:current.rows[0].version,name:draft.name,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {ruleId,versionId,updated:true};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw error;
+    } finally {client.release();}
+  }
+
+  async createDeadlineRuleVersion(user:AuthUser,ruleId:string,input:unknown) {
+    assertUuid(ruleId,'Süre kuralı');
+    const draft=validateDeadlineRuleInput(input,false);
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string;name:string;description:string}>(
+        `SELECT id,name,description FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE`,
+        [ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const previous=await client.query<{version:number}>(
+        'SELECT COALESCE(max(version),0)::int AS version FROM ced_deadline_rule_versions WHERE rule_id=$1',
+        [ruleId],
+      );
+      const versionNumber=previous.rows[0].version+1;
+      const created=await client.query<{id:string}>(
+        `INSERT INTO ced_deadline_rule_versions(
+          rule_id,version,status,day_count,day_type,include_start_day,due_date_adjustment,
+          weekend_days,holiday_dates,calendar_name,calendar_source_label,calendar_source_reference,
+          calendar_verified_at,start_event_label,legal_reference,rule_source_label,rule_source_reference,rule_notes,created_by,updated_by
+        ) VALUES($1,$2,'draft',$3,$4,$5,$6,$7::smallint[],$8::date[],$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$18)
+        RETURNING id`,
+        [ruleId,versionNumber,draft.dayCount,draft.dayType,draft.includeStartDay,draft.dueDateAdjustment,
+          draft.weekendDays,draft.holidayDates,draft.calendarName,draft.calendarSourceLabel,
+          draft.calendarSourceReference,draft.calendarVerifiedAt,draft.startEventLabel,draft.legalReference,
+          draft.ruleSourceLabel,draft.ruleSourceReference,draft.ruleNotes,user.id],
+      );
+      await client.query(
+        `INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'created',$4)`,
+        [ruleId,created.rows[0].id,user.id,{version:versionNumber,dayCount:draft.dayCount,dayType:draft.dayType}],
+      );
+      await client.query('COMMIT');
+      return {rule:{id:ruleId,name:family.rows[0].name,description:family.rows[0].description,
+        draftVersionId:created.rows[0].id,draftVersion:versionNumber}};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      if((error as {code?:string}).code==='23505')throw new ConflictException({code:'CED_DEADLINE_DRAFT_EXISTS',message:'Bu kuralın bekleyen bir taslağı zaten var. Önce bu taslağı düzenleyin veya onaylayın.'});
+      throw error;
+    } finally {client.release();}
+  }
+
+  async approveDeadlineRuleVersion(user:AuthUser,ruleId:string,versionId:string) {
+    assertUuid(ruleId,'Süre kuralı');assertUuid(versionId,'Kural sürümü');
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const family=await client.query<{id:string}>(
+        `SELECT id FROM ced_deadline_rule_families
+         WHERE id=$1 AND is_active=true AND archived_at IS NULL FOR UPDATE`,
+        [ruleId],
+      );
+      if(!family.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_NOT_FOUND',message:'Süre kuralı bulunamadı.'});
+      const row=await client.query<any>(
+        `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso
+         FROM ced_deadline_rule_versions version
+         WHERE version.id=$1 AND version.rule_id=$2 FOR UPDATE`,
+        [versionId,ruleId],
+      );
+      if(!row.rowCount)throw new NotFoundException({code:'CED_DEADLINE_RULE_VERSION_NOT_FOUND',message:'Kural taslağı bulunamadı.'});
+      if(row.rows[0].status!=='draft')throw new ConflictException({code:'CED_DEADLINE_ALREADY_APPROVED',message:'Bu kural sürümü zaten onaylanmış.'});
+      validateStoredDeadlineRule(row.rows[0]);
+      const updated=await client.query(
+        `UPDATE ced_deadline_rule_versions
+         SET status='approved',approved_by=$1,approved_at=now(),updated_by=$1,updated_at=now()
+         WHERE id=$2 AND status='draft' RETURNING version`,
+        [user.id,versionId],
+      );
+      await client.query(
+        `UPDATE ced_deadline_rule_families SET current_version_id=$1,updated_at=now() WHERE id=$2`,
+        [versionId,ruleId],
+      );
+      await client.query(
+        `INSERT INTO ced_deadline_rule_audit_events(rule_id,rule_version_id,actor_user_id,action,details)
+         VALUES($1,$2,$3,'approved',$4)`,
+        [ruleId,versionId,user.id,{version:updated.rows[0].version}],
+      );
+      await client.query('COMMIT');
+      return {ruleId,versionId,approved:true,version:updated.rows[0].version};
+    } catch(error) {
+      await client.query('ROLLBACK').catch(()=>undefined);
+      throw error;
+    } finally {client.release();}
+  }
+
+  private async resolveOpinionDeadline(client:PoolClient,draft:ReturnType<typeof validateOpinion>,_userId:string,old?:any) {
+    const previousBasis=old?.deadline_basis??'manual';
+    const previousDate=old?.deadline_date??null;
+    const previousVersionId=old?.deadline_rule_version_id??null;
+    const previousStartDate=old?.deadline_start_date??null;
+    const changed=!old||
+      previousBasis!==draft.deadlineBasis||
+      previousDate!==draft.deadlineDate||
+      previousVersionId!==(draft.deadlineRuleVersionId??null)||
+      previousStartDate!==(draft.deadlineStartDate??null);
+
+    if(draft.deadlineBasis==='manual') {
+      if(old&&changed&&(!draft.deadlineReason.trim()||
+        draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
+        throw invalid('Son tarih değişikliğini veya kuraldan manuel tarihe geçişi açıklayan yeni gerekçe zorunludur.');
+      }
+      return {
+        deadlineDate:draft.deadlineDate??null,
+        deadlineBasis:'manual' as const,
+        deadlineRuleVersionId:null,
+        deadlineStartDate:null,
+        deadlineStartEventLabel:'',
+        deadlineReason:draft.deadlineReason,
+        changed,
+        eventAction:!old?(draft.deadlineDate?'manual_set':null):
+          !changed?null:!draft.deadlineDate?'cleared':previousBasis==='rule_calculated'?'manual_override':'manual_set',
+      };
+    }
+
+    if(old&&changed&&(!draft.deadlineReason.trim()||
+      draft.deadlineReason.trim()===String(old.deadline_reason??'').trim())) {
+      throw invalid('Süre kuralı veya başlangıç tarihi değişikliğini açıklayan yeni gerekçe zorunludur.');
+    }
+    const versionId=draft.deadlineRuleVersionId as string;
+    const result=await client.query<any>(
+      `SELECT version.*,version.holiday_dates::text[] AS holiday_dates_iso,
+        family.current_version_id AS "currentVersionId",family.name AS "ruleName"
+       FROM ced_deadline_rule_versions version
+       JOIN ced_deadline_rule_families family ON family.id=version.rule_id
+       WHERE version.id=$1 AND version.status='approved'
+         AND family.is_active=true AND family.archived_at IS NULL`,
+      [versionId],
+    );
+    if(!result.rowCount)throw new ConflictException({code:'CED_DEADLINE_RULE_NOT_APPROVED',message:'Seçilen süre kuralı onaylı değil veya artık kullanılamıyor. Kural listesini yenileyin.'});
+    const version=result.rows[0];
+    if(draft.deadlineStartEventLabel&&draft.deadlineStartEventLabel!==version.start_event_label) {
+      throw new ConflictException({code:'CED_DEADLINE_START_EVENT_MISMATCH',message:'Süreyi başlatan olay, seçilen kural sürümüyle eşleşmiyor. Kuralı yenileyip tekrar deneyin.'});
+    }
+    if(version.currentVersionId!==versionId&&previousVersionId!==versionId) {
+      throw new ConflictException({code:'CED_DEADLINE_RULE_SUPERSEDED',message:'Yeni görüşlerde yalnızca güncel onaylı kural sürümü seçilebilir.'});
+    }
+    validateStoredDeadlineRule(version);
+    const calculation=calculateDeadline(draft.deadlineStartDate as string,{
+      dayCount:Number(version.day_count),dayType:version.day_type,
+      includeStartDay:Boolean(version.include_start_day),dueDateAdjustment:version.due_date_adjustment,
+      weekendDays:(version.weekend_days??[]).map(Number),
+      holidayDates:(version.holiday_dates_iso??version.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value)),
+    });
+    return {
+      deadlineDate:calculation.deadlineDate,
+      deadlineBasis:'rule_calculated' as const,
+      deadlineRuleVersionId:versionId,
+      deadlineStartDate:draft.deadlineStartDate,
+      deadlineStartEventLabel:version.start_event_label,
+      deadlineReason:draft.deadlineReason,
+      changed,
+      eventAction:!old||changed?'rule_applied':null,
+      ruleName:version.ruleName,
+      ruleVersion:Number(version.version),
+      calculation,
+    };
+  }
+
+  private async recordOpinionDeadlineEvent(
+    client:PoolClient,opinionId:string,userId:string,deadline:any,old?:any,
+  ) {
+    if(!deadline.eventAction)return;
+    await client.query(
+      `INSERT INTO ced_opinion_deadline_events(
+        opinion_id,actor_user_id,action,old_deadline_date,new_deadline_date,
+        old_rule_version_id,new_rule_version_id,start_date,start_event_label,reason,details
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [opinionId,userId,deadline.eventAction,old?.deadline_date??null,deadline.deadlineDate,
+        old?.deadline_rule_version_id??null,deadline.deadlineRuleVersionId??null,
+        deadline.deadlineStartDate??null,deadline.deadlineStartEventLabel??'',
+        deadline.deadlineReason??'',deadline.calculation??{}],
+    );
+  }
+
   async getProjectCase(user: AuthUser, projectId: string, includeOpinions: boolean) {
     assertUuid(projectId, 'Proje');
     const client = await this.db.pool.connect();
@@ -59,7 +421,12 @@ export class CedService {
     if (!found.rowCount) {
       const opinions = includeOpinions ? await this.db.query(
         `SELECT o.id,o.case_id AS "caseId",o.institution_name AS "institutionName",o.subject,o.status,
-         o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",o.response_date::text AS "responseDate",
+         o.request_date::text AS "requestDate",o.deadline_date::text AS "deadlineDate",
+         o.deadline_basis AS "deadlineBasis",o.deadline_rule_version_id AS "deadlineRuleVersionId",
+         o.deadline_start_date::text AS "deadlineStartDate",o.deadline_start_event_label AS "deadlineStartEventLabel",
+         o.deadline_calculated_at AS "deadlineCalculatedAt",o.deadline_reason AS "deadlineReason",
+         deadlineVersion.version AS "deadlineRuleVersion",deadlineFamily.name AS "deadlineRuleName",
+         o.response_date::text AS "responseDate",
          o.outgoing_letter_no AS "outgoingLetterNo",o.incoming_letter_no AS "incomingLetterNo",
          o.contact_person AS "contactPerson",contact.title AS "contactTitle",contact.department AS "contactDepartment",
          contact.phone AS "contactPhone",contact.email AS "contactEmail",contact.address AS "contactAddress",
@@ -67,6 +434,8 @@ export class CedService {
          creator.display_name AS "creatorName",o.updated_at AS "updatedAt"
          FROM ced_institution_opinions o JOIN users creator ON creator.id=o.created_by
          LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
+         LEFT JOIN ced_deadline_rule_versions deadlineVersion ON deadlineVersion.id=o.deadline_rule_version_id
+         LEFT JOIN ced_deadline_rule_families deadlineFamily ON deadlineFamily.id=deadlineVersion.rule_id
          WHERE o.project_id=$1 AND o.archived_at IS NULL
          ORDER BY o.deadline_date NULLS LAST,o.institution_name,o.created_at`,
         [projectId],
@@ -87,12 +456,19 @@ export class CedService {
         o.incoming_letter_no AS "incomingLetterNo",o.contact_person AS "contactPerson",
         contact.title AS "contactTitle",contact.department AS "contactDepartment",contact.phone AS "contactPhone",
         contact.email AS "contactEmail",contact.address AS "contactAddress",
-        o.notes,o.version,o.updated_at AS "updatedAt"
+        o.notes,o.version,o.updated_at AS "updatedAt",
+        o.deadline_basis AS "deadlineBasis",o.deadline_rule_version_id AS "deadlineRuleVersionId",
+        o.deadline_start_date::text AS "deadlineStartDate",o.deadline_start_event_label AS "deadlineStartEventLabel",
+        o.deadline_calculated_at AS "deadlineCalculatedAt",
+        o.deadline_reason AS "deadlineReason",deadlineVersion.version AS "deadlineRuleVersion",
+        deadlineFamily.name AS "deadlineRuleName"
        FROM ced_institution_opinions o
        JOIN projects p ON p.id=o.project_id
        LEFT JOIN ced_cases c ON c.id=o.case_id
        LEFT JOIN users owner ON owner.id=p.owner_user_id
        LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id AND contact.archived_at IS NULL
+       LEFT JOIN ced_deadline_rule_versions deadlineVersion ON deadlineVersion.id=o.deadline_rule_version_id
+       LEFT JOIN ced_deadline_rule_families deadlineFamily ON deadlineFamily.id=deadlineVersion.rule_id
        WHERE o.archived_at IS NULL AND p.archived_at IS NULL AND p.status<>'archived'
          AND (o.case_id IS NULL OR c.archived_at IS NULL)
          AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
@@ -104,6 +480,160 @@ export class CedService {
       [user.id],
     );
     return { opinions: result.rows };
+  }
+
+  async listDirectoryContacts(user: AuthUser) {
+    const result = await this.db.query(
+      `SELECT contact.id,contact.institution_name AS "institutionName",
+        contact.institution_type AS "institutionType",contact.website,
+        contact.contact_person AS "contactPerson",contact.title,contact.department,
+        contact.phone,contact.email,contact.address,contact.source_label AS "sourceLabel",
+        contact.source_reference AS "sourceReference",
+        contact.source_verified_at::text AS "verifiedAt",
+        verifier.display_name AS "verifiedByName",
+        contact.version,contact.created_at AS "createdAt",contact.updated_at AS "updatedAt",
+        (SELECT count(DISTINCT opinion.project_id)::int
+         FROM ced_institution_opinions opinion
+         JOIN projects p ON p.id=opinion.project_id AND p.archived_at IS NULL AND p.status<>'archived'
+         WHERE opinion.contact_id=contact.id AND opinion.archived_at IS NULL
+           AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+             SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
+           ))) AS "projectCount"
+       FROM ced_institution_contacts contact
+       LEFT JOIN users verifier ON verifier.id=contact.source_verified_by
+       WHERE contact.directory_visible=true AND contact.archived_at IS NULL
+       ORDER BY lower(contact.institution_name),lower(contact.contact_person),contact.created_at
+       LIMIT 1000`,
+      [user.id],
+    );
+    return { contacts: result.rows };
+  }
+
+  async createDirectoryContact(user: AuthUser, value: unknown) {
+    const payload = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {};
+    const draft = validateDirectoryContact(payload);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(
+        `INSERT INTO ced_institution_contacts(
+          institution_name,institution_type,website,contact_person,title,department,
+          phone,email,address,source_label,source_reference,source_verified_at,
+          source_verified_by,directory_visible,created_by,updated_by
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::date,$13,true,$14,$14)
+        RETURNING id,institution_name AS "institutionName",institution_type AS "institutionType",
+          website,contact_person AS "contactPerson",title,department,phone,email,address,
+          source_label AS "sourceLabel",source_reference AS "sourceReference",
+          source_verified_at::text AS "verifiedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [draft.institutionName,draft.institutionType,draft.website,draft.contactPerson,draft.title,
+          draft.department,draft.phone,draft.email,draft.address,draft.sourceLabel,draft.sourceReference,
+          draft.verifiedAt,draft.verifiedAt?user.id:null,user.id],
+      );
+      const contact = inserted.rows[0];
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'created',$3::text[])`,
+        [contact.id,user.id,Object.keys(draft)],
+      );
+      await client.query('COMMIT');
+      return { contact };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as {code?:string}).code === '23505') {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_EXISTS',message:'Bu kurum ve iletişim kişisi rehberde zaten bulunuyor. Mevcut kaydı açıp güncelleyin.'});
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateDirectoryContact(user: AuthUser, contactId: string, value: unknown) {
+    assertUuid(contactId,'Kurum');
+    const payload = value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {};
+    assertKeys(payload,['expectedVersion','institutionName','institutionType','website','contactPerson',
+      'title','department','phone','email','address','sourceLabel','sourceReference','verifiedAt']);
+    assertVersion(payload.expectedVersion);
+    const expectedVersion = Number(payload.expectedVersion);
+    const data = {...payload};
+    delete data.expectedVersion;
+    const draft = validateDirectoryContact(data);
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query<{version:number}>(
+        `SELECT version FROM ced_institution_contacts
+         WHERE id=$1 AND directory_visible=true AND archived_at IS NULL FOR UPDATE`,
+        [contactId],
+      );
+      if (!current.rowCount) throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Kurum rehberi kaydı bulunamadı.'});
+      if (current.rows[0].version !== expectedVersion) {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt başka bir kullanıcı tarafından değiştirilmiş. Güncel veriyi yenileyip tekrar deneyin.'});
+      }
+      const updated = await client.query(
+        `UPDATE ced_institution_contacts SET
+          institution_name=$1,institution_type=$2,website=$3,contact_person=$4,title=$5,department=$6,
+          phone=$7,email=$8,address=$9,source_label=$10,source_reference=$11,
+          source_verified_at=$12::date,source_verified_by=$13,updated_by=$14,updated_at=now(),version=version+1
+         WHERE id=$15 AND directory_visible=true AND archived_at IS NULL AND version=$16
+         RETURNING id,institution_name AS "institutionName",institution_type AS "institutionType",
+          website,contact_person AS "contactPerson",title,department,phone,email,address,
+          source_label AS "sourceLabel",source_reference AS "sourceReference",
+          source_verified_at::text AS "verifiedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"`,
+        [draft.institutionName,draft.institutionType,draft.website,draft.contactPerson,draft.title,
+          draft.department,draft.phone,draft.email,draft.address,draft.sourceLabel,draft.sourceReference,
+          draft.verifiedAt,draft.verifiedAt?user.id:null,user.id,contactId,expectedVersion],
+      );
+      if (!updated.rowCount) throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt değişmiş. Güncel veriyi yenileyip tekrar deneyin.'});
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'updated',$3::text[])`,
+        [contactId,user.id,Object.keys(draft)],
+      );
+      await client.query('COMMIT');
+      return {contact:updated.rows[0]};
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as {code?:string}).code === '23505') {
+        throw new ConflictException({code:'INSTITUTION_CONTACT_EXISTS',message:'Bu kurum ve iletişim kişisi rehberde zaten bulunuyor.'});
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async archiveDirectoryContact(user: AuthUser, contactId: string) {
+    assertUuid(contactId,'Kurum');
+    const client = await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query<{id:string}>(
+        `SELECT id FROM ced_institution_contacts
+         WHERE id=$1 AND directory_visible=true AND archived_at IS NULL FOR UPDATE`,
+        [contactId],
+      );
+      if (!current.rowCount) throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Kurum rehberi kaydı bulunamadı.'});
+      await client.query(
+        `UPDATE ced_institution_contacts
+         SET archived_at=now(),updated_by=$1,updated_at=now(),version=version+1
+         WHERE id=$2 AND directory_visible=true AND archived_at IS NULL`,
+        [user.id,contactId],
+      );
+      await client.query(
+        `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
+         VALUES($1,$2,'archived',ARRAY['archived_at']::text[])`,
+        [contactId,user.id],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listInstitutionContacts(user: AuthUser) {
@@ -500,58 +1030,79 @@ export class CedService {
   async createOpinionForProject(user: AuthUser, projectId: string, input: unknown) {
     assertUuid(projectId, 'Proje');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     let opinionId = '';
     try {
       await client.query('BEGIN');
-      // Lock the project row to serialize simultaneous submissions without creating a fake ÇED case.
       await this.assertProjectAccess(client, projectId, user.id, true);
+      const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
       const inserted = await client.query<{id:string}>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
-         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) RETURNING id`,
-        [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
-          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+        `INSERT INTO ced_institution_opinions(
+          project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
+          outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
+          deadline_start_date,deadline_start_event_label,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+          CASE WHEN $13='rule_calculated' THEN now() ELSE NULL END,$17,$18,$18) RETURNING id`,
+        [projectId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,deadline.deadlineDate,
+          draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,
+          deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id],
       );
       opinionId=inserted.rows[0].id;
-      await this.auditProject(client,projectId,'institution_opinion',opinionId,'created',draft,user.id);
+      await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline);
+      await this.auditProject(client,projectId,'institution_opinion',opinionId,'created',{...draft,deadline},user.id);
       await client.query('COMMIT');
-    } catch(error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-    return { ok:true, projectId, opinionId, caseId: null };
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
+    return {ok:true,projectId,opinionId,caseId:null};
   }
 
   async createOpinion(user: AuthUser, caseId: string, input: unknown) {
     assertUuid(caseId, 'ÇED kaydı');
     const value = objectInput(input);
-    assertKeys(value, ['institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     const draft = validateOpinion(value);
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
       const current = await this.loadAccessibleCase(client, caseId, user.id, true);
+      const deadline=await this.resolveOpinionDeadline(client,draft,user.id);
       const contactId = await this.saveInstitutionContact(client, user.id, draft);
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO ced_institution_opinions(project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
-         outgoing_letter_no,incoming_letter_no,contact_person,notes,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING id`,
-        [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,draft.deadlineDate,draft.responseDate,
-          draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,draft.notes,user.id],
+      const inserted = await client.query<{id:string}>(
+        `INSERT INTO ced_institution_opinions(
+          project_id,case_id,contact_id,institution_name,subject,status,request_date,deadline_date,response_date,
+          outgoing_letter_no,incoming_letter_no,contact_person,notes,deadline_basis,deadline_rule_version_id,
+          deadline_start_date,deadline_start_event_label,deadline_calculated_at,deadline_reason,created_by,updated_by
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+          CASE WHEN $14='rule_calculated' THEN now() ELSE NULL END,$18,$19,$19) RETURNING id`,
+        [current.project_id,caseId,contactId,draft.institutionName,draft.subject,draft.status,draft.requestDate,
+          deadline.deadlineDate,draft.responseDate,draft.outgoingLetterNo,draft.incomingLetterNo,draft.contactPerson,
+          draft.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
+          deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id],
       );
-      await this.audit(client, caseId, 'institution_opinion', inserted.rows[0].id, 'created', draft, user.id);
+      await this.recordOpinionDeadlineEvent(client,inserted.rows[0].id,user.id,deadline);
+      await this.audit(client,caseId,'institution_opinion',inserted.rows[0].id,'created',{...draft,deadline},user.id);
       await client.query('COMMIT');
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-    return { ok: true, caseId };
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
+    return {ok:true,caseId};
   }
 
   async updateOpinion(user: AuthUser, opinionId: string, input: unknown) {
     assertUuid(opinionId, 'Kurum görüşü');
     const value = objectInput(input);
-    assertKeys(value, ['version', 'institutionName', 'subject', 'status', 'requestDate', 'deadlineDate', 'responseDate', 'outgoingLetterNo', 'incomingLetterNo', 'contactPerson', 'contactTitle', 'contactDepartment', 'contactPhone', 'contactEmail', 'contactAddress', 'notes']);
+    assertKeys(value, ['version','institutionName','subject','status','requestDate','deadlineDate','deadlineBasis',
+      'deadlineRuleVersionId','deadlineStartDate','deadlineStartEventLabel','deadlineReason','responseDate','outgoingLetterNo',
+      'incomingLetterNo','contactPerson','contactTitle','contactDepartment','contactPhone','contactEmail',
+      'contactAddress','notes']);
     assertVersion(value.version);
     if (Object.keys(value).length === 1) throw invalid('Kaydedilecek değişiklik bulunamadı.');
     const client = await this.db.pool.connect();
@@ -559,50 +1110,65 @@ export class CedService {
       await client.query('BEGIN');
       const found = await client.query<any>(
         `SELECT o.*,o.request_date::text AS request_date,o.deadline_date::text AS deadline_date,
-          o.response_date::text AS response_date,contact.title AS contact_title,contact.department AS contact_department,
+          o.deadline_start_date::text AS deadline_start_date,o.response_date::text AS response_date,
+          contact.title AS contact_title,contact.department AS contact_department,
           contact.phone AS contact_phone,contact.email AS contact_email,contact.address AS contact_address
          FROM ced_institution_opinions o LEFT JOIN ced_institution_contacts contact ON contact.id=o.contact_id
          WHERE o.id=$1 AND o.archived_at IS NULL FOR UPDATE OF o`,
         [opinionId],
       );
-      if (!found.rowCount) throw new NotFoundException({ code: 'CED_OPINION_NOT_FOUND', message: 'Kurum görüşü kaydı bulunamadı.' });
-      const old = found.rows[0];
-      await this.assertProjectAccess(client, old.project_id, user.id);
-      if (old.case_id) {
-        const linkedCase = await client.query('SELECT 1 FROM ced_cases WHERE id=$1 AND archived_at IS NULL',[old.case_id]);
-        if (!linkedCase.rowCount) throw new ConflictException({code:'CED_OPINION_CASE_ARCHIVED',message:'Bu görüş eski bir ÇED kaydına bağlı. Önce arşiv durumu kontrol edilmelidir.'});
+      if (!found.rowCount) throw new NotFoundException({code:'CED_OPINION_NOT_FOUND',message:'Kurum görüşü kaydı bulunamadı.'});
+      const old=found.rows[0];
+      await this.assertProjectAccess(client,old.project_id,user.id);
+      if(old.case_id) {
+        const linkedCase=await client.query('SELECT 1 FROM ced_cases WHERE id=$1 AND archived_at IS NULL',[old.case_id]);
+        if(!linkedCase.rowCount)throw new ConflictException({code:'CED_OPINION_CASE_ARCHIVED',message:'Bu görüş eski bir ÇED kaydına bağlı. Önce arşiv durumu kontrol edilmelidir.'});
       }
-      if (old.version !== Number(value.version)) throw new ConflictException({ code: 'CED_OPINION_CHANGED', message: 'Kurum görüşü başka bir işlemde güncellendi.' });
-      const merged = validateOpinion({
-        institutionName: Object.hasOwn(value, 'institutionName') ? value.institutionName : old.institution_name,
-        subject: Object.hasOwn(value, 'subject') ? value.subject : old.subject,
-        status: Object.hasOwn(value, 'status') ? value.status : old.status,
-        requestDate: Object.hasOwn(value, 'requestDate') ? value.requestDate : old.request_date,
-        deadlineDate: Object.hasOwn(value, 'deadlineDate') ? value.deadlineDate : old.deadline_date,
-        responseDate: Object.hasOwn(value, 'responseDate') ? value.responseDate : old.response_date,
-        outgoingLetterNo: Object.hasOwn(value, 'outgoingLetterNo') ? value.outgoingLetterNo : old.outgoing_letter_no,
-        incomingLetterNo: Object.hasOwn(value, 'incomingLetterNo') ? value.incomingLetterNo : old.incoming_letter_no,
-        contactPerson: Object.hasOwn(value, 'contactPerson') ? value.contactPerson : old.contact_person,
-        contactTitle: Object.hasOwn(value, 'contactTitle') ? value.contactTitle : old.contact_title ?? '',
-        contactDepartment: Object.hasOwn(value, 'contactDepartment') ? value.contactDepartment : old.contact_department ?? '',
-        contactPhone: Object.hasOwn(value, 'contactPhone') ? value.contactPhone : old.contact_phone ?? '',
-        contactEmail: Object.hasOwn(value, 'contactEmail') ? value.contactEmail : old.contact_email ?? '',
-        contactAddress: Object.hasOwn(value, 'contactAddress') ? value.contactAddress : old.contact_address ?? '',
-        notes: Object.hasOwn(value, 'notes') ? value.notes : old.notes,
+      if(old.version!==Number(value.version))throw new ConflictException({code:'CED_OPINION_CHANGED',message:'Kurum görüşü başka bir işlemde güncellendi.'});
+      const merged=validateOpinion({
+        institutionName:Object.hasOwn(value,'institutionName')?value.institutionName:old.institution_name,
+        subject:Object.hasOwn(value,'subject')?value.subject:old.subject,
+        status:Object.hasOwn(value,'status')?value.status:old.status,
+        requestDate:Object.hasOwn(value,'requestDate')?value.requestDate:old.request_date,
+        deadlineDate:Object.hasOwn(value,'deadlineDate')?value.deadlineDate:old.deadline_date,
+        deadlineBasis:Object.hasOwn(value,'deadlineBasis')?value.deadlineBasis:old.deadline_basis,
+        deadlineRuleVersionId:Object.hasOwn(value,'deadlineRuleVersionId')?value.deadlineRuleVersionId:old.deadline_rule_version_id,
+        deadlineStartDate:Object.hasOwn(value,'deadlineStartDate')?value.deadlineStartDate:old.deadline_start_date,
+        deadlineStartEventLabel:Object.hasOwn(value,'deadlineStartEventLabel')?value.deadlineStartEventLabel:old.deadline_start_event_label,
+        deadlineReason:Object.hasOwn(value,'deadlineReason')?value.deadlineReason:old.deadline_reason,
+        responseDate:Object.hasOwn(value,'responseDate')?value.responseDate:old.response_date,
+        outgoingLetterNo:Object.hasOwn(value,'outgoingLetterNo')?value.outgoingLetterNo:old.outgoing_letter_no,
+        incomingLetterNo:Object.hasOwn(value,'incomingLetterNo')?value.incomingLetterNo:old.incoming_letter_no,
+        contactPerson:Object.hasOwn(value,'contactPerson')?value.contactPerson:old.contact_person,
+        contactTitle:Object.hasOwn(value,'contactTitle')?value.contactTitle:old.contact_title??'',
+        contactDepartment:Object.hasOwn(value,'contactDepartment')?value.contactDepartment:old.contact_department??'',
+        contactPhone:Object.hasOwn(value,'contactPhone')?value.contactPhone:old.contact_phone??'',
+        contactEmail:Object.hasOwn(value,'contactEmail')?value.contactEmail:old.contact_email??'',
+        contactAddress:Object.hasOwn(value,'contactAddress')?value.contactAddress:old.contact_address??'',
+        notes:Object.hasOwn(value,'notes')?value.notes:old.notes,
       });
-      const contactId = await this.saveInstitutionContact(client, user.id, merged);
+      const deadline=await this.resolveOpinionDeadline(client,merged,user.id,old);
+      const contactId=await this.saveInstitutionContact(client,user.id,merged);
       await client.query(
-        `UPDATE ced_institution_opinions SET institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
-         outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,updated_by=$12,updated_at=now(),version=version+1 WHERE id=$13`,
-        [merged.institutionName, merged.subject, merged.status, merged.requestDate, merged.deadlineDate, merged.responseDate,
-          merged.outgoingLetterNo, merged.incomingLetterNo, merged.contactPerson, contactId, merged.notes, user.id, opinionId],
+        `UPDATE ced_institution_opinions SET
+          institution_name=$1,subject=$2,status=$3,request_date=$4,deadline_date=$5,response_date=$6,
+          outgoing_letter_no=$7,incoming_letter_no=$8,contact_person=$9,contact_id=$10,notes=$11,
+          deadline_basis=$12,deadline_rule_version_id=$13,deadline_start_date=$14,deadline_start_event_label=$15,
+          deadline_calculated_at=CASE WHEN $12='rule_calculated' THEN now() ELSE NULL END,
+          deadline_reason=$16,updated_by=$17,updated_at=now(),version=version+1
+         WHERE id=$18`,
+        [merged.institutionName,merged.subject,merged.status,merged.requestDate,deadline.deadlineDate,
+          merged.responseDate,merged.outgoingLetterNo,merged.incomingLetterNo,merged.contactPerson,contactId,
+          merged.notes,deadline.deadlineBasis,deadline.deadlineRuleVersionId,deadline.deadlineStartDate,
+          deadline.deadlineStartEventLabel,deadline.deadlineReason,user.id,opinionId],
       );
-      if (old.case_id) await this.audit(client, old.case_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
-      else await this.auditProject(client, old.project_id, 'institution_opinion', opinionId, 'updated', merged, user.id);
+      await this.recordOpinionDeadlineEvent(client,opinionId,user.id,deadline,old);
+      if(old.case_id)await this.audit(client,old.case_id,'institution_opinion',opinionId,'updated',{...merged,deadline},user.id);
+      else await this.auditProject(client,old.project_id,'institution_opinion',opinionId,'updated',{...merged,deadline},user.id);
       await client.query('COMMIT');
-      return { ok: true, caseId: old.case_id, projectId: old.project_id };
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
+      return {ok:true,caseId:old.case_id,projectId:old.project_id};
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
   }
 
   async createIdkMeeting(user: AuthUser, caseId: string, input: unknown) {
@@ -792,23 +1358,26 @@ export class CedService {
       draft.contactPhone || draft.contactEmail || draft.contactAddress);
     if (!hasDetails) return null;
     const existing = await client.query<{id:string}>(
-      `SELECT id FROM ced_institution_contacts
+      `SELECT id,directory_visible FROM ced_institution_contacts
        WHERE archived_at IS NULL
          AND lower(btrim(institution_name))=lower(btrim($1))
          AND lower(btrim(contact_person))=lower(btrim($2))
          AND lower(btrim(email))=lower(btrim($3))
-       ORDER BY updated_at DESC,id
+       ORDER BY directory_visible DESC,updated_at DESC,id
        LIMIT 1 FOR UPDATE`,
       [draft.institutionName,draft.contactPerson,draft.contactEmail],
     );
     if (existing.rowCount) {
-      await client.query(
-        `UPDATE ced_institution_contacts SET title=$1,department=$2,phone=$3,email=$4,address=$5,
-          updated_by=$6,updated_at=now()
-         WHERE id=$7`,
-        [draft.contactTitle,draft.contactDepartment,draft.contactPhone,draft.contactEmail,draft.contactAddress,userId,existing.rows[0].id],
-      );
-      return existing.rows[0].id;
+      const contact = existing.rows[0] as {id:string;directory_visible:boolean};
+      if (!contact.directory_visible) {
+        await client.query(
+          `UPDATE ced_institution_contacts SET title=$1,department=$2,phone=$3,email=$4,address=$5,
+            updated_by=$6,updated_at=now()
+           WHERE id=$7`,
+          [draft.contactTitle,draft.contactDepartment,draft.contactPhone,draft.contactEmail,draft.contactAddress,userId,contact.id],
+        );
+      }
+      return contact.id;
     }
     const inserted = await client.query<{id:string}>(
       `INSERT INTO ced_institution_contacts(
@@ -890,6 +1459,112 @@ function applicationSubmissionDate(value: unknown): string | null {
   if (date && date > today) throw invalid('Resmî başvuru tarihi gelecekte olamaz.');
   return date;
 }
+function validateDirectoryContact(value: Record<string, unknown>) {
+  assertKeys(value,['institutionName','institutionType','website','contactPerson','title','department',
+    'phone','email','address','sourceLabel','sourceReference','verifiedAt']);
+  const draft = {
+    institutionName: boundedText(value.institutionName,2,180,'Kurum adı'),
+    institutionType: boundedText(value.institutionType ?? '',0,120,'Kurum türü'),
+    website: boundedText(value.website ?? '',0,300,'Web sitesi'),
+    contactPerson: boundedText(value.contactPerson ?? '',0,160,'İletişim kişisi'),
+    title: boundedText(value.title ?? '',0,120,'Unvan'),
+    department: boundedText(value.department ?? '',0,120,'Birim'),
+    phone: boundedText(value.phone ?? '',0,60,'Telefon'),
+    email: boundedText(value.email ?? '',0,254,'E-posta'),
+    address: boundedText(value.address ?? '',0,400,'Adres'),
+    sourceLabel: boundedText(value.sourceLabel,2,180,'Kayıt kaynağı'),
+    sourceReference: boundedText(value.sourceReference ?? '',0,500,'Kaynak referansı'),
+    verifiedAt: optionalDate(value.verifiedAt,'Kaynak teyit tarihi'),
+  };
+  if(draft.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) throw invalid('E-posta adresi geçersiz.');
+  if(draft.website) {
+    try {
+      const url=new URL(draft.website);
+      if(!['http:','https:'].includes(url.protocol)) throw new Error();
+    } catch {
+      throw invalid('Web sitesi http veya https adresi olmalıdır.');
+    }
+  }
+  return draft;
+}
+function validateDeadlineRuleInput(value:Record<string,unknown>,includeFamilyFields:boolean) {
+  const allowed=['dayCount','dayType','includeStartDay','dueDateAdjustment','weekendDays','holidayDates',
+    'calendarName','calendarSourceLabel','calendarSourceReference','calendarVerifiedAt','startEventLabel',
+    'legalReference','ruleSourceLabel','ruleSourceReference','ruleNotes',...(includeFamilyFields?['name','description']:[])];
+  assertKeys(value,allowed);
+  const name=includeFamilyFields?boundedText(value.name,2,180,'Kural adı'):'';
+  const description=includeFamilyFields?boundedText(value.description??'',0,1200,'Kural açıklaması'):'';
+  const startEventLabel=boundedText(value.startEventLabel,2,240,'Süreyi başlatan olay');
+  if(!Number.isInteger(value.dayCount)||Number(value.dayCount)<1||Number(value.dayCount)>3650) {
+    throw invalid('Süre 1 ile 3650 gün arasında olmalıdır.');
+  }
+  const dayType=enumValue(value.dayType,['calendar_days','business_days'] as const,'Süre türü');
+  if(typeof value.includeStartDay!=='boolean')throw invalid('Başlangıç gününün sayılıp sayılmayacağı seçilmelidir.');
+  const dueDateAdjustment=enumValue(value.dueDateAdjustment??'none',
+    ['none','next_business_day','previous_business_day'] as const,'Son gün düzeltme kuralı');
+  if(!Array.isArray(value.weekendDays)||value.weekendDays.length>7||
+    value.weekendDays.some(day=>!Number.isInteger(day)||Number(day)<0||Number(day)>6)||
+    new Set(value.weekendDays).size!==value.weekendDays.length) {
+    throw invalid('Hafta sonu günleri 0–6 aralığında, tekrarsız olmalıdır.');
+  }
+  if(!Array.isArray(value.holidayDates)||value.holidayDates.length>1200)throw invalid('Tatil listesi geçersiz veya 1200 tarihi aşıyor.');
+  const holidayDates=value.holidayDates.map(value=>optionalDate(value,'Resmî tatil tarihi') as string);
+  if(new Set(holidayDates).size!==holidayDates.length)throw invalid('Tatil listesinde aynı tarih birden fazla kez bulunamaz.');
+  const calendarName=boundedText(value.calendarName??'',0,180,'Çalışma takvimi adı');
+  const calendarSourceLabel=boundedText(value.calendarSourceLabel??'',0,180,'Takvim kaynağı');
+  const calendarSourceReference=boundedText(value.calendarSourceReference??'',0,1200,'Takvim kaynak referansı');
+  const calendarVerifiedAt=optionalDate(value.calendarVerifiedAt,'Takvim teyit tarihi');
+  const legalReference=boundedText(value.legalReference,3,600,'Mevzuat / kural dayanağı');
+  const ruleSourceLabel=boundedText(value.ruleSourceLabel,2,180,'Kural kaynağı');
+  const ruleSourceReference=boundedText(value.ruleSourceReference,2,1200,'Kural kaynak referansı');
+  const ruleNotes=boundedText(value.ruleNotes??'',0,3000,'Kural açıklaması');
+  if(dayType==='business_days'||dueDateAdjustment!=='none') {
+    if(calendarName.length<2||calendarSourceLabel.length<2||calendarSourceReference.length<2||
+      !calendarVerifiedAt||value.weekendDays.length===0) {
+      throw invalid('İş günü veya son gün düzeltmesi için hafta sonları, tatil takvimi, kaynak referansı ve teyit tarihi zorunludur.');
+    }
+  }
+  return {
+    name,description,dayCount:Number(value.dayCount),dayType,includeStartDay:value.includeStartDay,
+    dueDateAdjustment,weekendDays:(value.weekendDays as number[]).slice().sort((a,b)=>a-b),
+    holidayDates,calendarName,calendarSourceLabel,calendarSourceReference,calendarVerifiedAt,
+    startEventLabel,legalReference,ruleSourceLabel,ruleSourceReference,ruleNotes,
+  };
+}
+
+function normalizeStoredDate(value:unknown):string {
+  if(value instanceof Date&&Number.isFinite(value.getTime()))return value.toISOString().slice(0,10);
+  if(typeof value==='string'&&DATE.test(value))return value;
+  const parsed=new Date(String(value));
+  if(Number.isFinite(parsed.getTime()))return parsed.toISOString().slice(0,10);
+  throw invalid('Saklanan çalışma takvimi tarihi geçerli bir gün değil.');
+}
+
+function validateStoredDeadlineRule(row:any) {
+  const dayType=row.day_type;
+  if(typeof row.start_event_label!=='string'||row.start_event_label.trim().length<2||row.start_event_label.length>240) {
+    throw invalid('Süreyi başlatan olay tanımlanmamış veya geçersiz.');
+  }
+  const adjustment=row.due_date_adjustment;
+  if(!Number.isInteger(Number(row.day_count))||Number(row.day_count)<1||Number(row.day_count)>3650||
+    !['calendar_days','business_days'].includes(dayType)||
+    !['none','next_business_day','previous_business_day'].includes(adjustment)) {
+    throw invalid('Süre kuralı parametreleri geçersiz; kural onaylanamaz.');
+  }
+  const weekends=(row.weekend_days??[]).map(Number);
+  const holidays=(row.holiday_dates_iso??row.holiday_dates??[]).map((value:unknown)=>normalizeStoredDate(value));
+  if(weekends.some((day:number)=>!Number.isInteger(day)||day<0||day>6)||new Set(weekends).size!==weekends.length) {
+    throw invalid('Çalışma takvimindeki hafta sonu günleri geçersiz.');
+  }
+  if(dayType==='business_days'||adjustment!=='none') {
+    if(weekends.length===0||!row.calendar_name||!row.calendar_source_label||
+      !row.calendar_source_reference||!row.calendar_verified_at) {
+      throw invalid('İş günü hesabı için çalışma takvimi kaynağı ve teyit bilgisi eksik.');
+    }
+  }
+  for(const holiday of holidays)optionalDate(holiday,'Resmî tatil tarihi');
+}
+
 function validateOpinion(value: Record<string, unknown>) {
   const draft = {
     institutionName: boundedText(value.institutionName, 2, 180, 'Kurum adı'),
@@ -897,6 +1572,11 @@ function validateOpinion(value: Record<string, unknown>) {
     status: enumValue(value.status ?? 'draft', OPINION_STATUSES, 'Kurum görüşü durumu') as OpinionStatus,
     requestDate: optionalDate(value.requestDate, 'Talep tarihi'),
     deadlineDate: optionalDate(value.deadlineDate, 'Son tarih'),
+    deadlineBasis: enumValue(value.deadlineBasis ?? 'manual',['manual','rule_calculated'] as const,'Son tarih türü'),
+    deadlineRuleVersionId: optionalUuid(value.deadlineRuleVersionId,'Süre kuralı sürümü'),
+    deadlineStartDate: optionalDate(value.deadlineStartDate,'Süre başlangıç tarihi'),
+    deadlineStartEventLabel: boundedText(value.deadlineStartEventLabel??'',0,240,'Süre başlangıç olayı'),
+    deadlineReason: boundedText(value.deadlineReason ?? '',0,1000,'Son tarih değişiklik gerekçesi'),
     responseDate: optionalDate(value.responseDate, 'Yanıt tarihi'),
     outgoingLetterNo: boundedText(value.outgoingLetterNo ?? '', 0, 100, 'Giden yazı numarası'),
     incomingLetterNo: boundedText(value.incomingLetterNo ?? '', 0, 100, 'Gelen yazı numarası'),
@@ -908,7 +1588,9 @@ function validateOpinion(value: Record<string, unknown>) {
     contactAddress: boundedText(value.contactAddress ?? '', 0, 400, 'Adres'),
     notes: boundedText(value.notes ?? '', 0, 4000, 'Açıklama'),
   };
-  if (draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
+  if(draft.deadlineBasis==='rule_calculated'&&(!draft.deadlineRuleVersionId||!draft.deadlineStartDate)) throw invalid('Kurala göre hesaplama için onaylı kural ve başlangıç tarihi seçilmelidir.');
+  if(draft.deadlineBasis==='manual'&&(draft.deadlineRuleVersionId||draft.deadlineStartDate||draft.deadlineStartEventLabel)) throw invalid('Manuel son tarih kural sürümü veya hesaplama başlangıcı içeremez.');
+  if (draft.deadlineBasis==='manual' && draft.requestDate && draft.deadlineDate && draft.requestDate > draft.deadlineDate) throw invalid('Son tarih talep tarihinden önce olamaz.');
   if (draft.requestDate && draft.responseDate && draft.requestDate > draft.responseDate) throw invalid('Yanıt tarihi talep tarihinden önce olamaz.');
   if (draft.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contactEmail)) throw invalid('İlgili kişi e-posta adresi geçersiz.');
   return draft;

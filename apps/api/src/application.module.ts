@@ -10,6 +10,7 @@ import { CalendarModule } from './calendar/calendar.module.js';
 import { CedModule } from './ced/ced.module.js';
 import { EcedModule } from './eced/eced.module.js';
 import { NotesModule } from './notes/notes.module.js';
+import { PetitionsModule } from './petitions/petitions.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotesModule } from './notes/notes.module.js';
     CedModule,
     EcedModule,
     NotesModule,
+    PetitionsModule,
     ChatModule,
   ],
 })

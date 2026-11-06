@@ -171,11 +171,11 @@ export function EcedWorkspace({
     finally{setBusy(false);}
   }
 
-  return <section className="eced-monitor-workspace" aria-label="e-ÇED canlı izleme">
+  return <section className="eced-monitor-workspace" aria-label="e-ÇED eklenti izleme">
     <header className="eced-monitor-intro">
       <div><span className="eced-monitor-kicker">TARAYICI VE HESAP GÖZLEMİ</span>
-        <h2>e-ÇED Canlı Takip</h2>
-        <p>İzin verdiğiniz Chrome / Edge profillerinden gelen görünür hesap ve sekme sinyalleri.</p>
+        <h2>e-ÇED Eklenti İzleme</h2>
+        <p>İzin verdiğiniz Chrome / Edge profillerinden gelen sekme ve görünür hesap etiketleri. Bu veriler portal sunucusundan doğrulanmış oturum bilgisi değildir.</p>
       </div>
       <button type="button" className="eced-refresh-button" onClick={()=>void load()} disabled={loading||busy}>↻ {loading?'Yükleniyor…':'Yenile'}</button>
     </header>
@@ -199,8 +199,8 @@ export function EcedWorkspace({
         </select>
         {canUpdate&&<label className="eced-claim-device"><span>Rezervasyon cihazı</span><select value={selectedDeviceId} onChange={event=>setSelectedDeviceId(event.target.value)}><option value="">Eşleştirme seçin</option>{devices.map(device=><option key={device.id} value={device.id}>{device.deviceName}</option>)}</select></label>}
       </div>
-      {loading&&!data?<div className="eced-monitor-empty">e-ÇED raporları yükleniyor…</div>
-      :filtered.length===0?<div className="eced-monitor-empty"><strong>{reports.length?'Filtreyle eşleşen rapor yok':'Henüz tarayıcı raporu alınmadı'}</strong><span>{reports.length?'Arama ve durum filtresini değiştirin.':'Eklentiyi kurun, PULSE API bağlantısını doğrulayın ve resmî portal sekmesinde “Bu portalı izlemeye aç” iznini verin. Ardından eklenti penceresinden sinyali kontrol edin.'}</span></div>
+      {loading&&!data?<div className="eced-monitor-empty">Tarayıcı eklentisi raporları yükleniyor…</div>
+      :filtered.length===0?<div className="eced-monitor-empty"><strong>{reports.length?'Filtreyle eşleşen rapor yok':'Henüz tarayıcı raporu alınmadı'}</strong><span>{reports.length?'Arama ve durum filtresini değiştirin.':'Eşleştirilmiş tarayıcıda e-ÇED sekmesi gözlendiğinde kayıt burada görünür. Eklenti ve portal izinlerini kontrol edin.'}</span></div>
       :<div className="eced-report-table-wrap"><table className="eced-report-table"><thead><tr><th>Durum</th><th>e-ÇED hesabı</th><th>Bilgisayar / kullanıcı</th><th>Tarayıcı</th><th>Portal sayfası</th><th>Son sinyal</th><th>Rezervasyon</th><th>İşlem</th></tr></thead>
         <tbody>{filtered.map(report=>{
           const state=stateOf(report,staleAfter);
@@ -276,7 +276,7 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
       }else if(reserved||active){
         tone='busy';label=reserved?'Kullanımda · rezerve':'Açık';
       }else if(allFreshLoggedOut){
-        tone='ready';label='Girişe hazır';
+        tone='ready';label='Oturum kapalı işaretli';
       }else if(relevant.length>0){
         tone='unknown';
         label=fresh.length>0?'Durum belirsiz':'Sinyal eski · durum belirsiz';
@@ -290,13 +290,13 @@ export function EcedAccountOverview({request,onOpen}:{request:Request;onOpen:()=
   const readyCount=accounts.filter(x=>x.tone==='ready').length;
   return <section className="eced-overview-panel" aria-label="e-ÇED hesap durumları">
     <div className="eced-overview-heading">
-      <div><span className="eced-overview-kicker">CANLI HESAP DURUMU</span><h2>e-ÇED hesapları</h2>
-      <p>Açık oturumlar kırmızı, girişe hazır hesaplar yeşil gösterilir.</p></div>
+      <div><span className="eced-overview-kicker">TARAYICI EKLENTİ SİNYALİ</span><h2>Gözlenen hesap etiketleri</h2>
+      <p>Durum, eşleştirilmiş tarayıcı eklentisinin son bildirdiği sinyale dayanır; resmî portal doğrulaması değildir.</p></div>
       <button type="button" onClick={onOpen}>Tümünü görüntüle <span aria-hidden="true">↗</span></button>
     </div>
     <div className="eced-overview-summary">
       <span className="eced-mini-count is-busy"><i/>{busyCount} açık</span>
-      <span className="eced-mini-count is-ready"><i/>{readyCount} girişe hazır</span>
+      <span className="eced-mini-count is-ready"><i/>{readyCount} oturum kapalı işaretli</span>
       <span className="eced-overview-total">{accounts.length} kayıtlı hesap</span>
     </div>
     {error?<p className="eced-overview-state" role="status">Durum yenilenemedi. {error}</p>

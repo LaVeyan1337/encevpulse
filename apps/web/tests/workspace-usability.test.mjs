@@ -211,3 +211,17 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.glass,/select option,select optgroup/);
   assert.match(source.glass,/:root\[data-theme='light'\] select option/);
 });
+
+
+test('Chat conversation switching isolates drafts and ignores stale responses', async () => {
+  const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
+  assert.match(chat, /function switchConversation\(id:string\|null\)/);
+  assert.match(chat, /composerDraftsRef\.current\.set\(previousId,\{draft,pendingFiles,replyTo\}\)/);
+  assert.match(chat, /selectedConversationIdRef\.current=id/);
+  assert.match(chat, /if\(selectedConversationIdRef\.current!==id\)return;/);
+  assert.match(chat, /if\(selectedConversationIdRef\.current!==conversationId\)return;/);
+  assert.match(chat, /if\(selectedConversationIdRef\.current===targetConversationId\)/);
+  assert.match(chat, /draft:saved\.draft\|\|value/);
+  assert.match(chat, /pendingFiles:saved\.pendingFiles\.length\?saved\.pendingFiles:files/);
+  assert.equal((chat.match(/setSelectedId\(/g) ?? []).length, 2, 'All conversation changes must pass through the scoped switch helper.');
+});

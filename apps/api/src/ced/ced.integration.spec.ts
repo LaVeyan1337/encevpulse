@@ -28,6 +28,9 @@ test('ÇED API: route-specific milestones, document completion and project acces
   const hash = await hasher.hash('Yerel-CED-Test-Parolasi-2026!');
   const userIds: string[] = [];
   const projectIds: string[] = [];
+  const directoryContactIds: string[] = [];
+  const deadlineRuleIds: string[] = [];
+  const deadlineOpinionIds: string[] = [];
   let caseId = '';
   let ptdCaseId = '';
   let finalPtdCaseId = '';
@@ -86,6 +89,123 @@ test('ÇED API: route-specific milestones, document completion and project acces
     await app.listen(0, '127.0.0.1');
     const base = 'http://127.0.0.1:' + (app.getHttpServer().address() as AddressInfo).port;
     const [projectManager, processOwner, outsider, employee] = await Promise.all(names.map((name) => signIn(base, name)));
+
+    const ruleDraft = {
+      name: 'CI kurum görüşü iş günü kuralı ' + suffix,
+      description: 'Yalnızca sentetik entegrasyon testi için; gerçek mevzuat kuralı değildir.',
+      dayCount: 3,
+      dayType: 'business_days',
+      includeStartDay: false,
+      dueDateAdjustment: 'none',
+      weekendDays: [0,6],
+      holidayDates: ['2026-11-09'],
+      calendarName: 'CI çalışma takvimi',
+      calendarSourceLabel: 'Sentetik CI fikstürü',
+      calendarSourceReference: 'CI-only test calendar',
+      calendarVerifiedAt: '2026-10-01',
+      startEventLabel: 'Kurum yazısının evrak kayıt tarihi',
+      legalReference: 'Yalnızca test verisi; mevzuat dayanağı değildir.',
+      ruleSourceLabel: 'Sentetik CI fikstürü',
+      ruleSourceReference: 'CI-only test rule fixture',
+      ruleNotes: 'Üretim ortamında kullanılmamalıdır.',
+    };
+    const employeeCannotCreateRule = await api(base,employee,'ced/deadline-rules','POST',ruleDraft);
+    assert.equal(employeeCannotCreateRule.response.status,403,'Çalışan süre kuralı oluşturamamalı.');
+    const ruleCreated = await api(base,processOwner,'ced/deadline-rules','POST',ruleDraft);
+    assert.equal(ruleCreated.response.status,201,JSON.stringify(ruleCreated.data));
+    const deadlineRuleId = ruleCreated.data.rule.id as string;
+    const firstRuleVersionId = ruleCreated.data.rule.draftVersionId as string;
+    deadlineRuleIds.push(deadlineRuleId);
+    assert.equal(ruleCreated.data.rule.draftVersion,1);
+
+    const ruleDraftUpdate = await api(base,processOwner,
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId,'PATCH',{...ruleDraft,dayCount:2});
+    assert.equal(ruleDraftUpdate.response.status,200,JSON.stringify(ruleDraftUpdate.data));
+    const beforeRuleApproval = await api(base,processOwner,'ced/deadline-rules');
+    const unapproved = beforeRuleApproval.data.rules.find((rule:{id:string})=>rule.id===deadlineRuleId);
+    assert.ok(unapproved);
+    assert.equal(unapproved.name,ruleDraft.name,'Taslak düzenlemesi kural adını güncellemelidir.');
+    assert.equal(unapproved.description,ruleDraft.description,'Taslak düzenlemesi kural açıklamasını güncellemelidir.');
+    assert.equal(unapproved.currentVersionId,null,'Taslak kural onaylanmadan hesaplamada kullanılmamalı.');
+    assert.equal(unapproved.draftVersion,1);
+
+    const employeeCannotApproveRule = await api(base,employee,
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId+'/approve','POST',{});
+    assert.equal(employeeCannotApproveRule.response.status,403,'Çalışan süre kuralını onaylayamamalı.');
+    const firstApproval = await api(base,processOwner,
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId+'/approve','POST',{});
+    assert.equal(firstApproval.response.status,200,JSON.stringify(firstApproval.data));
+    assert.equal(firstApproval.data.approved,true);
+
+    const preview = await api(base,processOwner,
+      'ced/deadline-rule-versions/'+firstRuleVersionId+'/preview?startDate=2026-11-06');
+    assert.equal(preview.response.status,200,JSON.stringify(preview.data));
+    assert.equal(preview.data.preview.deadlineDate,'2026-11-11',
+      'Cuma başlangıcı, hafta sonu ve 9 Kasım tatili atlanarak Çarşamba hesaplanmalı.');
+    assert.equal(preview.data.rule.startEventLabel,ruleDraft.startEventLabel);
+
+
+    const directoryDraft = {
+      institutionName: 'Kurum Rehberi Test ' + suffix,
+      institutionType: 'Kamu kurumu',
+      website: 'https://example.gov.tr',
+      contactPerson: 'Test Yetkilisi',
+      title: 'Uzman',
+      department: 'Çevre',
+      phone: '+90 312 000 00 00',
+      email: 'rehber.' + suffix + '@example.gov.tr',
+      address: 'Ankara',
+      sourceLabel: 'Resmî internet sitesi',
+      sourceReference: 'https://example.gov.tr/iletisim',
+      verifiedAt: '2026-11-04',
+    };
+    const directoryCreate = await api(base, processOwner, 'ced/directory', 'POST', directoryDraft);
+    assert.equal(directoryCreate.response.status, 201, JSON.stringify(directoryCreate.data));
+    const directoryContactId = directoryCreate.data.contact.id as string;
+    directoryContactIds.push(directoryContactId);
+    assert.equal(directoryCreate.data.contact.version, 1);
+    assert.equal(directoryCreate.data.contact.sourceLabel, directoryDraft.sourceLabel);
+    assert.equal(directoryCreate.data.contact.verifiedAt, directoryDraft.verifiedAt);
+
+    const employeeDirectory = await api(base, employee, 'ced/directory');
+    assert.equal(employeeDirectory.response.status, 200);
+    assert.ok(employeeDirectory.data.contacts.some((entry: {id:string})=>entry.id===directoryContactId),
+      'Çalışanlar paylaşılan kurum rehberini görüntüleyebilir.');
+    const employeeCannotEditDirectory = await api(base, employee, 'ced/directory/'+directoryContactId, 'PATCH', {});
+    assert.equal(employeeCannotEditDirectory.response.status, 403,
+      'Kurum rehberinde görüntüleme yetkisi düzenleme yetkisi vermez.');
+
+    const duplicateDirectory = await api(base, processOwner, 'ced/directory', 'POST', directoryDraft);
+    assert.equal(duplicateDirectory.response.status, 409, 'Aynı kurum ve iletişim kişisi için ikinci kayıt açılmamalı.');
+
+    const directoryUpdate = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'PATCH', {
+      ...directoryDraft,
+      institutionName: directoryDraft.institutionName + ' Güncel',
+      sourceLabel: 'Telefon teyidi',
+      sourceReference: '05.11.2026 tarihli telefon görüşmesi',
+      verifiedAt: '2026-11-05',
+      expectedVersion: 1,
+    });
+    assert.equal(directoryUpdate.response.status, 200, JSON.stringify(directoryUpdate.data));
+    assert.equal(directoryUpdate.data.contact.version, 2);
+    assert.equal(directoryUpdate.data.contact.sourceLabel, 'Telefon teyidi');
+
+    const staleDirectoryUpdate = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'PATCH', {
+      ...directoryDraft, expectedVersion: 1,
+    });
+    assert.equal(staleDirectoryUpdate.response.status, 409, 'Eski sürümle gelen güncelleme kaydı ezmemeli.');
+
+    const directoryArchive = await api(base, processOwner, 'ced/directory/'+directoryContactId, 'DELETE', {});
+    assert.equal(directoryArchive.response.status, 204);
+    const directoryAfterArchive = await api(base, processOwner, 'ced/directory');
+    assert.equal(directoryAfterArchive.response.status, 200);
+    assert.ok(!directoryAfterArchive.data.contacts.some((entry: {id:string})=>entry.id===directoryContactId),
+      'Arşivlenen kayıt aktif rehber listesinden çıkmalı.');
+    const directoryAudit = await pool.query<{count:string}>(
+      'SELECT count(*)::text AS count FROM institution_directory_audit_events WHERE contact_id=$1',
+      [directoryContactId],
+    );
+    assert.equal(directoryAudit.rows[0].count, '3', 'Oluşturma, güncelleme ve arşivleme denetim kaydı bırakmalı.');
 
     const denied = await api(base, employee, 'ced/projects/00000000-0000-4000-8000-000000000001');
     assert.equal(denied.response.status, 403);
@@ -220,6 +340,87 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(opinionOnlyProject.response.status, 201, JSON.stringify(opinionOnlyProject.data));
     const opinionOnlyProjectId = opinionOnlyProject.data.project.id as string;
     projectIds.push(opinionOnlyProjectId);
+
+    const calculatedOpinion = await api(base,processOwner,'ced/projects/'+opinionOnlyProjectId+'/opinions','POST',{
+      institutionName:'CI Süre Kuralı Kurumu',
+      subject:'Onaylı iş günü kuralı entegrasyon kaydı',
+      status:'waiting',
+      requestDate:'2026-11-06',
+      deadlineBasis:'rule_calculated',
+      deadlineRuleVersionId:firstRuleVersionId,
+      deadlineStartDate:'2026-11-06',
+      deadlineStartEventLabel:ruleDraft.startEventLabel,
+      deadlineReason:'Onaylı test kuralı ile başlangıç tarihi doğrulandı.',
+    });
+    assert.equal(calculatedOpinion.response.status,201,JSON.stringify(calculatedOpinion.data));
+    const calculatedOpinionId=calculatedOpinion.data.opinionId as string;
+    deadlineOpinionIds.push(calculatedOpinionId);
+    const calculatedList=await api(base,processOwner,'ced/opinions');
+    const calculatedRow=calculatedList.data.opinions.find((item:{id:string})=>item.id===calculatedOpinionId);
+    assert.equal(calculatedRow.deadlineDate,'2026-11-11');
+    assert.equal(calculatedRow.deadlineBasis,'rule_calculated');
+    assert.equal(calculatedRow.deadlineRuleVersion,1);
+    assert.equal(calculatedRow.deadlineRuleName,ruleDraft.name);
+    assert.equal(calculatedRow.deadlineStartEventLabel,ruleDraft.startEventLabel);
+    assert.ok(calculatedRow.deadlineCalculatedAt);
+
+    const invalidOverride=await api(base,processOwner,'ced/opinions/'+calculatedOpinionId,'PATCH',{
+      version:calculatedRow.version,
+      deadlineBasis:'manual',
+      deadlineRuleVersionId:null,
+      deadlineStartDate:null,
+      deadlineDate:'2026-11-12',
+      deadlineReason:'',
+    });
+    assert.equal(invalidOverride.response.status,400,'Manuel son tarih düzeltmesi gerekçesiz kaydedilmemeli.');
+    const validOverride=await api(base,processOwner,'ced/opinions/'+calculatedOpinionId,'PATCH',{
+      version:calculatedRow.version,
+      deadlineBasis:'manual',
+      deadlineRuleVersionId:null,
+      deadlineStartDate:null,
+      deadlineDate:'2026-11-12',
+      deadlineReason:'Kurum yazısındaki özel süre notu nedeniyle sorumlu tarafından düzeltildi.',
+    });
+    assert.equal(validOverride.response.status,200,JSON.stringify(validOverride.data));
+    const deadlineHistory=await pool.query<{action:string;reason:string;start_event_label:string}>(
+      'SELECT action,reason,start_event_label FROM ced_opinion_deadline_events WHERE opinion_id=$1 ORDER BY created_at',[calculatedOpinionId],
+    );
+    assert.deepEqual(deadlineHistory.rows.map(row=>row.action),['rule_applied','manual_override']);
+    assert.equal(deadlineHistory.rows[0].start_event_label,ruleDraft.startEventLabel);
+    assert.match(deadlineHistory.rows[1].reason,/özel süre notu/);
+
+    const secondRuleDraft={...ruleDraft};
+    delete (secondRuleDraft as Partial<typeof ruleDraft>).name;
+    delete (secondRuleDraft as Partial<typeof ruleDraft>).description;
+    secondRuleDraft.dayCount=5;
+    const secondVersion=await api(base,processOwner,'ced/deadline-rules/'+deadlineRuleId+'/versions','POST',secondRuleDraft);
+    assert.equal(secondVersion.response.status,201,JSON.stringify(secondVersion.data));
+    const secondRuleVersionId=secondVersion.data.rule.draftVersionId as string;
+    const beforeSecondApproval=await api(base,processOwner,'ced/deadline-rules');
+    const stillFirst=(beforeSecondApproval.data.rules.find((rule:{id:string})=>rule.id===deadlineRuleId));
+    assert.equal(stillFirst.currentVersionId,firstRuleVersionId,'Yeni taslak, mevcut onaylı sürümü değiştirmemeli.');
+    const approveSecond=await api(base,processOwner,
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+secondRuleVersionId+'/approve','POST',{});
+    assert.equal(approveSecond.response.status,200,JSON.stringify(approveSecond.data));
+    const historicalPreview=await api(base,processOwner,
+      'ced/deadline-rule-versions/'+firstRuleVersionId+'/preview?startDate=2026-11-06');
+    assert.equal(historicalPreview.response.status,200,
+      'Eski onaylı sürüm, o sürümle oluşturulan kayıtların yeniden açılabilmesi için önizlenebilmeli.');
+    assert.equal(historicalPreview.data.preview.deadlineDate,'2026-11-11');
+    const staleRuleCreate=await api(base,processOwner,'ced/projects/'+opinionOnlyProjectId+'/opinions','POST',{
+      institutionName:'CI Eski Kural',subject:'Eski sürüm yeni kayıtta kullanılamaz',
+      status:'waiting',requestDate:'2026-11-06',deadlineBasis:'rule_calculated',
+      deadlineRuleVersionId:firstRuleVersionId,deadlineStartDate:'2026-11-06',
+    });
+    assert.equal(staleRuleCreate.response.status,409,'Yeni görüşte eski sürüm seçilememeli.');
+    const latestPreview=await api(base,processOwner,
+      'ced/deadline-rule-versions/'+secondRuleVersionId+'/preview?startDate=2026-11-06');
+    assert.equal(latestPreview.response.status,200);
+    assert.equal(latestPreview.data.preview.deadlineDate,'2026-11-16');
+    const immutableVersion=await api(base,processOwner,
+      'ced/deadline-rules/'+deadlineRuleId+'/versions/'+firstRuleVersionId,'PATCH',ruleDraft);
+    assert.equal(immutableVersion.response.status,409,'Onaylanan sürüm değiştirilememeli.');
+
 
     const [directOpinionA,directOpinionB] = await Promise.all([
       api(base, processOwner, 'ced/projects/' + opinionOnlyProjectId + '/opinions', 'POST', {
@@ -366,6 +567,30 @@ test('ÇED API: route-specific milestones, document completion and project acces
     const cleanup = await pool.connect();
     try {
       await cleanup.query('BEGIN');
+      await cleanup.query('ALTER TABLE ced_opinion_deadline_events DISABLE TRIGGER ced_opinion_deadline_events_append_only');
+      // Remove deadline events for every opinion created under this test's own
+      // cases/projects before deleting those opinions. The audit FK is RESTRICT
+      // by design, so deleting only the rule-calculated fixture is insufficient.
+      await cleanup.query(
+        `DELETE FROM ced_opinion_deadline_events
+         WHERE opinion_id IN (
+           SELECT id FROM ced_institution_opinions
+           WHERE ($1::uuid IS NOT NULL AND case_id=$1)
+              OR project_id=ANY($2::uuid[])
+         )`,
+        [caseId || null, projectIds],
+      );
+      if(deadlineOpinionIds.length) {
+        await cleanup.query('DELETE FROM ced_opinion_deadline_events WHERE opinion_id=ANY($1::uuid[])',[deadlineOpinionIds]);
+      }
+      await cleanup.query('ALTER TABLE ced_opinion_deadline_events ENABLE TRIGGER ced_opinion_deadline_events_append_only');
+      await cleanup.query('ALTER TABLE ced_deadline_rule_audit_events DISABLE TRIGGER ced_deadline_rule_audit_events_append_only');
+      if(deadlineRuleIds.length) {
+        await cleanup.query('DELETE FROM ced_deadline_rule_audit_events WHERE rule_id=ANY($1::uuid[])',[deadlineRuleIds]);
+        await cleanup.query('UPDATE ced_deadline_rule_families SET current_version_id=NULL WHERE id=ANY($1::uuid[])',[deadlineRuleIds]);
+      }
+      await cleanup.query('ALTER TABLE ced_deadline_rule_audit_events ENABLE TRIGGER ced_deadline_rule_audit_events_append_only');
+      await cleanup.query('ALTER TABLE ced_deadline_rule_versions DISABLE TRIGGER ced_deadline_rule_versions_immutable');
       await cleanup.query('ALTER TABLE ced_audit_events DISABLE TRIGGER ced_audit_events_append_only');
       if (caseId) {
         await cleanup.query('DELETE FROM ced_audit_events WHERE case_id=$1', [caseId]);
@@ -390,12 +615,23 @@ test('ÇED API: route-specific milestones, document completion and project acces
       await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id=ANY($1::uuid[])', [projectIds]);
       await cleanup.query('DELETE FROM ced_audit_events WHERE project_id=ANY($1::uuid[])', [projectIds]);
       await cleanup.query('ALTER TABLE ced_audit_events ENABLE TRIGGER ced_audit_events_append_only');
+      if(deadlineRuleIds.length) {
+        await cleanup.query('DELETE FROM ced_deadline_rule_versions WHERE rule_id=ANY($1::uuid[])',[deadlineRuleIds]);
+        await cleanup.query('DELETE FROM ced_deadline_rule_families WHERE id=ANY($1::uuid[])',[deadlineRuleIds]);
+      }
+      await cleanup.query('ALTER TABLE ced_deadline_rule_versions ENABLE TRIGGER ced_deadline_rule_versions_immutable');
       if (projectIds.length) {
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM project_audit_events WHERE project_id=ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id=ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM projects WHERE id=ANY($1::uuid[])', [projectIds]);
         await cleanup.query('ALTER TABLE project_audit_events ENABLE TRIGGER project_audit_events_append_only');
+      }
+      if (directoryContactIds.length) {
+        await cleanup.query('ALTER TABLE institution_directory_audit_events DISABLE TRIGGER institution_directory_audit_events_append_only');
+        await cleanup.query('DELETE FROM institution_directory_audit_events WHERE contact_id=ANY($1::uuid[])', [directoryContactIds]);
+        await cleanup.query('DELETE FROM ced_institution_contacts WHERE id=ANY($1::uuid[])', [directoryContactIds]);
+        await cleanup.query('ALTER TABLE institution_directory_audit_events ENABLE TRIGGER institution_directory_audit_events_append_only');
       }
       if (userIds.length) {
         await cleanup.query('DELETE FROM ced_institution_contacts WHERE created_by=ANY($1::uuid[]) OR updated_by=ANY($1::uuid[])', [userIds]);

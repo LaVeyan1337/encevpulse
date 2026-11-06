@@ -1,6 +1,28 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 3 Kasım 2026 (takvim temeli ve görev/proje tarih entegrasyonu)
+**Son güncelleme:** 5 Kasım 2026
+
+> **Güncel yayın durumu:** Bu bölüm kaynak alınmalıdır; aşağıdaki bazı eski teknik maddeler önceki geliştirme adımlarının tarihsel kaydıdır ve bu güncel özetle çelişen ifadeler geçerli kabul edilmez.
+
+## 5 Kasım 2026 — Güncel ürün ve yayın özeti
+
+- **Kaynak dal:** `feature/chat-conversation-isolation-20261105`. Bu dal, güncel web uygulamasının bütünleşik geliştirme dalıdır. `main` veya ayrı Git geçmişindeki eski masaüstü yayın dalı, bu web sürümüyle otomatik olarak aynı kabul edilmez.
+- **Canlı yayın yok:** `127.0.0.1` yalnızca geliştirme yapılan bilgisayardan erişilir. Şirket içinde ortak HTTPS adresi, sabit/reserve edilmiş host IP'si, iç DNS, güvenilir TLS sertifikası, servis otomatik başlatma ve iki istemci kabul testi henüz kurulmadı.
+- **Yayın hazırlığı:** `docs/COMPANY_LAN_DEPLOYMENT.md`, `deployment/Caddyfile.example`, `deployment/.env.production.example` ve `deployment/compose.production.yaml` eklendi. Bunlar kurulum şablonudur; gerçek hostname/IP veya şirket sertifikası içermez ve host üzerinde çalıştırılmış değildir.
+- **Marka ve ürün dili:** Sol navigasyon altı ve giriş ekranı `ENÇEV ENERJİ` kullanır. Slogan/AI pazarlama dili ve normal kullanıcıya teknik geliştirme bilgisi gösterilmemesi ürün kabul kuralıdır.
+- **Tasarım sistemi:** Koyu `#08182d` / mavi `#65baff`, açık `#eaf2fb` / mavi `#237bd5` token'ları; cam yüzeyler ve mavi/camgöbeği arka plan katmanları geçerlidir. Eski sıcak antrasit/terracotta/adaçayı notu geçersizdir.
+- **Kullanılabilir modüller:** Genel Bakış, Görevler, Projeler, Çalışanlar, Sohbet, Takvim, Kurum Rehberi, Kurum Görüşleri, Dilekçeler, e-ÇED Eklenti İzleme, Notlarım ve Sistem Yönetimi mevcut uygulama akışlarıyla bulunur. Kullanıcı erişimi yine modül/rol/kayıt kapsamı kontrollerine tabidir.
+- **Kasıtlı olarak kapalı modül:** Ortak Drive. Kaynak dosya yetkisi ve güvenli depolama API'si, şirket NAS koruma politikası ve ayrıca verilecek açık izin olmadan etkinleştirilmez. Dilekçeler `0024_petition_docx_workflow.sql` ile etkinleştirildi.
+- **Kurum Rehberi:** Bağımsız kurum/iletişim kaydı ekleme, arama, düzenleme, arşivleme; kaynak etiketi/referansı ve kullanıcı tarafından girilen teyit tarihi; sürüm kontrolü ve append-only denetim geçmişi vardır. Çalışanlar görüntüler; süreç sahibi ve belge sorumlusu yazar. Resmî kurum sistemleriyle otomatik veri eşitleme yoktur. Proje yazışmalarındaki kişiler otomatik olarak ortak rehbere yayımlanmaz.
+- **Kurum Görüşleri:** Proje kapsamlı kurum görüşü CRUD'u, gelen/giden referans, manuel son tarih, durum, arşiv ve denetim akışı vardır. Mevzuat iş günü/resmî tatil hesabı ve otomatik yasal süre hatırlatmaları yoktur.
+- **e-ÇED:** Tarayıcı eklentisi eşleştirme ve tarayıcıda gözlenen sekme/hesap etiketleri vardır. Bunlar e-ÇED sunucusundan doğrulanmış kullanıcı oturumu veya resmî portal verisi değildir; bu ayrım arayüz metinlerinde açıkça belirtilir.
+- **Sohbet:** Kalıcı bire bir/grup mesajlaşma, SSE güncelleme ve dosya eki yükleme akışları vardır. Eki saklama/antivirüs ve kurum veri saklama politikasının onayı gerekir. 1:1 WebRTC çağrı kodu bulunur; gerçek şirket ağında NAT/TURN/cihaz kabul testi tamamlanmadı. Grup çağrısı ve ekran paylaşımı hazır kabul edilmez.
+- **Dilekçeler:** Onaylı DOCX şablonu yükleme ve sürümleme, tanımlı `{{ALAN_ADI}}` işaretleyicilerini proje/kullanıcı verisiyle doldurma, gerçek DOCX oluşturma, metin önizlemesi/indirme, proje ilişkisi, taslak-incelemede-onaylandı-gönderildi durumları, SHA-256 ve denetim geçmişi vardır. Şablon ve çıktı içeriği PULSE PostgreSQL'de saklanır; NAS kullanılmaz. EnÇev'in gerçek onaylı şablonları henüz yüklenmedi; hukuki metin ve zorunlu alan kabulü ürün sahibindedir. Elektronik imza ve otomatik dış gönderim yoktur.
+- **Dilekçe CI kabulü:** Kaynak commit `579f4022d430ff9391e9315e799a4aed1b11a1c5`, Actions `42037718908` başarılı. Web testleri **24/24**, API testleri **42/42**; Web/API TypeScript kontrolleri, iki üretim derlemesi ve e-ÇED eklenti paketi üretimi geçti. API testlerine sentetik DOCX ZIP bütünlüğü/alan doldurma testleri ile şablon yükleme, proje kapsamı, rol, durum geçişi, sürüm ve indirme entegrasyonu eklendi. Bu CI koşusu gerçek EnÇev Word şablonlarını veya Windows/ofis ağını test etmez.
+- **Eksik temel işler:** Gerçek onaylı şirket dilekçe şablonlarının sisteme yüklenip kullanıcı kabulünden geçirilmesi, kurum hiyerarşisi ve yetkili resmî kaynaktan rehber eşitlemesi, yasal süre motoru ve resmî tatil kaynağı, e-ÇED portal doğrulaması, kalıcı bildirim tercihleri/zamanlanmış hatırlatmalar, NAS dışındaki güvenli ortak belge deposu, Windows servisleştirme ve üretim kabulü.
+- **Dosya güvenliği:** Şirket NAS/SMB/DSM paylaşımına bu geliştirmede bağlanılmaz. Ortak Drive, kaynak yetkilendirme modeli onaylanana kadar kapalıdır.
+
+
 
 ## Gerçekten uygulananlar
 
@@ -28,7 +50,7 @@
 
 ### B. Profesyonel ana uygulama arayüzü
 - Modern, Bitrix24 kullanım kolaylığına yakın, ENCEV PULSE'a özgü kurumsal tasarım sistemi.
-- Sol navigasyon: Genel Bakış, Görevler, Çalışanlar, Sohbet ve Projeler modül izinlerine göre gösterilir; Kullanıcılar ve Rol/Modül İzinleri yalnız yetkili sistem yöneticisine açılır. Yetki snapshot'ı olmayan hesaplarda gezinme fail-closed davranır.
+- Sol navigasyon: Genel Bakış, Görevler, Çalışanlar, Sohbet, Projeler, Takvim, Kurum Görüşleri, e-ÇED Eklenti İzleme ve Notlarım modül izinleri ile modül etkinlik durumuna göre gösterilir. Kullanıcılar ve Sistem Yönetimi yalnız yetkili sistem yöneticisine açılır. Yetki snapshot'ı olmayan hesaplarda gezinme fail-closed davranır.
 - Üst bar (topbar):
   - Üst arama alanı (topbar-search): Görev filtreleme ve anlık arama ile tam senkronize.
   - Bildirim menüsü: Görev ve sohbet bildirimleri; API görev başlıklarını/sohbet önizlemelerini ilgili modül görüntüleme iznine göre ayrı filtreler.
@@ -36,7 +58,7 @@
   - Açık ve koyu tema geçişi (`localStorage` kalıcı, semantik CSS token'ları).
   - Mobil uyumlu gezinme: Dar ekranlar ve mobil cihazlar için optimize edilmiş düzen.
 - Yalnızca gerçekten çalışan modüller navigasyonda yer alır.
-- Ortak hareket sistemi: daha yavaş, yumuşak sayfa/panel geçişleri; drawer ve açılır menü hareketleri; kart/sütun giriş gecikmeleri; `prefers-reduced-motion` desteği. Görsel tema sıcak antrasit, kil/terracotta ve adaçayı paletine geçirildi.
+- Ortak hareket sistemi: daha yavaş, yumuşak sayfa/panel geçişleri; drawer ve açılır menü hareketleri; kart/sütun giriş gecikmeleri; `prefers-reduced-motion` desteği. Görsel tema `DESIGN_SYSTEM.md` ile aynı koyu lacivert/cam yüzey, mavi ve camgöbeği vurgulara göre hizalanmıştır.
 - Gerçek veri istekleri sürerken Genel Bakış, Kanban/liste, görev geçmişi ve yorum alanlarında yerleşimi koruyan ghost skeleton kullanılır; örnek kayıt veya sahte metrik gösterilmez.
 
 ### C. Görev yönetimi
@@ -75,7 +97,8 @@
 - Sohbet mesaj bildirimleri görev bildirimleriyle aynı üst menüde toplanır; bildirime tıklama hedef konuşmayı açar, okundu durumu ve genel okunmamış sayacı güncellenir.
 - Sohbet listesinde, doğrudan konuşma başlığında, üye listesinde ve mesajlarda aynı çalışan avatarı kullanılır. Arama sonucu seçildiğinde mesajın kendisi bulunana kadar geçmiş sayfaları yüklenir ve mesaj ekranda ortalanır.
 - Sohbet canlı güncellemeleri same-origin SSE (`/api/chat/events`) ve PostgreSQL `LISTEN/NOTIFY` ile iletilir. Bildirim payload'ları mesaj metni veya dosya bilgisi taşımaz; istemci konuşma kimliğini aldıktan sonra mevcut üyelik kontrollü REST uçlarından veriyi yeniler. Aktif üyelik bazlı fan-out, üyeliği kaldırılan kullanıcıya erişim iptali sinyali, 60 saniyede session yenidoğrulaması ve SSE kesintisinde 15 saniyelik yedek yenileme uygulanır.
-- Sohbet eki yükleme kapalıdır. Eklerin izinli MIME türleri, boyut sınırı, zararlı yazılım taraması ve saklama süresi karara bağlanmamıştır. Sesli/görüntülü görüşme düğmesi eklenmemiştir.
+- Sohbet dosya ekleri arayüz/API üzerinden yüklenebilir; izinli MIME ve dosya imza kontrolleri, dosya başına ve mesaj toplamı boyut sınırları ile kullanıcı kotası uygulanır. İçerik PostgreSQL'de saklanır. Antivirüs/karantina, saklama süresi ve kurum veri politikası henüz onaylanmadığından üretim kabulünün açık maddesidir.
+- 1:1 WebRTC ses/video çağrı sinyalleşmesi ve arayüzü vardır. Gerçek cihazlar, şirket NAT/firewall koşulları ve TURN relay ile kabul testi yapılmadı; grup çağrısı ve ekran paylaşımı yoktur.
 ### D. Gerçek Genel Bakış
 - Veriler doğrudan PostgreSQL üzerinden hesaplanır:
   - **Bana atanan görevler:** `summary.assignedTotal`
@@ -96,11 +119,13 @@
 - Etkinlik düzenleme sürüm kontrolüyle yapılır. Silme yerine arşivleme uygulanır; oluşturma, güncelleme ve arşivleme olayları append-only denetim tablosuna yazılır. Etkinliği oluşturan veya bağlı projenin sahibi yönetebilir.
 - Görev başlangıç/teslim tarihleri ve proje başlangıç/hedef tarihleri takvimde mevcut kayıtlardan salt okunur kilometre taşı olarak hesaplanır; ikinci bir kopya kayıt oluşturulmaz. Kayıtlar yalnız ilgili görev/proje erişim kapsamı ve modül izinleri varsa gösterilir.
 - Takvim liste API'si tarih aralığını doğrular, en fazla 93 günlük pencere kabul eder ve tüm gün/saatli kayıtların kesişimini `Europe/Istanbul` saat dilimine göre hesaplar.
-- **Henüz bu aşamada yok:** otomatik hatırlatma bildirimi/arka plan zamanlayıcısı, kurum tatil takvimi, yasal süre kural motoru, İDK/kurum görüşü süreçleri ve Windows/reverse-proxy kabul testi. Bunlar doğrulanmış kural ve süreç gereksinimleriyle sonraki aşamada geliştirilecek.
+- **Henüz bu aşamada yok:** otomatik hatırlatma bildirimi/arka plan zamanlayıcısı, kurum tatil takvimi ve yasal süre kural motoru. Kurum Görüşleri'nin proje kapsamlı temel CRUD akışı vardır; mevzuat iş günü hesabı, yasal hatırlatma ve İDK süreç onayı yoktur. Windows/reverse-proxy kabul testi de yapılmamıştır.
 
 ## Doğrulama ve test sonuçları
 
 - Önceki kaynak sürümünde API/Web build, TypeScript ve görev/proje/yorum testleri CI'da başarılıydı. Bu sonuç yeni çalışan/sohbet kodunun test edildiği anlamına gelmez.
+- **5 Kasım 2026 — güncel web çalışma dalı CI doğrulaması:** Kaynak commit `bc60d65f88a8615528f9615302ebe551dfb008f0`, GitHub Actions `42030203203` başarıyla tamamlandı. Temiz CI PostgreSQL ortamında migration'lar uygulandı; Web testleri **24/24**, API testleri **35/35**, iki workspace TypeScript kontrolleri, API + Web üretim derlemeleri ve e-ÇED tarayıcı eklentisi derlemesi başarılı oldu. `encev-pulse-validated-source.zip` artifact'i oluşturulup CI'a yüklendi (489.537 bayt).
+- Bu koşu Linux CI kabulüdür. Windows hostta servis başlatma, gerçek Chrome/Edge profilleri, şirket LAN DNS/TLS, iki ayrı istemci, WebRTC NAT/TURN, yedek geri yükleme ve şirket çalışanlarıyla kullanıcı kabulü bu koşuda test edilmedi.
 - Yeni çalışan profili testleri; alanlar, avatar, roller, rehber API'si ve profil güncellemesini kapsayacak şekilde genişletildi.
 - Yeni sohbet entegrasyon testi; doğrudan/grup konuşması, üyelik, rol, idempotent mesaj gönderimi, yanıt, düzenleme/silme, tepki, sabitleme, arama, okundu bilgisi, birleşik bildirim akışı ve mesajdan görev oluşturmayı kapsar.
 - Web testleri kişi kartı/rol/avatar akışını, üç panelli sohbeti, ortak bildirim yönlendirmesini ve API uçlarının UI'dan çağrılmasını kontrol eder.
@@ -108,7 +133,8 @@
 - **SSE için son başarılı CI:** 3d3b425e6b6a45492fe50e970a5652f0cba49f28 / 41674472637. Migration, web 12/12, API 25/25, TypeScript ve API/Web üretim derlemeleri başarılı oldu.
 - **RBAC güvenlik düzeltmesi:** 39ed1829c956366e154f7cea6c7abc8810fd5424 commit'inde ilk CI, ortak SQL parametre katmanındaki dizi parametresi hatasını buldu. Düzeltme sonrası API 25/25 ve Web 12/12 test geçti; TypeScript ve üretim derlemelerinde daha sonra iki UI tip/JSX sorunu bulundu ve giderildi.
 - **Son doğrulanan RBAC kaynak:** 3f4d5250e75dfabbe86e739a0767a88c93e779c2 commit'i, GitHub Actions koşusu 41696281561 ile doğrulandı. Temiz PostgreSQL 18.6 üzerinde migration'lar uygulandı; API 25/25, Web 12/12, iki workspace TypeScript kontrolleri ve API/Web üretim derlemeleri başarılı oldu. Kaynak ZIP'i oluşturuldu ve encev-pulse-validated-source artifact'i olarak yüklendi.
-- Bu doğrulama izole Linux CI ortamına aittir. Windows yerel kurulum, gerçek tarayıcı görsel kabulü, ofis ağı/NAS, gerçek reverse proxy/SSE ve üretim dağıtımı test edilmedi.- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
+- Bu doğrulama izole Linux CI ortamına aittir. Windows yerel kurulum, gerçek tarayıcı görsel kabulü, ofis ağı/NAS, gerçek reverse proxy/SSE ve üretim dağıtımı test edilmedi.
+- **Güvenlik sınırı:** Bu geliştirme/incelemede şirket dosya sunucusuna veya ofis ağına istek gönderilmedi; `.env` içeriği okunmadı/değiştirilmedi.
 
 ## Bilinen durumlar ve sonraki büyük görev
 
@@ -118,5 +144,5 @@
   - Yerel Windows ortamında kontrollü uygulama ve gerçek tarayıcı görsel kabul testlerini tamamlama.
   - Başlangıç rol/modül izinlerini, ekip hiyerarşisini ve kayıt kapsamını süreç sahipleriyle onaylama; ardından Windows tarayıcı ve reverse-proxy kabul testlerini tamamlama.
   - Mesaj saklama/düzenleme/silme süre politikası ve SSE bağlantısının gerçek Windows/reverse-proxy kabul testi.
-  - Yasal süreç kayıtları, kurum görüşleri ve e-ÇED bağlantıları; süreç sahiplerince onaylanmış iş akışı, mevzuat dayanağı ve tatil kaynağıyla aşamalı olarak eklenir.
+  - Mevcut Kurum Görüşleri ve e-ÇED eklenti gözlem akışlarına süreç sahibi onayı, resmî iş günü/tatil kaynağı ve portal tarafı doğrulaması eklenir; doğrulanmayan yasal hesap veya portal durumu otomatik üretilmez.
   - Takvim etkinlikleri için arka plan hatırlatma/uyarı işleri, bildirim idempotency ve teslimat kayıtlarıyla tasarlanır.
