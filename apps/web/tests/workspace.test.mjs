@@ -249,9 +249,9 @@ test('Üst bildirim menüsü sohbet bildirimini okuyup doğru konuşmayı açar'
 test('Görev kartlarının gecikme işareti Europe/Istanbul tarihini kullanır', async () => {
   const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
   assert.match(workspace, /function istanbulDateKey\(date: Date = new Date\(\)\)/);
-  assert.match(workspace, /timeZone: 'Europe\\/Istanbul'/);
+  assert.match(workspace, /timeZone: 'Europe\/Istanbul'/);
   assert.match(workspace, /return dueOn < istanbulDateKey\(\)/);
-  assert.doesNotMatch(workspace, /function isOverdue[\\s\\S]{0,180}toISOString\(\)\.slice\(0, 10\)/);
+  assert.doesNotMatch(workspace, /function isOverdue[\s\S]{0,180}toISOString\(\)\.slice\(0, 10\)/);
 });
 
 test('Takvim çalışma alanı navigasyonda yalnızca modül izniyle görünür', async () => {
