@@ -336,6 +336,74 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
     });
 
 
+    await t.test('görev takipçileri erişimi, bildirimleri ve yönetim sınırını uygular', async () => {
+      const created = await api(base, alice, 'tasks', 'POST', {
+        title: 'Takipçi erişim testi',
+        assigneeId: userIds[0],
+        followerIds: [userIds[2]],
+      });
+      assert.equal(created.response.status, 201, JSON.stringify(created.data));
+      const taskId = created.data.task.id as string;
+      taskIds.push(taskId);
+      assert.deepEqual(created.data.task.followers.map((follower: { id: string }) => follower.id), [userIds[2]]);
+      assert.equal(created.data.task.canManage, true);
+
+      const followerList = await api(base, outsider, 'tasks?view=following');
+      assert.ok(followerList.data.tasks.some((task: { id: string }) => task.id === taskId));
+      const followerDetail = await api(base, outsider, `tasks/${taskId}`);
+      assert.equal(followerDetail.response.status, 200);
+      assert.equal(followerDetail.data.task.canManage, false);
+      assert.equal(followerDetail.data.task.followers[0].displayName, `Task fixture ${names[2]}`);
+
+      const followerInbox = await api(base, outsider, 'notifications');
+      const followerNotification = followerInbox.data.notifications.find((item: { taskId: string; eventType: string }) =>
+        item.taskId === taskId && item.eventType === 'task.followed',
+      );
+      assert.ok(followerNotification);
+      const followerCannotEdit = await api(base, outsider, `tasks/${taskId}`, 'PATCH', {
+        version: followerDetail.data.task.version, title: 'Takipçi görevi değiştiremez',
+      });
+      assert.equal(followerCannotEdit.response.status, 404);
+      const followerCannotArchive = await api(base, outsider, `tasks/${taskId}/archive`, 'POST', {
+        version: followerDetail.data.task.version,
+      });
+      assert.equal(followerCannotArchive.response.status, 404);
+
+      const updated = await api(base, alice, `tasks/${taskId}`, 'PATCH', {
+        version: created.data.task.version, followerIds: [userIds[1]],
+      });
+      assert.equal(updated.response.status, 200, JSON.stringify(updated.data));
+      assert.deepEqual(updated.data.task.followers.map((follower: { id: string }) => follower.id), [userIds[1]]);
+      assert.ok(updated.data.task.version > created.data.task.version);
+
+      const formerFollower = await api(base, outsider, `tasks/${taskId}`);
+      assert.equal(formerFollower.response.status, 404);
+      const newFollower = await api(base, bob, `tasks/${taskId}`);
+      assert.equal(newFollower.response.status, 200);
+      assert.equal(newFollower.data.task.canManage, false);
+      const bobInbox = await api(base, bob, 'notifications');
+      const bobFollowNotification = bobInbox.data.notifications.find((item: { taskId: string; eventType: string }) =>
+        item.taskId === taskId && item.eventType === 'task.followed',
+      );
+      assert.ok(bobFollowNotification);
+      const marked = await api(base, bob, `notifications/${bobFollowNotification.id}/read`, 'POST', {});
+      assert.equal(marked.response.status, 204);
+
+      const followerComment = await api(base, bob, `tasks/${taskId}/comments`, 'POST', { body: 'Takipçi yorumu' });
+      assert.equal(followerComment.response.status, 201);
+      const ownerInbox = await api(base, alice, 'notifications');
+      assert.ok(ownerInbox.data.notifications.some((item: { taskId: string; eventType: string }) =>
+        item.taskId === taskId && item.eventType === 'task.comment',
+      ));
+
+      const ownerComment = await api(base, alice, `tasks/${taskId}/comments`, 'POST', { body: 'Sorumlu yorumu' });
+      assert.equal(ownerComment.response.status, 201);
+      const followerCommentInbox = await api(base, bob, 'notifications');
+      assert.ok(followerCommentInbox.data.notifications.some((item: { taskId: string; eventType: string }) =>
+        item.taskId === taskId && item.eventType === 'task.comment',
+      ));
+    });
+
   } finally {
     if (app) await app.close();
     if (userIds.length) {
@@ -346,6 +414,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM notifications WHERE task_id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM task_followers WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comment_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_audit_events WHERE task_id = ANY($1::uuid[])', [taskIds]);

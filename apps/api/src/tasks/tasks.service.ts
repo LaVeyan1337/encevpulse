@@ -34,7 +34,7 @@ export class TasksService {
     const priority = query.priority;
     if (priority && priority !== 'all' && !PRIORITIES.includes(priority as Priority)) throw invalid('Görev önceliği geçersiz.');
     const view = query.view ?? 'all';
-    if (!['all', 'assigned', 'created', 'archived'].includes(view)) throw invalid('Görev filtresi geçersiz.');
+    if (!['all', 'assigned', 'created', 'following', 'archived'].includes(view)) throw invalid('Görev filtresi geçersiz.');
     const search = (query.q ?? '').trim().slice(0, 120);
     const limit = query.limit === undefined ? 100 : Number(query.limit);
     const offset = query.offset === undefined ? 0 : Number(query.offset);
@@ -58,7 +58,9 @@ export class TasksService {
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$1))
        AND (($2 = 'archived' AND t.archived_at IS NOT NULL) OR ($2 <> 'archived' AND t.archived_at IS NULL))
-       AND ($3 = 'all' OR ($3 = 'assigned' AND t.assignee_id = $1) OR ($3 = 'created' AND t.created_by = $1) OR $3 = 'archived')
+       AND ($3 = 'all' OR ($3 = 'assigned' AND t.assignee_id = $1) OR ($3 = 'created' AND t.created_by = $1)
+         OR ($3 = 'following' AND EXISTS (SELECT 1 FROM task_followers following_tf WHERE following_tf.task_id=t.id AND following_tf.user_id=$1))
+         OR $3 = 'archived')
        AND ($4::text IS NULL OR ($4 = 'active' AND t.status <> 'done') OR t.status = $4)
        AND ($5::text IS NULL OR t.priority = $5)
        AND ($6 = '' OR position(lower($6) in lower(t.title || ' ' || t.description)) > 0)
@@ -757,7 +759,9 @@ export class TasksService {
       const currentFollowers = await client.query('SELECT user_id FROM task_followers WHERE task_id=$1 ORDER BY user_id', [id]);
       const previousFollowerIds = currentFollowers.rows.map((row: { user_id: string }) => row.user_id);
       const requestedFollowerIds = Object.hasOwn(value, 'followerIds') ? (value.followerIds ?? []) : previousFollowerIds;
-      const nextFollowerIds = requestedFollowerIds.filter((followerId) => followerId !== existing.created_by && followerId !== assigneeId);
+      const nextFollowerIds = requestedFollowerIds.filter((followerId) =>
+        followerId !== existing.created_by && followerId !== assigneeId && followerId !== user.id,
+      );
       await this.assertFollowerUsers(client, nextFollowerIds);
       const addedFollowerIds = nextFollowerIds.filter((followerId) => !previousFollowerIds.includes(followerId));
       const removedFollowerIds = previousFollowerIds.filter((followerId) => !nextFollowerIds.includes(followerId));

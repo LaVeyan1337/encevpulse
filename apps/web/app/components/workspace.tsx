@@ -24,6 +24,11 @@ export interface User {
   avatarKey?: string;
 }
 
+export interface TaskFollower {
+  id: string;
+  displayName: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -32,6 +37,8 @@ export interface Task {
   priority: Priority;
   assigneeId: string;
   assigneeName: string;
+  followers: TaskFollower[];
+  canManage: boolean;
   projectId: string | null;
   projectName: string | null;
   startsOn: string | null;
@@ -119,7 +126,7 @@ export interface Summary {
 
 export interface Notification {
   id: string;
-  eventType: 'task.assigned' | 'task.comment' | 'chat.message';
+  eventType: 'task.assigned' | 'task.followed' | 'task.comment' | 'chat.message';
   taskId: string | null;
   conversationId: string | null;
   taskTitle: string;
@@ -296,7 +303,7 @@ export function Workspace({
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
   const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | string>('all');
-  const [view, setView] = useState<'all' | 'assigned' | 'created' | 'archived'>('assigned');
+  const [view, setView] = useState<'all' | 'assigned' | 'created' | 'following' | 'archived'>('assigned');
   const [layout, setLayout] = useState<'board' | 'list'>('board');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -549,7 +556,7 @@ export function Workspace({
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if(!hasModulePermission('tasks',selected?'update':'create'))return;
+    if(!hasModulePermission('tasks',selected?'update':'create') || (selected && !selected.canManage))return;
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError('');
@@ -563,6 +570,7 @@ export function Workspace({
       projectId: form.get('projectId') || null,
       startsOn: form.get('startsOn') || null,
       dueOn: form.get('dueOn') || null,
+      followerIds: form.getAll('followerIds'),
     };
     try {
       if (selected) {
@@ -586,7 +594,7 @@ export function Workspace({
   }
 
   async function moveTask(task: Task, status: TaskStatus) {
-    if (!hasModulePermission('tasks','update')||task.status === status) return;
+    if (!hasModulePermission('tasks','update') || !task.canManage || task.status === status) return;
     setError('');
     try {
       const res = await request(`tasks/${task.id}`, 'PATCH', { status, version: task.version });
@@ -600,7 +608,7 @@ export function Workspace({
   }
 
   async function archiveTask(task: Task, restore = false) {
-    if(!hasModulePermission('tasks',restore?'update':'delete'))return;
+    if(!hasModulePermission('tasks',restore?'update':'delete') || !task.canManage)return;
     setError('');
     try {
       await request(`tasks/${task.id}/${restore ? 'restore' : 'archive'}`, 'POST', {
@@ -1139,7 +1147,9 @@ export function Workspace({
                           ? 'sohbete yeni mesaj gönderdi'
                           : notification.eventType === 'task.comment'
                             ? 'göreve yorum ekledi'
-                            : 'görevi size atadı'}
+                            : notification.eventType === 'task.followed'
+                              ? 'sizi görevi takip etmeye ekledi'
+                              : 'görevi size atadı'}
                       </span>
                       {notification.preview && <span className="notification-preview">{notification.preview}</span>}
                       <time>{dateTimeLabel(notification.createdAt)}</time>
@@ -1446,11 +1456,12 @@ export function Workspace({
                     aria-label="Görünüm filtresi"
                     value={view}
                     onChange={(event) =>
-                      setView(event.target.value as 'all' | 'assigned' | 'created' | 'archived')
+                      setView(event.target.value as 'all' | 'assigned' | 'created' | 'following' | 'archived')
                     }
                   >
                     <option value="assigned">Bana atananlar</option>
                     <option value="created">Oluşturduklarım</option>
+                    <option value="following">Takip ettiklerim</option>
                     <option value="all">Tüm görevler</option>
                     <option value="archived">Arşivlenenler</option>
                   </select>
@@ -1586,7 +1597,7 @@ export function Workspace({
                             <div
                               key={task.id}
                               className="task-card"
-                              draggable={hasModulePermission('tasks','update')}
+                              draggable={hasModulePermission('tasks','update') && task.canManage}
                               onDragStart={(event) => {
                                 event.dataTransfer.setData('text/plain', task.id);
                               }}
@@ -1623,6 +1634,7 @@ export function Workspace({
                               <select
                                 aria-label="Görevin durumunu değiştir"
                                 value={task.status}
+                                disabled={!hasModulePermission('tasks','update') || !task.canManage}
                                 onClick={(e) => e.stopPropagation()}
                                 onChange={(event) =>
                                   void moveTask(task, event.target.value as TaskStatus)
@@ -1695,6 +1707,7 @@ export function Workspace({
                             <select
                               aria-label="Durum seç"
                               value={task.status}
+                              disabled={!hasModulePermission('tasks','update') || !task.canManage}
                               onClick={(event) => event.stopPropagation()}
                               onChange={(event) =>
                                 void moveTask(task, event.target.value as TaskStatus)
@@ -2016,6 +2029,22 @@ export function Workspace({
             </div>
           </div>
 
+          <div className="form-group">
+            <label htmlFor="task-followers">Takipçiler</label>
+            <select
+              id="task-followers"
+              name="followerIds"
+              multiple
+              defaultValue={selected?.followers?.map((follower) => follower.id) ?? []}
+              size={Math.min(6, Math.max(3, people.filter((person) => person.id !== user.id && person.id !== (selected?.assigneeId ?? user.id)).length))}
+            >
+              {people.filter((person) => person.id !== user.id && person.id !== (selected?.assigneeId ?? user.id)).map((person) => (
+                <option key={person.id} value={person.id}>{person.displayName}</option>
+              ))}
+            </select>
+            <span className="field-help">Görev güncellemelerini takip edecek çalışanları seçin. Takipçiler bu görev ve yorumlarını görür; proje alanı ve dosya erişimi ayrıca verilir.</span>
+          </div>
+
           <div className="form-pair">
             <div className="form-group">
               <label htmlFor="task-status">Durum</label>
@@ -2087,14 +2116,14 @@ export function Workspace({
         footer={
           selected && (
             <>
-              {hasModulePermission('tasks',selected.archivedAt?'update':'delete')&&<button
+              {hasModulePermission('tasks',selected.archivedAt?'update':'delete') && selected.canManage && <button
                 type="button"
                 className="secondary-button"
                 onClick={() => void archiveTask(selected, Boolean(selected.archivedAt))}
               >
                 {selected.archivedAt ? 'Arşivden çıkar' : 'Arşivle'}
               </button>}
-              {hasModulePermission('tasks','update')&&<button
+              {hasModulePermission('tasks','update') && selected.canManage && <button
                 type="button"
                 className="primary-button"
                 onClick={() => setTaskFormOpen(true)}
@@ -2111,7 +2140,7 @@ export function Workspace({
             <div className="drawer-quick-actions">
               <span className="quick-actions-label">Durum:</span>
               <div className="quick-status-buttons">
-                {columns.map((col) => hasModulePermission('tasks','update') ? (
+                {columns.map((col) => hasModulePermission('tasks','update') && selected.canManage ? (
                   <button
                     key={col.value}
                     type="button"
@@ -2162,6 +2191,31 @@ export function Workspace({
                 </dd>
               </div>
             </dl>
+
+            <section className="task-followers-section" aria-label="Görev takipçileri">
+              <div className="task-comments-heading">
+                <div>
+                  <h3>Takipçiler</h3>
+                  <span>{selected.followers?.length ?? 0} çalışan</span>
+                </div>
+              </div>
+              {selected.followers?.length ? (
+                <div className="task-followers-list">
+                  {selected.followers.map((follower) => (
+                    <span className="task-follower-chip" key={follower.id}>
+                      <EmployeeAvatar
+                        avatarKey={people.find((person) => person.id === follower.id)?.avatarKey}
+                        name={follower.displayName}
+                        size="sm"
+                      />
+                      {follower.displayName}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted-line">Bu görevi takip eden başka çalışan yok.</p>
+              )}
+            </section>
 
             {/* Task History / Audit Trail */}
             <div className="detail-history-section">

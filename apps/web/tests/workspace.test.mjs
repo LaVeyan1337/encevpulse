@@ -35,6 +35,11 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
   assert.match(workspace, /openAssignedTasks\(\{ due: 'upcoming' \}\)/);
   assert.match(workspace, /openAssignedTasks\(\{ status: 'active' \}\)/);
   assert.match(workspace, /aria-label="Teslim tarihi filtresi"/);
+  assert.match(workspace, /Takip ettiklerim/);
+  assert.match(workspace, /name="followerIds"/);
+  assert.match(workspace, /task-followers-section/);
+  assert.match(workspace, /task.followed/);
+  assert.match(workspace, /selected\.canManage/);
 
   // Scope C: Görev yorumları ve kullanıcıya ait yorum kontrolleri
   assert.match(workspace, /task-comments-section/);

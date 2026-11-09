@@ -2407,3 +2407,40 @@ select:focus-visible, textarea:focus-visible {
 .permission-action:has(input:disabled) {opacity:.6}
 @media(max-width:760px){.permission-toolbar{align-items:stretch;flex-direction:column}.permission-toolbar label,.permission-toolbar select{width:100%;min-width:0}.permission-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:440px){.admin-tab-bar{width:100%}.admin-tab-bar button{flex:1;padding-inline:8px;font-size:12px}.permission-module-row{padding:12px}.permission-action-grid{grid-template-columns:1fr 1fr}}
+
+
+/* Task follower selection and detail */
+.drawer-form select[multiple] {
+  min-height: 112px;
+  height: auto;
+  padding: 8px 10px;
+  background-image: none;
+  appearance: auto;
+}
+.drawer-form select[multiple] option { padding: 7px 8px; border-radius: 5px; }
+.drawer-form .field-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.task-followers-section {
+  display: grid;
+  gap: 10px;
+  padding: 2px 0 4px;
+  border-top: 1px solid var(--border);
+}
+.task-followers-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.task-follower-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
