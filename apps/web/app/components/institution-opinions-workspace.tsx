@@ -457,7 +457,7 @@ export function InstitutionOpinionsWorkspace({
     </section>}
     <nav className="opinions-view-tabs" aria-label="Kurum görüşü bölümleri">
       <button type="button" aria-pressed={view==='opinions'} onClick={()=>setView('opinions')}>Kurum görüşleri <span>{visibleRows.length}</span></button>
-      <button type="button" aria-pressed={view==='directory'} onClick={()=>{setView('directory');void loadContacts();}}>Kurum rehberi <span>{contacts.length}</span></button>
+      <button type="button" aria-pressed={view==='directory'} onClick={()=>{setView('directory');void loadContacts();}}>İlgili kişiler <span>{contacts.length}</span></button>
     </nav>
     {notice&&<div className="opinions-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Bildirimi kapat">×</button></div>}
     <div className="opinions-metrics" aria-label="Kurum görüşü özeti" style={{display:view==='opinions'?'grid':'none'}}>
@@ -507,9 +507,9 @@ export function InstitutionOpinionsWorkspace({
     </div>
     {view==='directory'&&error&&<div className="opinions-error" role="alert"><span>{error}</span><button type="button" onClick={()=>void loadContacts()}>Tekrar dene</button></div>}
     {view==='directory'&&<section className="institution-directory" aria-label="Kurum rehberi">
-      <header><div><h3>Kurum ve ilgili kişi kayıtları</h3><p>Kurum görüşü kaydına girilen iletişim bilgileri burada otomatik toplanır.</p></div><span>{contacts.length} kişi</span></header>
+      <header><div><h3>Proje görüşlerinden gelen iletişimler</h3><p>Bu liste proje erişiminiz kapsamındaki yazışmalardan toplanır; teyit bekleyen kayıtlar ortak Kurum Rehberi’nde ayrıca görünür.</p></div><span>{contacts.length} kişi</span></header>
       {contactsLoading?<div className="opinions-empty">Kurum rehberi yükleniyor…</div>
-      :contacts.length===0?<div className="opinions-empty"><strong>Henüz iletişim kaydı yok</strong><span>Bir kurum görüşünü düzenleyip ilgili kişi, telefon veya e-posta bilgisi eklediğinizde rehber otomatik oluşur.</span></div>
+      :contacts.length===0?<div className="opinions-empty"><strong>Henüz iletişim kaydı yok</strong><span>Bir kurum görüşüne ilgili kişi, telefon veya e-posta eklediğinizde proje iletişim listesi ve teyit bekleyen Kurum Rehberi kaydı oluşur.</span></div>
       :<div className="institution-directory-grid">{contacts.map(contact=><article className="institution-contact-card" key={contact.id}>
         <div><span className="institution-contact-kicker">{contact.institutionName}</span><h4>{contact.contactPerson||'İlgili kişi belirtilmedi'}</h4>{contact.title&&<p>{contact.title}{contact.department?' · '+contact.department:''}</p>}</div>
         <div className="institution-contact-links">
