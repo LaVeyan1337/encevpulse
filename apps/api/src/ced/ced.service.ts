@@ -493,6 +493,7 @@ export class CedService {
         contact.source_reference AS "sourceReference",
         contact.source_verified_at::text AS "verifiedAt",
         verifier.display_name AS "verifiedByName",
+        contact.directory_visible AS "directoryVisible",
         contact.version,contact.created_at AS "createdAt",contact.updated_at AS "updatedAt",
         (SELECT count(DISTINCT opinion.project_id)::int
          FROM ced_institution_opinions opinion
@@ -503,8 +504,22 @@ export class CedService {
            ))) AS "projectCount"
        FROM ced_institution_contacts contact
        LEFT JOIN users verifier ON verifier.id=contact.source_verified_by
-       WHERE contact.directory_visible=true AND contact.archived_at IS NULL
-       ORDER BY lower(contact.institution_name),lower(contact.contact_person),contact.created_at
+       WHERE contact.archived_at IS NULL
+         AND (
+           contact.directory_visible=true
+           OR EXISTS (
+             SELECT 1
+             FROM ced_institution_opinions opinion
+             JOIN projects p ON p.id=opinion.project_id
+             WHERE opinion.contact_id=contact.id
+               AND opinion.archived_at IS NULL
+               AND p.archived_at IS NULL AND p.status<>'archived'
+               AND (p.created_by=$1 OR p.owner_user_id=$1 OR EXISTS(
+                 SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$1
+               ))
+           )
+         )
+       ORDER BY contact.directory_visible DESC,lower(contact.institution_name),lower(contact.contact_person),contact.created_at
        LIMIT 1000`,
       [user.id],
     );
@@ -565,25 +580,43 @@ export class CedService {
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      const current = await client.query<{version:number}>(
-        `SELECT version FROM ced_institution_contacts
-         WHERE id=$1 AND directory_visible=true AND archived_at IS NULL FOR UPDATE`,
+      const current = await client.query<{version:number;directory_visible:boolean}>(
+        `SELECT version,directory_visible FROM ced_institution_contacts
+         WHERE id=$1 AND archived_at IS NULL FOR UPDATE`,
         [contactId],
       );
       if (!current.rowCount) throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Kurum rehberi kaydı bulunamadı.'});
       if (current.rows[0].version !== expectedVersion) {
         throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt başka bir kullanıcı tarafından değiştirilmiş. Güncel veriyi yenileyip tekrar deneyin.'});
       }
+      if(!current.rows[0].directory_visible){
+        const linked=await client.query<{projectId:string}>(
+          `SELECT p.id AS "projectId"
+           FROM ced_institution_opinions opinion
+           JOIN projects p ON p.id=opinion.project_id
+           WHERE opinion.contact_id=$1 AND opinion.archived_at IS NULL
+             AND p.archived_at IS NULL AND p.status<>'archived'
+             AND (p.created_by=$2 OR p.owner_user_id=$2 OR EXISTS(
+               SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.user_id=$2
+             ))
+           ORDER BY p.created_at DESC LIMIT 1`,
+          [contactId,user.id],
+        );
+        if(!linked.rowCount)throw new NotFoundException({code:'INSTITUTION_CONTACT_NOT_FOUND',message:'Aktarılabilecek proje iletişim kaydı bulunamadı.'});
+        await this.assertProjectAccess(client,linked.rows[0].projectId,user.id,true);
+      }
       const updated = await client.query(
         `UPDATE ced_institution_contacts SET
           institution_name=$1,institution_type=$2,website=$3,contact_person=$4,title=$5,department=$6,
           phone=$7,email=$8,address=$9,source_label=$10,source_reference=$11,
-          source_verified_at=$12::date,source_verified_by=$13,updated_by=$14,updated_at=now(),version=version+1
-         WHERE id=$15 AND directory_visible=true AND archived_at IS NULL AND version=$16
+          source_verified_at=$12::date,source_verified_by=$13,directory_visible=true,
+          updated_by=$14,updated_at=now(),version=version+1
+         WHERE id=$15 AND archived_at IS NULL AND version=$16
          RETURNING id,institution_name AS "institutionName",institution_type AS "institutionType",
           website,contact_person AS "contactPerson",title,department,phone,email,address,
           source_label AS "sourceLabel",source_reference AS "sourceReference",
-          source_verified_at::text AS "verifiedAt",version,created_at AS "createdAt",updated_at AS "updatedAt"`,
+          source_verified_at::text AS "verifiedAt",directory_visible AS "directoryVisible",
+          version,created_at AS "createdAt",updated_at AS "updatedAt"`,
         [draft.institutionName,draft.institutionType,draft.website,draft.contactPerson,draft.title,
           draft.department,draft.phone,draft.email,draft.address,draft.sourceLabel,draft.sourceReference,
           draft.verifiedAt,draft.verifiedAt?user.id:null,user.id,contactId,expectedVersion],
@@ -591,8 +624,9 @@ export class CedService {
       if (!updated.rowCount) throw new ConflictException({code:'INSTITUTION_CONTACT_VERSION_CONFLICT',message:'Kayıt değişmiş. Güncel veriyi yenileyip tekrar deneyin.'});
       await client.query(
         `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
-         VALUES($1,$2,'updated',$3::text[])`,
-        [contactId,user.id,Object.keys(draft)],
+         VALUES($1,$2,$3,$4::text[])`,
+        [contactId,user.id,current.rows[0].directory_visible?'updated':'promoted_from_opinion',
+          [...Object.keys(draft),...(!current.rows[0].directory_visible?['directory_visible']:[])]],
       );
       await client.query('COMMIT');
       return {contact:updated.rows[0]};
