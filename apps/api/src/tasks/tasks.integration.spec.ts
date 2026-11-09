@@ -562,11 +562,27 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       taskIds.push(taskId);
 
       const previousFlag = process.env.TASK_ATTACHMENTS_ENABLED;
+      const previousNodeEnv = process.env.NODE_ENV;
       try {
         delete process.env.TASK_ATTACHMENTS_ENABLED;
         const disabledList = await api(base, alice, `tasks/${taskId}/attachments`);
         assert.equal(disabledList.response.status, 503, 'Task attachments must be closed until malware scanning and retention are approved.');
+        const disabledUpload = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'blocked.txt', 'kapalı özellik');
+        assert.equal(disabledUpload.response.status, 503);
+        const disabledDownload = await fetch(`${base}/api/tasks/attachments/${taskId}/download`, {
+          headers: { Origin: ORIGIN, Cookie: alice.cookie },
+        });
+        assert.equal(disabledDownload.status, 503);
+        const disabledDelete = await api(base, alice, `tasks/attachments/${taskId}`, 'DELETE', { version: 1 });
+        assert.equal(disabledDelete.response.status, 503);
 
+        process.env.NODE_ENV = 'production';
+        process.env.TASK_ATTACHMENTS_ENABLED = 'true';
+        const productionCannotEnable = await api(base, alice, `tasks/${taskId}/attachments`);
+        assert.equal(productionCannotEnable.response.status, 503, 'A production environment must not enable task attachments with an environment flag.');
+
+        if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previousNodeEnv;
         process.env.TASK_ATTACHMENTS_ENABLED = 'true';
         const rejected = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'not-allowed.exe', 'yasak tür');
       assert.equal(rejected.response.status, 400);
@@ -614,6 +630,8 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       } finally {
         if (previousFlag === undefined) delete process.env.TASK_ATTACHMENTS_ENABLED;
         else process.env.TASK_ATTACHMENTS_ENABLED = previousFlag;
+        if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previousNodeEnv;
       }
     });
 
