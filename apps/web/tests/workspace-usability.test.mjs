@@ -107,6 +107,11 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
   assert.match(source.calendar,/hkt: 'Halkın Katılım Toplantısı \(HKT\)'/);
   assert.match(source.calendar,/idk: 'İDK Toplantısı'/);
   assert.match(source.calendar,/calendar-scope-switch/);
+  assert.match(source.calendar,/className="calendar-day-select"/);
+  assert.match(source.calendar,/showDayPanel\(day\)/);
+  assert.match(source.calendar,/setDayPanelOpen\(true\)/);
+  assert.match(source.calendar,/Toplantı planla/);
+  assert.match(source.calendar,/Etkinlik ekle/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal'/);
   assert.match(source.calendar,/scope==='personal'\?event\.visibility==='personal':event\.visibility==='shared'/);
   assert.match(source.calendarStyles,/\.calendar-scope-switch/);
