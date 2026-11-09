@@ -19,7 +19,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
     password: process.env.POSTGRES_PASSWORD, connectionTimeoutMillis: 3000, application_name: 'encev-pulse-task-tests',
   });
   const suffix = randomBytes(5).toString('hex');
-  const names = [`ta${suffix}`, `tb${suffix}`, `tc${suffix}`];
+  const names = [`ta${suffix}`, `tb${suffix}`, `tc${suffix}`, `tp${suffix}`];
   const upcomingDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const overdueDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const hasher = new PasswordHasher();
@@ -65,21 +65,25 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
   }
 
   try {
-    const role = await pool.query<{ id: string }>("SELECT id FROM roles WHERE code = 'employee'");
-    assert.ok(role.rowCount, 'Authentication migration must be applied before task tests.');
+    const roles = await pool.query<{ id: string; code: string }>("SELECT id,code FROM roles WHERE code IN ('employee','process_owner')");
+    const roleByCode = new Map(roles.rows.map((role) => [role.code, role.id]));
+    assert.ok(roleByCode.get('employee') && roleByCode.get('process_owner'), 'Employee and process-owner roles must exist before task tests.');
+    const ecedEnabled = await pool.query("SELECT is_enabled FROM app_modules WHERE module_key='eced'");
+    assert.equal(ecedEnabled.rows[0]?.is_enabled,true,'e-ÇED must be enabled for process-link integration tests.');
     for (const username of names) {
       const user = await pool.query<{ id: string }>(
         'INSERT INTO users (username,email,display_name,password_hash) VALUES ($1,$2,$3,$4) RETURNING id',
         [username, `${username}@encev.com.tr`, `Task fixture ${username}`, hash],
       );
       userIds.push(user.rows[0].id);
-      await pool.query('INSERT INTO user_role_assignments (user_id,role_id,assigned_by) VALUES ($1,$2,$1)', [userIds.at(-1), role.rows[0].id]);
+      const roleId=roleByCode.get(username===names[3]?'process_owner':'employee')!;
+      await pool.query('INSERT INTO user_role_assignments (user_id,role_id,assigned_by) VALUES ($1,$2,$1)', [userIds.at(-1), roleId]);
     }
     app = await NestFactory.create(ApplicationModule, { logger: ['error'] });
     app.setGlobalPrefix('api');
     await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
-    const [alice, bob, outsider] = await Promise.all(names.map((name) => signIn(base, name)));
+    const [alice, bob, outsider, processOwner] = await Promise.all(names.map((name) => signIn(base, name)));
 
     await t.test('görev oluşturma ve kişisel erişim', async () => {
       const created = await api(base, alice, 'tasks', 'POST', {
@@ -242,6 +246,88 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.equal(explicitRestore.response.status, 204);
       const restoredLegacy = await api(base, alice, `projects/${projectId}`);
       assert.equal(restoredLegacy.data.project.status, 'on_hold');
+    });
+
+    await t.test('görev e-ÇED ilişkisi proje ve modül yetkisi sınırını uygular', async () => {
+      const firstProject = await api(base, alice, 'tasks/projects', 'POST', {
+        name: 'Process link fixture A',
+        memberIds: [userIds[3]],
+      });
+      assert.equal(firstProject.response.status, 201, JSON.stringify(firstProject.data));
+      const projectA = firstProject.data.project.id as string;
+      projectIds.push(projectA);
+
+      const firstCase = await pool.query<{id:string}>(
+        `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,created_by,updated_by)
+         VALUES($1,'ek1_cbd',$2,$3,$4,$4) RETURNING id`,
+        [projectA, `CASE-A-${suffix}`, `ECED-A-${suffix}`, userIds[3]],
+      );
+      const caseA=firstCase.rows[0].id;
+
+      const created = await api(base, processOwner, 'tasks', 'POST', {
+        title: 'e-ÇED süreç bağlantılı görev',
+        assigneeId: userIds[3],
+        projectId: projectA,
+        cedCaseId: caseA,
+      });
+      assert.equal(created.response.status, 201, JSON.stringify(created.data));
+      const taskId=created.data.task.id as string;
+      taskIds.push(taskId);
+      assert.equal(created.data.task.cedCaseId,caseA);
+
+      const processOwnerDetail=await api(base,processOwner,`tasks/${taskId}`);
+      assert.equal(processOwnerDetail.response.status,200);
+      assert.equal(processOwnerDetail.data.task.cedCaseId,caseA);
+
+      const employeeDetail=await api(base,alice,`tasks/${taskId}`);
+      assert.equal(employeeDetail.response.status,200);
+      assert.equal(employeeDetail.data.task.cedCaseId,null);
+      const employeeList=await api(base,alice,'tasks?view=all');
+      const listed=employeeList.data.tasks.find((task:{id:string})=>task.id===taskId);
+      assert.ok(listed);
+      assert.equal(listed.cedCaseId,null);
+
+      const employeeCannotCreateLink=await api(base,alice,'tasks','POST',{
+        title:'Yetkisiz süreç ilişkisi',
+        assigneeId:userIds[0],
+        projectId:projectA,
+        cedCaseId:caseA,
+      });
+      assert.equal(employeeCannotCreateLink.response.status,403);
+
+      const secondProject=await api(base,alice,'tasks/projects','POST',{
+        name:'Process link fixture B',
+        memberIds:[userIds[3]],
+      });
+      assert.equal(secondProject.response.status,201,JSON.stringify(secondProject.data));
+      const projectB=secondProject.data.project.id as string;
+      projectIds.push(projectB);
+      const secondCase=await pool.query<{id:string}>(
+        `INSERT INTO ced_cases(project_id,route_code,file_number,eced_reference,created_by,updated_by)
+         VALUES($1,'ek2_ptd',$2,$3,$4,$4) RETURNING id`,
+        [projectB,`CASE-B-${suffix}`,`ECED-B-${suffix}`,userIds[3]],
+      );
+      const mismatch=await api(base,processOwner,'tasks','POST',{
+        title:'Çapraz proje ilişkisi reddedilmeli',
+        assigneeId:userIds[3],
+        projectId:projectA,
+        cedCaseId:secondCase.rows[0].id,
+      });
+      assert.equal(mismatch.response.status,400);
+
+      const unlinked=await api(base,processOwner,`tasks/${taskId}`,'PATCH',{
+        version:processOwnerDetail.data.task.version,
+        cedCaseId:null,
+      });
+      assert.equal(unlinked.response.status,200,JSON.stringify(unlinked.data));
+      assert.equal(unlinked.data.task.cedCaseId,null);
+
+      const relinked=await api(base,processOwner,`tasks/${taskId}`,'PATCH',{
+        version:unlinked.data.task.version,
+        cedCaseId:caseA,
+      });
+      assert.equal(relinked.response.status,200,JSON.stringify(relinked.data));
+      assert.equal(relinked.data.task.cedCaseId,caseA);
     });
 
     await t.test('görev yorumları: yetki, düzenleme, silme, sürüm ve bildirim', async () => {
@@ -496,6 +582,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_audit_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM tasks WHERE id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM ced_cases WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM ced_institution_opinions WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_audit_events WHERE project_id = ANY($1::uuid[])', [projectIds]);
         await cleanup.query('DELETE FROM project_members WHERE project_id = ANY($1::uuid[])', [projectIds]);
