@@ -716,8 +716,8 @@ export class TasksService {
         );
         await client.query(
           `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
-           SELECT follower_id,$2,$1,'task.followed',
-             'task.followed:' || $1::text || ':1:' || follower_id::text
+           SELECT follower_id,$2::uuid,$1::uuid,'task.followed',
+             'task.followed:' || ($1::uuid)::text || ':1:' || follower_id::text
            FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT(idempotency_key) DO NOTHING`,
           [task.id, user.id, followerIds],
         );
@@ -791,8 +791,8 @@ export class TasksService {
         );
         await client.query(
           `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
-           SELECT follower_id,$2,$1,'task.followed',
-             'task.followed:' || $1::text || ':' || $4::text || ':' || follower_id::text
+           SELECT follower_id,$2::uuid,$1::uuid,'task.followed',
+             'task.followed:' || ($1::uuid)::text || ':' || ($4::integer)::text || ':' || follower_id::text
            FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT(idempotency_key) DO NOTHING`,
           [id, user.id, addedFollowerIds, updated.rows[0].version],
         );
