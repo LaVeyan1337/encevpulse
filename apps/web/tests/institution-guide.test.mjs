@@ -30,6 +30,10 @@ test('Kurum Rehberi bağımsız, kaynak izli ve yetki kontrollü CRUD akışına
   assert.ok(component.includes('contact.sourceLabel'));
   assert.ok(component.includes('contact.sourceReference'));
   assert.ok(component.includes('contact.verifiedAt'));
+  assert.ok(component.includes('contact.directoryVisible'));
+  assert.ok(component.includes('Teyit bekliyor'));
+  assert.ok(component.includes('Kaynağı teyit et ve rehbere aktar'));
+  assert.ok(component.includes('Kurum Görüşleri formundan gelen iletişim bilgileri'));
   assert.match(component,/Kayıt kaynağı/);
   assert.match(component,/otomatik doğrulamaz/);
   assert.match(component,/Arşivle/);
@@ -43,7 +47,11 @@ test('Kurum Rehberi bağımsız, kaynak izli ve yetki kontrollü CRUD akışına
   assert.match(controller,/authorize\(request,'institution_guide','update',true\)/);
   assert.match(controller,/authorize\(request,'institution_guide','delete',true\)/);
 
-  assert.match(service,/directory_visible=true AND contact\.archived_at IS NULL/);
+  assert.match(service,/contact\.directory_visible AS "directoryVisible"/);
+  assert.match(service,/opinion\.contact_id=contact\.id/);
+  assert.match(service,/directory_visible=true/);
+  assert.match(service,/promoted_from_opinion/);
+  assert.match(service,/await this\.assertProjectAccess\(client,linked\.rows\[0\]\.projectId,user\.id,true\)/);
   assert.match(service,/async createDirectoryContact/);
   assert.match(service,/async updateDirectoryContact/);
   assert.match(service,/async archiveDirectoryContact/);
