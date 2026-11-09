@@ -352,6 +352,13 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(promotedContact.response.status,200,JSON.stringify(promotedContact.data));
     assert.equal(promotedContact.data.contact.directoryVisible,true);
     assert.equal(promotedContact.data.contact.verifiedAt,'2026-11-05');
+    const promotionAudit=await pool.query<{action:string;changed_fields:string[]}>(
+      'SELECT action,changed_fields FROM institution_directory_audit_events WHERE contact_id=$1 ORDER BY created_at DESC LIMIT 1',
+      [pendingContact.id],
+    );
+    assert.equal(promotionAudit.rows[0].action,'updated');
+    assert.ok(promotionAudit.rows[0].changed_fields.includes('directory_visible'),
+      'Rehbere aktarım denetiminde görünürlük değişikliği kaydedilmeli.');
     const employeeAfterPromotion = await api(base,employee,'ced/directory');
     assert.ok(employeeAfterPromotion.data.contacts.some((item:{id:string})=>item.id===pendingContact.id),
       'Yetkili tarafından rehbere aktarılan iletişim çalışanlar için ortak görünür olmalı.');
