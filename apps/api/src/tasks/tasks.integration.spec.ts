@@ -561,7 +561,14 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       const taskId = taskResult.data.task.id as string;
       taskIds.push(taskId);
 
-      const rejected = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'not-allowed.exe', 'yasak tür');
+      const previousFlag = process.env.TASK_ATTACHMENTS_ENABLED;
+      try {
+        delete process.env.TASK_ATTACHMENTS_ENABLED;
+        const disabledList = await api(base, alice, `tasks/${taskId}/attachments`);
+        assert.equal(disabledList.response.status, 503, 'Task attachments must be closed until malware scanning and retention are approved.');
+
+        process.env.TASK_ATTACHMENTS_ENABLED = 'true';
+        const rejected = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'not-allowed.exe', 'yasak tür');
       assert.equal(rejected.response.status, 400);
 
       const uploaded = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'task-note.txt', 'Görev eki test içeriği');
@@ -604,6 +611,10 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.equal(hiddenAfterRemoval.status, 404);
       const emptyList = await api(base, alice, `tasks/${taskId}/attachments`);
       assert.equal(emptyList.data.attachments.length, 0);
+      } finally {
+        if (previousFlag === undefined) delete process.env.TASK_ATTACHMENTS_ENABLED;
+        else process.env.TASK_ATTACHMENTS_ENABLED = previousFlag;
+      }
     });
 
   } finally {

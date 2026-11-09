@@ -6,6 +6,7 @@ import { AccessControlService } from '../access-control/access-control.service.j
 import type { ModuleAction } from '../access-control/access-control.service.js';
 import { TasksService } from './tasks.service.js';
 import { TaskUploadGuard } from './task-upload.guard.js';
+import { TaskAttachmentsFeatureGuard } from './task-attachments-feature.guard.js';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CHAT_ATTACHMENT_MAX_FILE_BYTES, CHAT_ATTACHMENT_MAX_FILES, type UploadedChatFile } from '../chat/chat-attachments.js';
 
@@ -130,13 +131,14 @@ export class TasksController {
   }
 
   @Get('tasks/:id/attachments')
+  @UseGuards(TaskAttachmentsFeatureGuard)
   async taskAttachments(@Req() request: Request,@Param('id') id: string) {
     return this.tasks.taskAttachments(await this.authorize(request,'tasks','view'),id);
   }
 
   @Post('tasks/:id/attachments')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(TaskUploadGuard)
+  @UseGuards(TaskAttachmentsFeatureGuard,TaskUploadGuard)
   @UseInterceptors(FilesInterceptor('files',CHAT_ATTACHMENT_MAX_FILES,{
     limits:{files:CHAT_ATTACHMENT_MAX_FILES,fileSize:CHAT_ATTACHMENT_MAX_FILE_BYTES,fields:0,parts:CHAT_ATTACHMENT_MAX_FILES},
   }))
@@ -151,6 +153,7 @@ export class TasksController {
   }
 
   @Get('tasks/attachments/:attachmentId/download')
+  @UseGuards(TaskAttachmentsFeatureGuard)
   @Header('Cache-Control','private, no-store')
   @Header('X-Content-Type-Options','nosniff')
   async downloadTaskAttachment(
@@ -166,6 +169,7 @@ export class TasksController {
   }
 
   @Delete('tasks/attachments/:attachmentId')
+  @UseGuards(TaskAttachmentsFeatureGuard)
   async deleteTaskAttachment(@Req() request: Request,@Param('attachmentId') id: string,@Body() body: unknown) {
     return this.tasks.deleteTaskAttachment(await this.authorize(request,'tasks','delete',true),id,body);
   }

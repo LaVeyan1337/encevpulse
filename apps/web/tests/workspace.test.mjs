@@ -43,10 +43,9 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
   assert.match(workspace, /taskChangeSummary/);
   assert.match(workspace, /timeline-change-summary/);
   assert.match(workspace, /selected\.canManage/);
-  assert.match(workspace, /name="attachments"/);
-  assert.match(workspace, /tasks\/\$\{taskId\}\/attachments/);
-  assert.match(workspace, /tasks\/attachments\/\$\{attachment\.id\}\/download/);
-  assert.match(workspace, /removeTaskAttachment/);
+  assert.doesNotMatch(workspace, /name="attachments"/);
+  assert.doesNotMatch(workspace, /task-attachments-section/);
+  assert.doesNotMatch(workspace, /tasks\/attachments\/\$\{attachment\.id\}\/download/);
 
   // Scope C: Görev yorumları ve kullanıcıya ait yorum kontrolleri
   assert.match(workspace, /task-comments-section/);

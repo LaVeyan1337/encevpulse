@@ -29,17 +29,6 @@ export interface TaskFollower {
   displayName: string;
 }
 
-export interface TaskAttachment {
-  id: string;
-  taskId: string;
-  originalName: string;
-  mimeType: string;
-  byteSize: number;
-  sha256: string;
-  uploadedBy: string;
-  createdAt: string;
-}
-
 export interface TaskCedCase {
   id: string;
   fileNumber: string;
@@ -338,9 +327,6 @@ export function Workspace({
   const [loadingTaskActivity, setLoadingTaskActivity] = useState(false);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [loadingTaskComments, setLoadingTaskComments] = useState(false);
-  const [taskAttachments, setTaskAttachments] = useState<TaskAttachment[]>([]);
-  const [loadingTaskAttachments, setLoadingTaskAttachments] = useState(false);
-  const [taskAttachmentError, setTaskAttachmentError] = useState('');
   const [commentDraft, setCommentDraft] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState('');
@@ -556,29 +542,6 @@ export function Workspace({
     return () => { cancelled = true; };
   }, [selected?.id, request]);
 
-  useEffect(() => {
-    if (!selected) {
-      setTaskAttachments([]);
-      setTaskAttachmentError('');
-      return;
-    }
-    let cancelled = false;
-    setLoadingTaskAttachments(true);
-    setTaskAttachments([]);
-    setTaskAttachmentError('');
-    request(`tasks/${selected.id}/attachments`)
-      .then((result) => {
-        if (!cancelled) setTaskAttachments(Array.isArray(result.attachments) ? result.attachments as TaskAttachment[] : []);
-      })
-      .catch((cause) => {
-        if (!cancelled) setTaskAttachmentError(cause instanceof Error ? cause.message : 'Görev ekleri alınamadı.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTaskAttachments(false);
-      });
-    return () => { cancelled = true; };
-  }, [selected?.id, request]);
-
   // Load task-specific activity when a task is selected
   useEffect(() => {
     if (!selected) {
@@ -684,9 +647,6 @@ export function Workspace({
       return;
     }
     const form = new FormData(event.currentTarget);
-    const attachmentFiles = form.getAll('attachments').filter(
-      (file): file is File => typeof File !== 'undefined' && file instanceof File && file.size > 0,
-    );
     setBusy(true);
     setError('');
     setMessage('');
@@ -716,50 +676,13 @@ export function Workspace({
         taskId = String(res.task.id);
       }
 
-      if (attachmentFiles.length) {
-        const upload = new FormData();
-        attachmentFiles.forEach((file) => upload.append('files', file, file.name));
-        try {
-          const result = await request(`tasks/${taskId}/attachments`, 'POST', upload);
-          setTaskAttachments(Array.isArray(result.attachments) ? result.attachments as TaskAttachment[] : []);
-          if (selected) {
-            setSelected((current) => current && current.id === taskId
-              ? { ...current, version: Number(result.taskVersion) || current.version }
-              : current);
-          }
-          setMessage(`Görev kaydedildi ve ${Number(result.added) || attachmentFiles.length} dosya eklendi.`);
-        } catch (uploadCause) {
-          setMessage(`Görev kaydedildi; ancak dosya ekleri yüklenemedi: ${uploadCause instanceof Error ? uploadCause.message : 'Yükleme hatası.'}`);
-          setTaskFormOpen(false);
-          await refresh();
-          return;
-        }
-      } else {
-        setMessage(selected ? 'Görev kaydedildi.' : 'Görev oluşturuldu.');
-      }
+      setMessage(selected ? 'Görev kaydedildi.' : 'Görev oluşturuldu.');
       setTaskFormOpen(false);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Görev kaydedilemedi.');
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function removeTaskAttachment(attachment: TaskAttachment) {
-    if (!selected || !selected.canManage || !hasModulePermission('tasks','delete') || selected.archivedAt) return;
-    if (!window.confirm(`“${attachment.originalName}” ekini kaldırmak istiyor musunuz?`)) return;
-    setTaskAttachmentError('');
-    try {
-      const result = await request(`tasks/attachments/${attachment.id}`, 'DELETE', { version: selected.version });
-      setTaskAttachments((items) => items.filter((item) => item.id !== attachment.id));
-      setSelected((current) => current && current.id === selected.id
-        ? { ...current, version: Number(result.taskVersion) || current.version }
-        : current);
-      setMessage('Dosya eki kaldırıldı.');
-      await refresh();
-    } catch (cause) {
-      setTaskAttachmentError(cause instanceof Error ? cause.message : 'Dosya eki kaldırılamadı.');
     }
   }
 
@@ -2250,19 +2173,7 @@ export function Workspace({
                 <option key={person.id} value={person.id}>{person.displayName}</option>
               ))}
             </select>
-            <span className="field-help">Görev güncellemelerini takip edecek çalışanları seçin. Takipçiler bu görev ve yorumlarını görür; proje alanı ve dosya erişimi ayrıca verilir.</span>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="task-attachments">Dosya ekleri</label>
-            <input
-              id="task-attachments"
-              name="attachments"
-              type="file"
-              multiple
-              accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.docx,.xlsx,.pptx,.txt,.csv,.webm,.ogg,.oga,.mp3,.m4a,.wav,.mp4"
-            />
-            <span className="field-help">En fazla 5 dosya; dosya başına 12 MB, toplam 24 MB. Dosyalar PULSE içinde saklanır.</span>
+            <span className="field-help">Görev güncellemelerini takip edecek çalışanları seçin. Takipçiler bu görevi ve yorumlarını görür; proje alanı için ayrıca üyelik gerekir.</span>
           </div>
 
           <div className="form-pair">
@@ -2423,42 +2334,6 @@ export function Workspace({
                 </dd>
               </div>
             </dl>
-
-            <section className="task-attachments-section" aria-label="Görev dosya ekleri">
-              <div className="task-comments-heading">
-                <div>
-                  <h3>Dosya ekleri</h3>
-                  <span>{taskAttachments.length} dosya</span>
-                </div>
-              </div>
-              {taskAttachmentError && <p className="auth-error" role="alert">{taskAttachmentError}</p>}
-              {loadingTaskAttachments ? (
-                <p className="muted-line">Dosya ekleri yükleniyor…</p>
-              ) : taskAttachments.length ? (
-                <div className="task-attachments-list">
-                  {taskAttachments.map((attachment) => (
-                    <div className="task-attachment-row" key={attachment.id}>
-                      <div className="task-attachment-icon"><Icon name="paperclip" /></div>
-                      <div className="task-attachment-main">
-                        <a href={`/api/tasks/attachments/${attachment.id}/download`} download={attachment.originalName}>
-                          {attachment.originalName}
-                        </a>
-                        <span>{attachment.byteSize >= 1024 * 1024
-                          ? `${(attachment.byteSize / (1024 * 1024)).toFixed(1)} MB`
-                          : `${Math.max(1, Math.round(attachment.byteSize / 1024))} KB`} · {dateTimeLabel(attachment.createdAt)}</span>
-                      </div>
-                      {selected.canManage && !selected.archivedAt && hasModulePermission('tasks','delete') && (
-                        <button type="button" className="task-attachment-remove" onClick={() => void removeTaskAttachment(attachment)}>
-                          Kaldır
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted-line">Bu göreve henüz dosya eklenmedi.</p>
-              )}
-            </section>
 
             <section className="task-followers-section" aria-label="Görev takipçileri">
               <div className="task-comments-heading">
