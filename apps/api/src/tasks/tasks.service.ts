@@ -1040,15 +1040,6 @@ export class TasksService {
     if(result.rows[0].archived_at) throw invalid('Arşivlenmiş ÇED süreci yeni göreve bağlanamaz.');
   }
 
-  private async assertCedCaseMatchesProject(client: import('pg').PoolClient, caseId: string, projectId: string | null) {
-    if (!projectId) throw invalid('ÇED süreci bağlantısı için görev bir projeye bağlanmalıdır.');
-    const result=await client.query<{archived_at:string|null}>(
-      'SELECT archived_at FROM ced_cases WHERE id=$1 AND project_id=$2 FOR SHARE',[caseId,projectId],
-    );
-    if(!result.rowCount) throw invalid('Seçilen ÇED süreci bu projeye ait değil.');
-    if(result.rows[0].archived_at) throw invalid('Arşivlenmiş ÇED süreci yeni göreve bağlanamaz.');
-  }
-
   private async assertFollowerUsers(client: import('pg').PoolClient, userIds: string[]) {
     if (!userIds.length) return;
     const active = await client.query("SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'", [userIds]);
