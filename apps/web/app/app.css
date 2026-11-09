@@ -2504,3 +2504,33 @@ select:focus-visible, textarea:focus-visible {
   cursor: pointer;
 }
 .task-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+
+/* Task-to-process relationship */
+.task-process-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  margin: 0 0 18px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong, var(--surface)) 84%, transparent);
+}
+.task-process-link > div { display: grid; gap: 4px; min-width: 0; }
+.task-process-link span { color: var(--muted); font-size: 12px; }
+.task-process-link strong { color: var(--text); font-size: 14px; }
+.task-process-link small { color: var(--muted); line-height: 1.45; }
+.task-process-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--danger, #b42318);
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  .task-process-link { align-items: flex-start; flex-direction: column; }
+  .task-process-error { align-items: flex-start; flex-direction: column; }
+}

@@ -40,6 +40,14 @@ export interface TaskAttachment {
   createdAt: string;
 }
 
+export interface TaskCedCase {
+  id: string;
+  fileNumber: string;
+  ecedReference: string;
+  routeCode: string;
+  decision: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -52,6 +60,7 @@ export interface Task {
   canManage: boolean;
   projectId: string | null;
   projectName: string | null;
+  cedCaseId: string | null;
   startsOn: string | null;
   dueOn: string | null;
   version: number;
@@ -342,6 +351,13 @@ export function Workspace({
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [taskFormProjectId,setTaskFormProjectId]=useState('');
+  const [taskCedCase,setTaskCedCase]=useState<TaskCedCase|null>(null);
+  const [taskCedCaseId,setTaskCedCaseId]=useState('');
+  const [taskCedCaseLoading,setTaskCedCaseLoading]=useState(false);
+  const [taskCedCaseLoaded,setTaskCedCaseLoaded]=useState(false);
+  const [taskCedCaseError,setTaskCedCaseError]=useState('');
+  const [taskCedCaseReload,setTaskCedCaseReload]=useState(0);
   const [projectFormOpen, setProjectFormOpen] = useState(false);
   const [passwordFormOpen, setPasswordFormOpen] = useState(false);
   const [passwordError, setPasswordError] = useState('');
@@ -398,6 +414,47 @@ export function Workspace({
     },
     [csrfToken, onExpired],
   );
+
+  useEffect(() => {
+    if (!taskFormOpen) return;
+    if (!hasModulePermission('eced') || !taskFormProjectId) {
+      setTaskCedCase(null);
+      setTaskCedCaseLoading(false);
+      setTaskCedCaseLoaded(true);
+      setTaskCedCaseError('');
+      return;
+    }
+    let cancelled=false;
+    setTaskCedCaseLoading(true);
+    setTaskCedCaseLoaded(false);
+    setTaskCedCaseError('');
+    request(`ced/projects/${taskFormProjectId}`)
+      .then((result) => {
+        if(cancelled)return;
+        const candidate=result.case as TaskCedCase|null;
+        setTaskCedCase(candidate && typeof candidate.id==='string' ? candidate : null);
+        setTaskCedCaseLoaded(true);
+      })
+      .catch((cause) => {
+        if(cancelled)return;
+        setTaskCedCase(null);
+        setTaskCedCaseError(cause instanceof Error ? cause.message : 'ÇED süreci doğrulanamadı.');
+      })
+      .finally(() => {
+        if(!cancelled)setTaskCedCaseLoading(false);
+      });
+    return () => {cancelled=true;};
+  },[taskFormOpen,taskFormProjectId,taskCedCaseReload,request,hasModulePermission]);
+
+  function openTaskEditor(task:Task|null) {
+    setSelected(task);
+    setTaskFormProjectId(task?.projectId ?? '');
+    setTaskCedCaseId(task?.cedCaseId ?? '');
+    setTaskCedCase(null);
+    setTaskCedCaseError('');
+    setTaskCedCaseLoaded(false);
+    setTaskFormOpen(true);
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -612,6 +669,10 @@ export function Workspace({
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if(!hasModulePermission('tasks',selected?'update':'create') || (selected && !selected.canManage))return;
+    if (hasModulePermission('eced') && taskFormProjectId && (taskCedCaseLoading || !taskCedCaseLoaded || taskCedCaseError)) {
+      setError('ÇED süreci doğrulanmadan görev kaydedilemez. Bağlantıyı yenileyip tekrar deneyin.');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const attachmentFiles = form.getAll('attachments').filter(
       (file): file is File => typeof File !== 'undefined' && file instanceof File && file.size > 0,
@@ -626,6 +687,7 @@ export function Workspace({
       status: form.get('status'),
       assigneeId: form.get('assigneeId'),
       projectId: form.get('projectId') || null,
+      ...(hasModulePermission('eced') ? {cedCaseId:taskCedCaseId || null} : {}),
       startsOn: form.get('startsOn') || null,
       dueOn: form.get('dueOn') || null,
       followerIds: form.getAll('followerIds'),
@@ -1342,8 +1404,7 @@ export function Workspace({
                   type="button"
                   className="primary-button compact-button"
                   onClick={() => {
-                    setSelected(null);
-                    setTaskFormOpen(true);
+                    openTaskEditor(null);
                   }}
                 >
                   Görev oluştur
@@ -1653,8 +1714,7 @@ export function Workspace({
                     type="button"
                     className="primary-button compact-button"
                     onClick={() => {
-                      setSelected(null);
-                      setTaskFormOpen(true);
+                      openTaskEditor(null);
                     }}
                   >
                     Yeni görev oluştur
@@ -2068,7 +2128,7 @@ export function Workspace({
               type="submit"
               form="task-form"
               className="primary-button"
-              disabled={busy}
+              disabled={busy || (hasModulePermission('eced') && Boolean(taskFormProjectId) && (taskCedCaseLoading || !taskCedCaseLoaded || Boolean(taskCedCaseError)))}
             >
               {busy ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
@@ -2118,7 +2178,12 @@ export function Workspace({
             </div>
             <div className="form-group">
               <label htmlFor="task-project">Proje</label>
-              <select id="task-project" name="projectId" defaultValue={selected?.projectId ?? ''}>
+              <select id="task-project" name="projectId" value={taskFormProjectId} onChange={(event) => {
+                setTaskFormProjectId(event.currentTarget.value);
+                setTaskCedCaseId('');
+                setTaskCedCase(null);
+                setTaskCedCaseError('');
+              }}>
                 <option value="">Proje yok</option>
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
@@ -2128,6 +2193,39 @@ export function Workspace({
               </select>
             </div>
           </div>
+
+          {hasModulePermission('eced') && (
+            <div className="form-group">
+              <label htmlFor="task-ced-case">İlgili e-ÇED süreci</label>
+              <select
+                id="task-ced-case"
+                name="cedCaseId"
+                value={taskCedCaseId}
+                disabled={!taskFormProjectId || taskCedCaseLoading || !taskCedCaseLoaded || Boolean(taskCedCaseError)}
+                onChange={(event) => setTaskCedCaseId(event.currentTarget.value)}
+              >
+                <option value="">ÇED süreci bağlantısı yok</option>
+                {taskCedCase && <option value={taskCedCase.id}>
+                  {taskCedCase.fileNumber || taskCedCase.ecedReference || 'ÇED takip dosyası'}
+                  {taskCedCase.ecedReference ? ` · e-ÇED ${taskCedCase.ecedReference}` : ''}
+                </option>}
+                {taskCedCaseId && (!taskCedCase || taskCedCase.id !== taskCedCaseId) && (
+                  <option value={taskCedCaseId}>Mevcut süreç bağlantısı (etkin kayıt bulunamadı)</option>
+                )}
+              </select>
+              <span className="field-help">Görev yalnızca seçili projeye ait e-ÇED dosyasına bağlanabilir. Proje seçilmeden süreç bağlantısı kurulamaz.</span>
+              {taskCedCaseLoading && <span className="field-help">Projenin e-ÇED kaydı kontrol ediliyor…</span>}
+              {taskCedCaseError && (
+                <div className="task-process-error" role="alert">
+                  <span>{taskCedCaseError}</span>
+                  <button type="button" className="text-button" onClick={() => setTaskCedCaseReload((value) => value + 1)}>Yeniden dene</button>
+                </div>
+              )}
+              {taskCedCaseLoaded && taskFormProjectId && !taskCedCase && !taskCedCaseId && (
+                <span className="field-help">Bu projede etkin bir e-ÇED takip kaydı bulunmuyor.</span>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="task-followers">Takipçiler</label>
@@ -2238,7 +2336,7 @@ export function Workspace({
               {hasModulePermission('tasks','update') && selected.canManage && <button
                 type="button"
                 className="primary-button"
-                onClick={() => setTaskFormOpen(true)}
+                onClick={() => openTaskEditor(selected)}
               >
                 Görevi düzenle
               </button>}
@@ -2265,6 +2363,18 @@ export function Workspace({
               </div>
             </div>
 
+            {selected.cedCaseId && selected.projectId && hasModulePermission('eced') && hasModulePermission('projects') && (
+              <div className="task-process-link">
+                <div>
+                  <span>Bağlı süreç</span>
+                  <strong>e-ÇED takip dosyası</strong>
+                  <small>Bu görev seçili projenin ÇED süreciyle ilişkilendirilmiştir.</small>
+                </div>
+                <button type="button" className="secondary-button compact-button" onClick={() => void openProject(selected.projectId!, 'ced')}>
+                  Süreci aç
+                </button>
+              </div>
+            )}
             <div className="detail-description-box">
               <h3>Açıklama</h3>
               <p className="detail-description">
