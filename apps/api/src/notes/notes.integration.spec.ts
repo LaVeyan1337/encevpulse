@@ -112,7 +112,7 @@ test('Notlar API: gerçek oturum, kişisel gizlilik, arama, sürüm, arşiv ve d
       taskId,
     });
     assert.equal(created.response.status,201,JSON.stringify(created.data));
-    const note=created.data.note as {id:string;title:string;body:string;tags:string[];version:number;archivedAt:string|null};
+    const note=created.data.note as {id:string;title:string;body:string;tags:string[];projectId:string|null;taskId:string|null;version:number;archivedAt:string|null};
     assert.equal(note.version,1);
     assert.deepEqual(note.tags,['ÇED','Saha'],'Turkish locale duplicate tags must be normalized without losing the first label.');
     assert.equal(note.projectId,projectId);
