@@ -2451,3 +2451,56 @@ select:focus-visible, textarea:focus-visible {
   font-size: 10.5px;
   line-height: 1.4;
 }
+
+
+/* Task attachments */
+.task-attachments-section {
+  display: grid;
+  gap: 10px;
+  padding: 2px 0 4px;
+  border-top: 1px solid var(--border);
+}
+.task-attachments-list { display: grid; gap: 8px; }
+.task-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.task-attachment-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: 9px;
+}
+.task-attachment-main { display: grid; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.task-attachment-main a {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-attachment-main a:hover { color: var(--accent); text-decoration: underline; }
+.task-attachment-main span { color: var(--text-muted); font-size: 10.5px; }
+.task-attachment-remove {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.task-attachment-remove:hover { color: var(--danger); border-color: var(--danger); }

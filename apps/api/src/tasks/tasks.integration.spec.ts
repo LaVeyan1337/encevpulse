@@ -40,6 +40,18 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
     return { response, data };
   }
 
+  async function uploadFile(base: string, client: Client, path: string, filename: string, contents: string, mimeType = 'text/plain') {
+    const form = new FormData();
+    form.append('files', new Blob([contents], { type: mimeType }), filename);
+    const response = await fetch(`${base}/api/${path}`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, Cookie: client.cookie, 'X-CSRF-Token': client.csrf },
+      body: form,
+    });
+    const data = response.status === 204 ? null : await response.json();
+    return { response, data };
+  }
+
   async function signIn(base: string, username: string): Promise<Client> {
     const challengeResponse = await fetch(`${base}/api/auth/csrf`, { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: '{}' });
     const challenge = await challengeResponse.json() as { csrfToken: string };
@@ -413,6 +425,61 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       ));
     });
 
+    await t.test('görev dosya ekleri içerik doğrulaması, görev yetkisi ve geri alınabilir silme uygular', async () => {
+      const taskResult = await api(base, alice, 'tasks', 'POST', {
+        title: 'Görev eki entegrasyon testi',
+        assigneeId: userIds[0],
+        followerIds: [userIds[2]],
+      });
+      assert.equal(taskResult.response.status, 201);
+      const taskId = taskResult.data.task.id as string;
+      taskIds.push(taskId);
+
+      const rejected = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'not-allowed.exe', 'yasak tür');
+      assert.equal(rejected.response.status, 400);
+
+      const uploaded = await uploadFile(base, alice, `tasks/${taskId}/attachments`, 'task-note.txt', 'Görev eki test içeriği');
+      assert.equal(uploaded.response.status, 201, JSON.stringify(uploaded.data));
+      assert.equal(uploaded.data.added, 1);
+      const attachment = uploaded.data.attachments[0] as { id: string; originalName: string; byteSize: number };
+      assert.equal(attachment.originalName, 'task-note.txt');
+      assert.equal(attachment.byteSize, Buffer.byteLength('Görev eki test içeriği'));
+
+      const ownerList = await api(base, alice, `tasks/${taskId}/attachments`);
+      assert.equal(ownerList.response.status, 200);
+      assert.equal(ownerList.data.attachments.length, 1);
+
+      const followerList = await api(base, outsider, `tasks/${taskId}/attachments`);
+      assert.equal(followerList.response.status, 200);
+      assert.equal(followerList.data.attachments.length, 1);
+
+      const nonMemberList = await api(base, bob, `tasks/${taskId}/attachments`);
+      assert.equal(nonMemberList.response.status, 404);
+
+      const followerCannotUpload = await uploadFile(base, outsider, `tasks/${taskId}/attachments`, 'follower.txt', 'salt okunur takipçi');
+      assert.equal(followerCannotUpload.response.status, 404);
+
+      const download = await fetch(`${base}/api/tasks/attachments/${attachment.id}/download`, {
+        headers: { Origin: ORIGIN, Cookie: outsider.cookie },
+      });
+      assert.equal(download.status, 200);
+      assert.equal(download.headers.get('content-type'), 'application/octet-stream');
+      assert.equal(await download.text(), 'Görev eki test içeriği');
+
+      const removed = await api(base, alice, `tasks/attachments/${attachment.id}`, 'DELETE', {
+        version: uploaded.data.taskVersion,
+      });
+      assert.equal(removed.response.status, 200);
+      assert.ok(removed.data.taskVersion > uploaded.data.taskVersion);
+
+      const hiddenAfterRemoval = await fetch(`${base}/api/tasks/attachments/${attachment.id}/download`, {
+        headers: { Origin: ORIGIN, Cookie: outsider.cookie },
+      });
+      assert.equal(hiddenAfterRemoval.status, 404);
+      const emptyList = await api(base, alice, `tasks/${taskId}/attachments`);
+      assert.equal(emptyList.data.attachments.length, 0);
+    });
+
   } finally {
     if (app) await app.close();
     if (userIds.length) {
@@ -423,6 +490,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         await cleanup.query('ALTER TABLE task_comment_events DISABLE TRIGGER task_comment_events_append_only');
         await cleanup.query('ALTER TABLE project_audit_events DISABLE TRIGGER project_audit_events_append_only');
         await cleanup.query('DELETE FROM notifications WHERE task_id = ANY($1::uuid[])', [taskIds]);
+        await cleanup.query('DELETE FROM task_attachments WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_followers WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comment_events WHERE task_id = ANY($1::uuid[])', [taskIds]);
         await cleanup.query('DELETE FROM task_comments WHERE task_id = ANY($1::uuid[])', [taskIds]);
