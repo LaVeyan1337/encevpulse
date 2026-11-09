@@ -268,10 +268,20 @@ function projectEventLabel(eventType: ProjectActivity['eventType']): string {
   })[eventType] ?? 'proje üzerinde işlem yaptı';
 }
 
+function istanbulDateKey(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return part('year') + '-' + part('month') + '-' + part('day');
+}
+
 function isOverdue(dueOn: string | null, status: TaskStatus): boolean {
   if (!dueOn || status === 'done') return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return dueOn < today;
+  return dueOn < istanbulDateKey();
 }
 
 export function Workspace({
