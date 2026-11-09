@@ -19,6 +19,7 @@ interface TaskInput {
   projectId?: string | null;
   startsOn?: string | null;
   dueOn?: string | null;
+  followerIds?: string[];
 }
 
 @Injectable()
@@ -43,14 +44,19 @@ export class TasksService {
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
-              a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName"
+              a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
+                FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
+              (t.created_by=$1 OR t.assignee_id=$1 OR EXISTS (
+                SELECT 1 FROM project_members own_pm WHERE own_pm.project_id=t.project_id AND own_pm.user_id=$1
+              )) AS "canManage"
        FROM tasks t
        JOIN users a ON a.id = t.assignee_id
        JOIN users c ON c.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
        WHERE (t.created_by = $1 OR t.assignee_id = $1 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
-       ))
+       ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$1))
        AND (($2 = 'archived' AND t.archived_at IS NOT NULL) OR ($2 <> 'archived' AND t.archived_at IS NULL))
        AND ($3 = 'all' OR ($3 = 'assigned' AND t.assignee_id = $1) OR ($3 = 'created' AND t.created_by = $1) OR $3 = 'archived')
        AND ($4::text IS NULL OR ($4 = 'active' AND t.status <> 'done') OR t.status = $4)
@@ -78,12 +84,17 @@ export class TasksService {
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
-              a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName"
+              a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
+                FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
+              (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
+                SELECT 1 FROM project_members own_pm WHERE own_pm.project_id=t.project_id AND own_pm.user_id=$2
+              )) AS "canManage"
        FROM tasks t JOIN users a ON a.id = t.assignee_id JOIN users c ON c.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
        WHERE t.id = $1 AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-       ))`, [id, user.id],
+       ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))`, [id, user.id],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
     return { task: result.rows[0] };
@@ -112,7 +123,7 @@ export class TasksService {
   async notifications(user: AuthUser, includeChat=true, includeTasks=true) {
     const access = `(t.created_by = $1 OR t.assignee_id = $1 OR EXISTS (
       SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
-    ))`;
+    ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$1))`;
     const [count, latest] = await Promise.all([
       this.db.query(
         `SELECT (
@@ -171,7 +182,7 @@ export class TasksService {
            AND n.task_id=t.id AND t.archived_at IS NULL
            AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
              SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
-           )) RETURNING n.id`, [id,user.id],
+           ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2)) RETURNING n.id`, [id,user.id],
       );
       if(taskResult.rowCount)return;
     }
@@ -196,7 +207,7 @@ export class TasksService {
        FROM task_audit_events e JOIN tasks t ON t.id = e.task_id LEFT JOIN users u ON u.id = e.actor_user_id
        WHERE t.archived_at IS NULL AND (t.created_by = $1 OR t.assignee_id = $1 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
-       ))
+       ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$1))
        ORDER BY e.occurred_at DESC, e.id DESC LIMIT 12`, [user.id],
     );
     return { activity: result.rows };
@@ -207,7 +218,7 @@ export class TasksService {
     const access = await this.db.query(
       `SELECT 1 FROM tasks t WHERE t.id = $1 AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
         SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-      ))`, [taskId, user.id],
+      ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))`, [taskId, user.id],
     );
     if (!access.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
 
@@ -228,7 +239,7 @@ export class TasksService {
       `SELECT 1 FROM tasks t WHERE t.id = $1 AND (
         t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
           SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-        )
+        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2)
       )`, [taskId, user.id],
     );
     if (!access.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
@@ -268,7 +279,7 @@ export class TasksService {
          WHERE t.id = $1 AND t.archived_at IS NULL
            AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
              SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-           ))
+           ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))
          FOR UPDATE`, [taskId, user.id],
       );
       if (!task.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı veya yorum eklemeye kapalı.' });
@@ -297,6 +308,8 @@ export class TasksService {
            UNION
            SELECT pm.user_id FROM project_members pm
            JOIN tasks t ON t.project_id = pm.project_id WHERE t.id = $1::uuid
+           UNION
+           SELECT tf.user_id FROM task_followers tf WHERE tf.task_id=$1::uuid
          ) recipients
          JOIN users recipient ON recipient.id = recipients.user_id AND recipient.status = 'active'
          WHERE recipients.user_id <> $2::uuid
@@ -331,7 +344,7 @@ export class TasksService {
            AND t.archived_at IS NULL
            AND (t.created_by = $3 OR t.assignee_id = $3 OR EXISTS (
              SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $3
-           ))
+           ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$3))
          FOR UPDATE OF c, t`,
         [commentId, taskId, user.id],
       );
@@ -379,7 +392,7 @@ export class TasksService {
            AND t.archived_at IS NULL
            AND (t.created_by = $3 OR t.assignee_id = $3 OR EXISTS (
              SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $3
-           ))
+           ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$3))
          FOR UPDATE OF c, t`,
         [commentId, taskId, user.id],
       );
@@ -778,7 +791,7 @@ export class TasksService {
       `SELECT t.version, t.assignee_id, t.project_id FROM tasks t WHERE t.id = $1 AND ($3 OR t.archived_at IS NULL)
        AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-        )) ${lock ? 'FOR UPDATE' : ''}`, [id, userId, includeArchived],
+        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2)) ${lock ? 'FOR UPDATE' : ''}`, [id, userId, includeArchived],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
     return result.rows[0] as { version: number; assignee_id: string; project_id: string | null };
