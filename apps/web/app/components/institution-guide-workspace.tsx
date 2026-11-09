@@ -14,6 +14,7 @@ type Contact = {
   sourceLabel:string;
   sourceReference:string;
   verifiedAt:string|null;
+  directoryVisible:boolean;
   verifiedByName?:string|null;
   projectCount:number;
   version:number;
@@ -176,7 +177,9 @@ export function InstitutionGuideWorkspace({
 
     <div className="institution-guide-summary">
       <strong>{contacts.length}</strong>
-      <span>aktif rehber kaydı</span>
+      <span>kurum ve ilgili kişi</span>
+      {contacts.some(contact=>!contact.directoryVisible)&&
+        <span className="institution-guide-review-count">{contacts.filter(contact=>!contact.directoryVisible).length} teyit bekliyor</span>}
       <span className="institution-guide-scope">Kaynağı kayıt üzerinde izlenir</span>
     </div>
 
@@ -265,6 +268,7 @@ export function InstitutionGuideWorkspace({
         <div className="institution-guide-card-top">
           <span className="institution-guide-icon" aria-hidden="true">⌂</span>
           <span>{contact.institutionType||'Kurum'}</span>
+          {!contact.directoryVisible&&<span className="institution-guide-review-state">Teyit bekliyor</span>}
         </div>
         <h3>{contact.institutionName}</h3>
         {contact.contactPerson||contact.title||contact.department?
@@ -280,20 +284,22 @@ export function InstitutionGuideWorkspace({
           {contact.address&&<p>{contact.address}</p>}
         </div>
         <div className="institution-guide-source">
-          <span>Kaynak</span><strong>{contact.sourceLabel}</strong>
+          <span>Kaynak</span>
+          <strong>{contact.directoryVisible?(contact.sourceLabel||'Kaynak belirtilmedi'):'Proje kurum görüşü kaydından'}</strong>
           {contact.sourceReference&&<small>{contact.sourceReference}</small>}
+          {!contact.directoryVisible&&<small>İletişim bilgisi proje yazışmasında girildi. Ortak rehbere aktarırken kaynağı belirtin.</small>}
           <small>{contact.verifiedAt?'Teyit tarihi: '+updatedLabel(contact.verifiedAt):'Teyit tarihi girilmedi'}</small>
         </div>
         <footer>
           <span>Güncelleme · {updatedLabel(contact.updatedAt)}</span>
           {contact.projectCount>0&&canOpenOpinions&&<button type="button" onClick={onOpenOpinions}>{contact.projectCount} proje ilişkisi</button>}
         </footer>
-        {(canUpdate||canDelete)&&<div className="institution-guide-card-actions">
-          {canUpdate&&<button type="button" className="secondary-button" onClick={()=>beginEdit(contact)}>Düzenle</button>}
-          {canDelete&&<button type="button" className="secondary-button danger" onClick={()=>void archive(contact)} disabled={saving}>Arşivle</button>}
+        {(canUpdate||(canDelete&&contact.directoryVisible))&&<div className="institution-guide-card-actions">
+          {canUpdate&&<button type="button" className="secondary-button" onClick={()=>beginEdit(contact)}>{contact.directoryVisible?'Düzenle':'Kaynağı teyit et ve rehbere aktar'}</button>}
+          {canDelete&&contact.directoryVisible&&<button type="button" className="secondary-button danger" onClick={()=>void archive(contact)} disabled={saving}>Arşivle</button>}
         </div>}
       </article>)}
     </div>}
-    <p className="institution-guide-note">Proje üzerinden kaydedilen kurum iletişim bilgileri otomatik olarak ortak rehbere açılmaz. Rehber kaydı, yetkili kullanıcı tarafından ayrıca oluşturulur ve kaynağıyla birlikte saklanır.</p>
+    <p className="institution-guide-note">Kurum Görüşleri formundan gelen iletişim bilgileri burada teyit bekleyen kayıt olarak görünür. Yetkili kullanıcı kaynak bilgisini ekleyip kaydettiğinde ortak rehbere aktarılır. Kaynak ve teyit tarihi girilmemiş kayıtlar doğrulanmış resmî iletişim bilgisi sayılmaz.</p>
   </section>;
 }
