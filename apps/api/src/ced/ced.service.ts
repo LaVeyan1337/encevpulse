@@ -625,7 +625,7 @@ export class CedService {
       await client.query(
         `INSERT INTO institution_directory_audit_events(contact_id,actor_user_id,action,changed_fields)
          VALUES($1,$2,$3,$4::text[])`,
-        [contactId,user.id,current.rows[0].directory_visible?'updated':'promoted_from_opinion',
+        [contactId,user.id,'updated',
           [...Object.keys(draft),...(!current.rows[0].directory_visible?['directory_visible']:[])]],
       );
       await client.query('COMMIT');
