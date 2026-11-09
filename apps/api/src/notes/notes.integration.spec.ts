@@ -90,19 +90,57 @@ test('Notlar API: gerçek oturum, kişisel gizlilik, arama, sürüm, arşiv ve d
     const base='http://127.0.0.1:'+(app.getHttpServer().address() as AddressInfo).port;
     const [alice,bob]=await Promise.all(users.map(username=>signIn(base,username)));
 
+    const projectResult=await api(base,alice,'tasks/projects','POST',{
+      name:'Notes fixture project '+suffix,
+      memberIds:[userIds[0]],
+    });
+    assert.equal(projectResult.response.status,201,JSON.stringify(projectResult.data));
+    const projectId=projectResult.data.project.id as string;
+    const taskResult=await api(base,alice,'tasks','POST',{
+      title:'Notes fixture task '+suffix,
+      assigneeId:userIds[0],
+      projectId,
+    });
+    assert.equal(taskResult.response.status,201,JSON.stringify(taskResult.data));
+    const taskId=taskResult.data.task.id as string;
+
     const created=await api(base,alice,'notes','POST',{
       title:'Kişisel denetim notu '+suffix,
       body:'Kurum görüşü ve saha kontrolü için kişisel çalışma notu.',
       tags:['ÇED','Saha','çed',''],
+      projectId,
+      taskId,
     });
     assert.equal(created.response.status,201,JSON.stringify(created.data));
     const note=created.data.note as {id:string;title:string;body:string;tags:string[];version:number;archivedAt:string|null};
     assert.equal(note.version,1);
     assert.deepEqual(note.tags,['ÇED','Saha'],'Turkish locale duplicate tags must be normalized without losing the first label.');
+    assert.equal(note.projectId,projectId);
+    assert.equal(note.taskId,taskId);
 
     const ownList=await api(base,alice,'notes?view=active&q='+encodeURIComponent('saha'));
     assert.equal(ownList.response.status,200);
     assert.ok(ownList.data.notes.some((entry:{id:string})=>entry.id===note.id));
+
+    const unauthorizedTaskNote=await api(base,bob,'notes','POST',{
+      title:'Başkasının görevine bağlama',
+      body:'Bu bağlantı yetkisiz olmalı.',
+      tags:[],
+      projectId,
+      taskId,
+    });
+    assert.equal(unauthorizedTaskNote.response.status,403,'A note cannot reference a project or task the user cannot access.');
+
+    const otherProject=await api(base,alice,'tasks/projects','POST',{
+      name:'Notes other project '+suffix,
+      memberIds:[userIds[0]],
+    });
+    assert.equal(otherProject.response.status,201,JSON.stringify(otherProject.data));
+    const mismatchedProject=await api(base,alice,'notes/'+note.id,'PATCH',{
+      version:note.version,
+      projectId:otherProject.data.project.id,
+    });
+    assert.equal(mismatchedProject.response.status,400,'A linked task and note must share the same project.');
 
     const privateList=await api(base,bob,'notes?view=all');
     assert.equal(privateList.response.status,200);
