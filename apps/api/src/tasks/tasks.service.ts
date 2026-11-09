@@ -23,6 +23,7 @@ interface TaskInput {
   priority?: Priority;
   assigneeId?: string;
   projectId?: string | null;
+  cedCaseId?: string | null;
   startsOn?: string | null;
   dueOn?: string | null;
   followerIds?: string[];
@@ -32,7 +33,7 @@ interface TaskInput {
 export class TasksService {
   constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
 
-  async list(user: AuthUser, query: Record<string, string | undefined>) {
+  async list(user: AuthUser, query: Record<string, string | undefined>, includeCedCase = false) {
     const status = query.status;
     if (status && status !== 'all' && status !== 'active' && !STATUSES.includes(status as TaskStatus)) throw invalid('Görev durumu geçersiz.');
     const due = query.due ?? 'all';
@@ -50,6 +51,7 @@ export class TasksService {
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
+              CASE WHEN $3::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
               a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
                 FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
@@ -60,6 +62,7 @@ export class TasksService {
        JOIN users a ON a.id = t.assignee_id
        JOIN users c ON c.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN ced_cases process_case ON process_case.id=t.ced_case_id
        WHERE (t.created_by = $1 OR t.assignee_id = $1 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $1
        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$1))
@@ -78,20 +81,21 @@ export class TasksService {
            AND t.due_on <= (now() AT TIME ZONE 'Europe/Istanbul')::date + 7))
        ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.position, t.due_on NULLS LAST, t.updated_at DESC, t.id
        LIMIT $8 OFFSET $9`,
-      [user.id, view, view, status && status !== 'all' ? status : null, priority && priority !== 'all' ? priority : null, search, due, limit + 1, offset],
+      [user.id, view, view, status && status !== 'all' ? status : null, priority && priority !== 'all' ? priority : null, search, due, limit + 1, offset, includeCedCase],
     );
     const hasMore = result.rows.length > limit;
     const tasks = hasMore ? result.rows.slice(0, limit) : result.rows;
     return { tasks, page: { offset, limit, hasMore, nextOffset: hasMore ? offset + limit : null } };
   }
 
-  async get(user: AuthUser, id: string) {
+  async get(user: AuthUser, id: string, includeCedCase = false) {
     assertUuid(id);
     const result = await this.db.query(
       `SELECT t.id, t.title, t.description, t.status, t.priority, t.created_by AS "createdBy",
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
+              CASE WHEN $10::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
               a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
                 FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
@@ -100,9 +104,10 @@ export class TasksService {
               )) AS "canManage"
        FROM tasks t JOIN users a ON a.id = t.assignee_id JOIN users c ON c.id = t.created_by
        LEFT JOIN projects p ON p.id = t.project_id
+       LEFT JOIN ced_cases process_case ON process_case.id=t.ced_case_id
        WHERE t.id = $1 AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-       ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))`, [id, user.id],
+       ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))`, [id, user.id, includeCedCase],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
     return { task: result.rows[0] };
