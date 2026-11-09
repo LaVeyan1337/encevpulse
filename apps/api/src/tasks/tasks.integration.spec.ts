@@ -295,6 +295,17 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       });
       assert.equal(employeeCannotCreateLink.response.status,403);
 
+      const employeeCannotRemoveLink=await api(base,alice,`tasks/${taskId}`,'PATCH',{
+        version:employeeDetail.data.task.version,
+        cedCaseId:null,
+      });
+      assert.equal(employeeCannotRemoveLink.response.status,403);
+      const employeeCannotMoveLinkedTask=await api(base,alice,`tasks/${taskId}`,'PATCH',{
+        version:employeeDetail.data.task.version,
+        projectId:null,
+      });
+      assert.equal(employeeCannotMoveLinkedTask.response.status,403);
+
       const secondProject=await api(base,alice,'tasks/projects','POST',{
         name:'Process link fixture B',
         memberIds:[userIds[3]],
@@ -314,6 +325,15 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
         cedCaseId:secondCase.rows[0].id,
       });
       assert.equal(mismatch.response.status,400);
+      await assert.rejects(
+        pool.query(
+          `INSERT INTO tasks(title,created_by,assignee_id,project_id,ced_case_id)
+           VALUES('DB çapraz proje koruma testi',$1,$1,$2,$3)`,
+          [userIds[3],projectA,secondCase.rows[0].id],
+        ),
+        (error: {code?:string}) => error.code === '23503',
+        'Composite database constraint must reject a process belonging to another project.',
+      );
 
       const unlinked=await api(base,processOwner,`tasks/${taskId}`,'PATCH',{
         version:processOwnerDetail.data.task.version,
@@ -328,6 +348,26 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       });
       assert.equal(relinked.response.status,200,JSON.stringify(relinked.data));
       assert.equal(relinked.data.task.cedCaseId,caseA);
+
+      await pool.query('UPDATE ced_cases SET archived_at=now() WHERE id=$1',[caseA]);
+      const archivedLink=await api(base,processOwner,`tasks/${taskId}`);
+      assert.equal(archivedLink.response.status,200);
+      assert.equal(archivedLink.data.task.cedCaseId,caseA,'Archiving the process must not erase historical task linkage.');
+
+      const newTaskAgainstArchived=await api(base,processOwner,'tasks','POST',{
+        title:'Arşivlenmiş süreç yeni göreve bağlanamaz',
+        assigneeId:userIds[3],
+        projectId:projectA,
+        cedCaseId:caseA,
+      });
+      assert.equal(newTaskAgainstArchived.response.status,400);
+
+      const harmlessUpdate=await api(base,processOwner,`tasks/${taskId}`,'PATCH',{
+        version:archivedLink.data.task.version,
+        title:'Arşivlenmiş süreç bağlantısı korunur',
+      });
+      assert.equal(harmlessUpdate.response.status,200,JSON.stringify(harmlessUpdate.data));
+      assert.equal(harmlessUpdate.data.task.cedCaseId,caseA);
     });
 
     await t.test('görev yorumları: yetki, düzenleme, silme, sürüm ve bildirim', async () => {

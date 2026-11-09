@@ -252,3 +252,24 @@ test('Takvim çalışma alanı navigasyonda yalnızca modül izniyle görünür'
   assert.match(workspace, /setSection\('calendar'\)/);
   assert.match(workspace, /Takvim &amp; Yasal Süreçler/);
 });
+
+
+test('Görev formu e-ÇED ilişkisinin proje seçimi ve yetki durumuna göre çalışmasını sağlar', async () => {
+  const workspace = await readFile(new URL('../app/components/workspace.tsx', import.meta.url), 'utf8');
+  const tasks = await readFile(new URL('../../api/src/tasks/tasks.service.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../../api/src/tasks/tasks.controller.ts', import.meta.url), 'utf8');
+
+  assert.match(workspace, /İlgili e-ÇED süreci/);
+  assert.match(workspace, /request\(`ced\/projects\/\$\{taskFormProjectId\}`\)/);
+  assert.match(workspace, /taskCedCaseId/);
+  assert.match(workspace, /taskCedCaseLoaded/);
+  assert.match(workspace, /taskCedCaseError/);
+  assert.match(workspace, /setTaskCedCaseReload/);
+  assert.match(workspace, /selected\.cedCaseId/);
+  assert.match(workspace, /openProject\(selected\.projectId!, 'ced'\)/);
+  assert.match(tasks, /CASE WHEN \$10::boolean THEN t\.ced_case_id/);
+  assert.match(tasks, /CASE WHEN \$3::boolean THEN t\.ced_case_id/);
+  assert.match(tasks, /assertCedCaseMatchesProject/);
+  assert.match(controller, /hasPermission\(user,'eced','view'\)/);
+  assert.match(controller, /assertPermission\(user,'eced','view'\)/);
+});
