@@ -321,6 +321,41 @@ test('ÇED API: route-specific milestones, document completion and project acces
     assert.equal(directoryEntry.institutionName,'Ankara İl Müdürlüğü');
     assert.equal(directoryEntry.contactPerson,'Ayşe Test');
 
+    const pendingDirectory = await api(base,processOwner,'ced/directory');
+    assert.equal(pendingDirectory.response.status,200,JSON.stringify(pendingDirectory.data));
+    const pendingContact = pendingDirectory.data.contacts.find((item:{id:string})=>item.id===directoryEntry.id);
+    assert.ok(pendingContact,'Görüş formundan gelen iletişim Kurum Rehberi inceleme listesinde görünmeli.');
+    assert.equal(pendingContact.directoryVisible,false,'Proje görüşü iletişimi teyit edilmeden ortak rehber kaydı sayılmamalı.');
+    assert.equal(pendingContact.verifiedAt,null);
+    directoryContactIds.push(pendingContact.id);
+
+    const employeePendingDirectory = await api(base,employee,'ced/directory');
+    assert.equal(employeePendingDirectory.response.status,200);
+    assert.ok(!employeePendingDirectory.data.contacts.some((item:{id:string})=>item.id===pendingContact.id),
+      'Proje üyesi olmayan çalışan başka projenin teyit bekleyen iletişim bilgisini görmemeli.');
+
+    const promotedContact = await api(base,processOwner,'ced/directory/'+pendingContact.id,'PATCH',{
+      institutionName:pendingContact.institutionName,
+      institutionType:'Kamu kurumu',
+      website:'',
+      contactPerson:pendingContact.contactPerson,
+      title:pendingContact.title,
+      department:pendingContact.department,
+      phone:pendingContact.phone,
+      email:pendingContact.email,
+      address:pendingContact.address,
+      sourceLabel:'Proje kurum görüşü kaydı · kullanıcı tarafından teyit edildi',
+      sourceReference:'CI sentetik kurum görüşü kaynağı',
+      verifiedAt:'2026-11-05',
+      expectedVersion:pendingContact.version,
+    });
+    assert.equal(promotedContact.response.status,200,JSON.stringify(promotedContact.data));
+    assert.equal(promotedContact.data.contact.directoryVisible,true);
+    assert.equal(promotedContact.data.contact.verifiedAt,'2026-11-05');
+    const employeeAfterPromotion = await api(base,employee,'ced/directory');
+    assert.ok(employeeAfterPromotion.data.contacts.some((item:{id:string})=>item.id===pendingContact.id),
+      'Yetkili tarafından rehbere aktarılan iletişim çalışanlar için ortak görünür olmalı.');
+
     const opinionUpdated = await api(base, processOwner, 'ced/opinions/' + listedOpinion.id, 'PATCH', {
       version: listedOpinion.version,
       status: 'responded',
