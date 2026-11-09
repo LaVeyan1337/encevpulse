@@ -1,6 +1,27 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 5 Kasım 2026
+**Son güncelleme:** 9 Kasım 2026
+
+## 9 Kasım 2026 — Güncel doğrulama ve kabul durumu
+
+- **Aktif çalışma dalı:** `work/encev-pulse-modules-2026-11-06`. Bu kayıt commit `394bb75268c9409b70e230611e18284eb6d900de` için geçerlidir. Çalışma dalı `main` veya `release/company-internal-2026-11-05` dalına birleştirilmemiş ve şirket ortamına dağıtılmamıştır.
+- **CI doğrulaması:** GitHub Actions koşusu [42608914289](https://github.com/LaVeyan1337/encevpulse/actions/runs/42608914289) başarılıdır. Temiz PostgreSQL 18.6 ortamında migration'lar uygulandı; Web testleri **27/27**, API testleri **52/52** geçti; Web/API TypeScript denetimleri, üretim derlemeleri ve e-ÇED eklenti paketi doğrulaması başarılı oldu. Doğrulanmış kaynak arşivi CI artifact'i olarak üretildi.
+- **Kontrol bağlantıları:** Web tarafındaki statik UI kontrolü JSX/TSX düğmelerinde boş/no-op işlemciyi ve yer tutucu bağlantıları denetler. Bu tarama gerçek tarayıcıda her düğmeye tıklanarak yapılan kullanıcı kabul testinin yerine geçmez.
+- **Görevler & Süreç:** Kanban/liste, görev CRUD, sorumlu/proje/e-ÇED ilişkisi, takipçiler, yorumlar, audit, filtreleme, arşiv/geri yükleme ve yetki sınırları API entegrasyon testleriyle doğrulanmıştır. **Görev dosya ekleri güvenlik nedeniyle kapalıdır:** zararlı yazılım taraması ve saklama süresi onaylanana kadar yükleme alanı gösterilmez; listeleme/yükleme/indirme/silme API uçları varsayılan olarak kapalıdır. Üretim ortamında `TASK_ATTACHMENTS_ENABLED` değişkeniyle açılamaz.
+- **Genel Bakış / Projeler / Çalışanlar / Sohbet / Takvim / Kurum Rehberi / Kurum Görüşleri / Dilekçeler / e-ÇED / Notlarım / Sistem Yönetimi:** Bu dallarda API ve web otomatik testlerinin kapsadığı temel CRUD, erişim ve arayüz bağlantıları çalışır. Ancak aşağıdaki kabul maddeleri tamamlanmadan tüm modüller şirket kullanımı için eksiksiz ve üretime hazır sayılmaz.
+
+### Açık ürün ve saha kabul maddeleri
+
+1. **Belgeler / Ortak Drive:** Kasıtlı olarak kapalıdır. Güvenli backend/API ve kaynak dosya bazlı kullanıcı izinleri doğrulanmadan açılmaz. Şirket NAS/SMB/DSM sistemine erişim yapılmamıştır ve yapılmayacaktır; bu kayıtla ilgili testler yerel/CI sahte verisiyle sınırlıdır.
+2. **Takvim ve yasal süreçler:** Otomatik arka plan hatırlatmaları, resmî tatil kaynağı ve her süreç türü için süreç/hukuk sahibi tarafından onaylanmış süre kuralları tamamlanmamıştır. Kurum Görüşleri son tarihi şu aşamada manuel girilir; mevzuat iş günü hesabı ve otomatik yasal hatırlatma üretildiği varsayılmaz.
+3. **e-ÇED:** Eklenti PULSE'a tarayıcıdan gözlenen sekme/hesap sinyallerini gönderir. Bu sinyal resmî e-ÇED oturum doğrulaması değildir; canlı portal profil seçicileri gerçek oturumda saha testinden geçmemiştir.
+4. **Sohbet ekleri ve görüşmeler:** Dosya imza/MIME/boyut kontrolleri vardır; antivirüs/karantina ve kurum saklama politikasının onayı üretim kabulinin açık maddesidir. 1:1 WebRTC kodu bulunur; gerçek Windows cihazları, şirket NAT/firewall ve TURN koşullarıyla bağlantı testi yapılmamıştır. Grup çağrısı ve ekran paylaşımı yoktur.
+5. **Dilekçeler:** Teknik DOCX üretimi ve onay akışı otomatik testlidir. EnÇev'in gerçek onaylı DOCX şablonları ve her dilekçe türünün alanları süreç sahibi tarafından yüklenip onaylanmamıştır. E-imza ve otomatik dış gönderim yoktur.
+6. **Kurum Rehberi:** Kayıt CRUD ve kullanıcı tarafından girilen kaynak/teyit bilgisi vardır; resmî kurum dizinleriyle otomatik eşitleme yapılmaz.
+7. **Bildirimler ve yönetim:** Uygulama içi görev/sohbet bildirimleri vardır. Zamanlanmış yasal hatırlatmalar ve eksiksiz kullanıcı bildirim tercihleri tamamlanmamıştır. Başlangıç rol/modül izinleri süreç sahiplerince doğrulanmalıdır.
+8. **Dağıtım:** Windows host kabulü, tarayıcıda görsel/etkileşimli manuel test, HTTPS/LAN reverse proxy, iki veya daha fazla gerçek istemciyle çok kullanıcılı kabul ve yedekten geri yükleme testi yapılmamıştır. `127.0.0.1` geliştirme adresi şirket çalışanlarının ortak erişimi değildir.
+
+**Kabul kararı:** Bu CI sonucu, belirtilen otomatik test ve derlemelerin geçtiğini kanıtlar; “her buton ve her modül gerçek kullanıcı ortamında eksiksiz çalışıyor” sonucunu kanıtlamaz. Açık saha, politika ve süreç sahibi maddeleri kapatılmadan üretime hazır onayı verilmez.
 
 > **Güncel yayın durumu:** Bu bölüm kaynak alınmalıdır; aşağıdaki bazı eski teknik maddeler önceki geliştirme adımlarının tarihsel kaydıdır ve bu güncel özetle çelişen ifadeler geçerli kabul edilmez.
 
