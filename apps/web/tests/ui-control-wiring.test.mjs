@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 async function sourceFiles(directory) {
@@ -9,7 +10,7 @@ async function sourceFiles(directory) {
   for (const entry of entries) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await sourceFiles(path));
-    else if (/\\.(?:tsx|jsx)$/.test(entry.name)) files.push(path);
+    else if (/\.(?:tsx|jsx)$/.test(entry.name)) files.push(path);
   }
   return files;
 }
@@ -20,7 +21,7 @@ function openingTags(source, tagName) {
   let cursor = 0;
   while ((cursor = source.indexOf(token, cursor)) !== -1) {
     const next = source[cursor + token.length];
-    if (next && !/[\\s/>]/.test(next)) {
+    if (next && !/[\s/>]/.test(next)) {
       cursor += token.length;
       continue;
     }
@@ -33,11 +34,11 @@ function openingTags(source, tagName) {
       const character = source[index];
       if (quote) {
         if (escaped) escaped = false;
-        else if (character === '\\\\') escaped = true;
+        else if (character === '\\') escaped = true;
         else if (character === quote) quote = null;
         continue;
       }
-      if (character === "'" || character === '"' || character === '`') {
+      if (character === "'" || character === '"' || character === '\`') {
         quote = character;
         continue;
       }
@@ -48,7 +49,7 @@ function openingTags(source, tagName) {
     if (index < source.length) {
       tags.push({
         raw: source.slice(cursor, index + 1),
-        line: source.slice(0, cursor).split('\\n').length,
+        line: source.slice(0, cursor).split('\n').length,
       });
       cursor = index + 1;
     } else {
@@ -59,7 +60,7 @@ function openingTags(source, tagName) {
 }
 
 test('web arayüzündeki buton ve bağlantılar boş veya yer tutucu kontrol olarak bırakılmaz', async () => {
-  const root = new URL('../app/', import.meta.url);
+  const root = fileURLToPath(new URL('../app/', import.meta.url));
   const files = await sourceFiles(root);
   const findings = [];
   let buttonCount = 0;
@@ -67,37 +68,37 @@ test('web arayüzündeki buton ve bağlantılar boş veya yer tutucu kontrol ola
 
   for (const file of files) {
     const source = await readFile(file, 'utf8');
-    const fileName = relative(root.pathname, file);
+    const fileName = relative(root, file);
 
     for (const element of openingTags(source, 'button')) {
       buttonCount += 1;
       const tag = element.raw;
-      const hasAction = /\\bonClick\\s*=/.test(tag) || /\\bonClickCapture\\s*=/.test(tag) || /\\{\\.\\.\\./.test(tag);
-      const submitsForm = /\\btype\\s*=\\s*(?:["']submit["']|\\{\\s*["']submit["']\\s*\\})/.test(tag);
-      const linkedToForm = /\\bform\\s*=/.test(tag);
-      const intentionallyDisabled = /\\bdisabled(?:\\s|=|\\/|>)/.test(tag);
+      const hasAction = /\bonClick\s*=/.test(tag) || /\bonClickCapture\s*=/.test(tag);
+      const submitsForm = /\btype\s*=\s*(?:["']submit["']|\{\s*["']submit["']\s*\})/.test(tag);
+      const linkedToForm = /\bform\s*=/.test(tag);
+      const intentionallyDisabled = /\bdisabled(?:\s|=|\/|>)/.test(tag);
 
       if (!hasAction && !submitsForm && !linkedToForm && !intentionallyDisabled) {
-        findings.push(`${fileName}:${element.line} button has no action, submit behavior, or disabled state`);
+        findings.push(fileName + ':' + element.line + ' button has no action, submit behavior, or disabled state');
       }
-      if (/\\bonClick\\s*=\\s*\\{\\s*(?:undefined|null|false|\\(\\s*\\)\\s*=>\\s*(?:\\{\\s*\\}|undefined|null|false))\\s*\\}/.test(tag)) {
-        findings.push(`${fileName}:${element.line} button has an empty/no-op click handler`);
+      if (/\bonClick\s*=\s*\{\s*(?:undefined|null|false|\(\s*\)\s*=>\s*(?:\{\s*\}|undefined|null|false))\s*\}/.test(tag)) {
+        findings.push(fileName + ':' + element.line + ' button has an empty/no-op click handler');
       }
     }
 
     for (const element of openingTags(source, 'a')) {
       anchorCount += 1;
       const tag = element.raw;
-      const href = tag.match(/\\bhref\\s*=\\s*(?:"([^"]*)"|'([^']*)'|\\{\\s*["']([^"']*)["']\\s*\\})/);
-      if (!/\\bhref\\s*=/.test(tag)) {
-        findings.push(`${fileName}:${element.line} anchor has no href`);
+      const href = tag.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*["']([^"']*)["']\s*\})/);
+      if (!/\bhref\s*=/.test(tag)) {
+        findings.push(fileName + ':' + element.line + ' anchor has no href');
       } else if (href && ['#', '', 'javascript:'].includes((href[1] ?? href[2] ?? href[3] ?? '').trim().toLowerCase())) {
-        findings.push(`${fileName}:${element.line} anchor uses a placeholder destination`);
+        findings.push(fileName + ':' + element.line + ' anchor uses a placeholder destination');
       }
     }
   }
 
-  assert.deepEqual(findings, [], findings.join('\\n'));
+  assert.deepEqual(findings, [], findings.join('\n'));
   assert.ok(buttonCount > 0, 'at least one button should be audited');
   assert.ok(anchorCount > 0, 'at least one link should be audited');
 });
