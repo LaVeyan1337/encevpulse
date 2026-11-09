@@ -50,7 +50,8 @@ test('Kurum Rehberi bağımsız, kaynak izli ve yetki kontrollü CRUD akışına
   assert.match(service,/contact\.directory_visible AS "directoryVisible"/);
   assert.match(service,/opinion\.contact_id=contact\.id/);
   assert.match(service,/directory_visible=true/);
-  assert.match(service,/promoted_from_opinion/);
+  assert.match(service,/directory_visible=true/);
+  assert.match(service,/directory_visible\?\['directory_visible'\]/);
   assert.match(service,/await this\.assertProjectAccess\(client,linked\.rows\[0\]\.projectId,user\.id,true\)/);
   assert.match(service,/async createDirectoryContact/);
   assert.match(service,/async updateDirectoryContact/);
