@@ -2932,7 +2932,7 @@ export function Workspace({
   );
 }
 
-function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' | 'calendar-days' }) {
+function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message' | 'search' | 'bell' | 'menu' | 'calendar-days' | 'paperclip' }) {
   let path = null;
   if (name === 'home') {
     path = (
@@ -2976,6 +2976,12 @@ function Icon({ name }: { name: 'home' | 'check' | 'users' | 'folder' | 'message
       <>
         <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
         <path d="M3.5 9h17" />
+      </>
+    );
+  } else if (name === 'paperclip') {
+    path = (
+      <>
+        <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
       </>
     );
   } else if (name === 'search') {
