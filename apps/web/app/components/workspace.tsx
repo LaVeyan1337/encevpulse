@@ -126,7 +126,7 @@ export interface Summary {
 
 export interface Notification {
   id: string;
-  eventType: 'task.assigned' | 'task.followed' | 'task.comment' | 'chat.message';
+  eventType: 'task.assigned' | 'task.followed' | 'task.updated' | 'task.comment' | 'chat.message';
   taskId: string | null;
   conversationId: string | null;
   taskTitle: string;
@@ -209,6 +209,24 @@ function activityLabel(action: Activity['action']): string {
       restored: 'görevi geri yükledi',
     }[action] ?? 'işlem yaptı'
   );
+}
+
+const taskChangeFieldLabels: Record<string, string> = {
+  title: 'Başlık',
+  description: 'Açıklama',
+  status: 'Durum',
+  priority: 'Öncelik',
+  assigneeId: 'Sorumlu',
+  projectId: 'Proje',
+  startsOn: 'Başlangıç tarihi',
+  dueOn: 'Son teslim tarihi',
+  followerIds: 'Takipçiler',
+};
+
+function taskChangeSummary(changes?: Record<string, unknown>): string {
+  if (!changes || !Array.isArray(changes.fields)) return '';
+  const fields = [...new Set(changes.fields.filter((field): field is string => typeof field === 'string'))];
+  return fields.map((field) => taskChangeFieldLabels[field] ?? field).join(' · ');
 }
 
 function priorityLabel(priority: Priority): string {
@@ -1149,7 +1167,9 @@ export function Workspace({
                             ? 'göreve yorum ekledi'
                             : notification.eventType === 'task.followed'
                               ? 'sizi görevi takip etmeye ekledi'
-                              : 'görevi size atadı'}
+                              : notification.eventType === 'task.updated'
+                                ? 'takip ettiğiniz görevi güncelledi'
+                                : 'görevi size atadı'}
                       </span>
                       {notification.preview && <span className="notification-preview">{notification.preview}</span>}
                       <time>{dateTimeLabel(notification.createdAt)}</time>
@@ -2234,6 +2254,9 @@ export function Workspace({
                           <strong>{act.actorName ?? 'Bir kullanıcı'}</strong>{' '}
                           {activityLabel(act.action)}
                         </span>
+                        {act.action === 'updated' && taskChangeSummary(act.changes) && (
+                          <span className="timeline-change-summary">{taskChangeSummary(act.changes)}</span>
+                        )}
                         <time className="timeline-time">{dateTimeLabel(act.occurredAt)}</time>
                       </div>
                     </div>

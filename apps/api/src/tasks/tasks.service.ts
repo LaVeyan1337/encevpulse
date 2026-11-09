@@ -797,6 +797,16 @@ export class TasksService {
           [id, user.id, addedFollowerIds, updated.rows[0].version],
         );
       }
+      const existingFollowerIds = nextFollowerIds.filter((followerId) => !addedFollowerIds.includes(followerId));
+      if (existingFollowerIds.length) {
+        await client.query(
+          `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
+           SELECT follower_id,$2::uuid,$1::uuid,'task.updated',
+             'task.updated:' || ($1::uuid)::text || ':' || ($4::integer)::text || ':' || follower_id::text
+           FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT(idempotency_key) DO NOTHING`,
+          [id, user.id, existingFollowerIds, updated.rows[0].version],
+        );
+      }
       await client.query(`INSERT INTO task_audit_events (task_id, actor_user_id, action, changes) VALUES ($1,$2,'updated',$3)`, [id, user.id, {
         fields: Object.keys(value), followerIdsAdded: addedFollowerIds, followerIdsRemoved: removedFollowerIds,
       }]);

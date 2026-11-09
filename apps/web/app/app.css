@@ -2444,3 +2444,10 @@ select:focus-visible, textarea:focus-visible {
   border-radius: 999px;
   font-size: 12px;
 }
+
+.timeline-change-summary {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}

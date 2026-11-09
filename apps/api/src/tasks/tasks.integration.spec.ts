@@ -402,6 +402,15 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
       assert.ok(followerCommentInbox.data.notifications.some((item: { taskId: string; eventType: string }) =>
         item.taskId === taskId && item.eventType === 'task.comment',
       ));
+
+      const taskEdit = await api(base, alice, `tasks/${taskId}`, 'PATCH', {
+        version: updated.data.task.version, title: 'Takipçi görev güncelleme bildirimi',
+      });
+      assert.equal(taskEdit.response.status, 200);
+      const updatedFollowerInbox = await api(base, bob, 'notifications');
+      assert.ok(updatedFollowerInbox.data.notifications.some((item: { taskId: string; eventType: string }) =>
+        item.taskId === taskId && item.eventType === 'task.updated',
+      ));
     });
 
   } finally {

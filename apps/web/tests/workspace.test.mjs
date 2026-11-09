@@ -39,6 +39,9 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
   assert.match(workspace, /name="followerIds"/);
   assert.match(workspace, /task-followers-section/);
   assert.match(workspace, /task.followed/);
+  assert.match(workspace, /task.updated/);
+  assert.match(workspace, /taskChangeSummary/);
+  assert.match(workspace, /timeline-change-summary/);
   assert.match(workspace, /selected\.canManage/);
 
   // Scope C: Görev yorumları ve kullanıcıya ait yorum kontrolleri

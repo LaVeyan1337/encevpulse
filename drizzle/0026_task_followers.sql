@@ -15,4 +15,4 @@ ALTER TABLE notifications
 
 ALTER TABLE notifications
   ADD CONSTRAINT notifications_event_type_check
-  CHECK (event_type IN ('task.assigned', 'task.comment', 'task.followed'));
+  CHECK (event_type IN ('task.assigned', 'task.comment', 'task.followed', 'task.updated'));
