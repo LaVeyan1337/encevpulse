@@ -59,3 +59,9 @@
 .institution-guide-card-actions .secondary-button{min-height:30px;padding:5px 10px;font-size:10px}
 .institution-guide-card-actions .danger{color:var(--danger);border-color:var(--danger-border)}
 @media(max-width:680px){.institution-guide-form-grid{grid-template-columns:1fr}.institution-guide-field-wide{grid-column:auto}.institution-guide-editor{padding:15px}}
+
+
+.institution-guide-summary{flex-wrap:wrap}
+.institution-guide-review-count{display:inline-flex;align-items:center;min-height:25px;padding:4px 9px;color:#d59a3f;background:rgba(213,154,63,.12);border:1px solid rgba(213,154,63,.28);border-radius:8px;font-size:11px;font-weight:800}
+.institution-guide-card-top{flex-wrap:wrap}
+.institution-guide-review-state{display:inline-flex;align-items:center;min-height:23px;padding:3px 8px;color:#d59a3f;background:rgba(213,154,63,.1);border:1px solid rgba(213,154,63,.28);border-radius:7px;font-size:10px;font-weight:800}
