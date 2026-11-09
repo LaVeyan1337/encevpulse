@@ -96,6 +96,32 @@ test('web arayüzündeki buton ve bağlantılar boş veya yer tutucu kontrol ola
         findings.push(fileName + ':' + element.line + ' anchor uses a placeholder destination');
       }
     }
+
+    // Clickable generic containers must either be explicitly hidden from assistive
+    // technology (e.g. a pointer-only backdrop) or expose keyboard button semantics.
+    for (const element of openingTags(source, 'div')) {
+      const tag = element.raw;
+      if (!/\bonClick\s*=/.test(tag)) continue;
+      const decorativeBackdrop = /\baria-hidden\s*=\s*["']true["']/.test(tag);
+      const keyboardButton = /\brole\s*=\s*["']button["']/.test(tag)
+        && /\btabIndex\s*=\s*\{?\s*0\s*\}?/.test(tag)
+        && /\bonKeyDown\s*=/.test(tag);
+      if (!decorativeBackdrop && !keyboardButton) {
+        findings.push(fileName + ':' + element.line + ' clickable div has no keyboard-accessible button semantics');
+      }
+    }
+
+    for (const element of openingTags(source, 'tr')) {
+      const tag = element.raw;
+      if (!/\bonClick\s*=/.test(tag)) continue;
+      const focusable = /\btabIndex\s*=\s*\{?\s*0\s*\}?/.test(tag);
+      const keyboardHandler = /\bonKeyDown\s*=/.test(tag);
+      const supportsEnter = /\.key\s*===\s*['"]Enter['"]/.test(tag);
+      const supportsSpace = /\.key\s*===\s*['"] ['"]/.test(tag);
+      if (!focusable || !keyboardHandler || !supportsEnter || !supportsSpace) {
+        findings.push(fileName + ':' + element.line + ' clickable table row lacks complete keyboard activation');
+      }
+    }
   }
 
   assert.deepEqual(findings, [], findings.join('\n'));

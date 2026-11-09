@@ -549,7 +549,6 @@ export function CalendarWorkspace({
                 return (
                   <div
                     key={day}
-                    onClick={() => showDayPanel(day)}
                     className={'calendar-day-cell' + (view === 'month' && !sameMonth ? ' outside-month' : '') +
                       (day === selectedDate ? ' selected-day' : '') + (day === today ? ' is-today' : '')}
                   >

@@ -1770,7 +1770,10 @@ export function Workspace({
                           onClick={() => setSelected(task)}
                           tabIndex={0}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') setSelected(task);
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelected(task);
+                            }
                           }}
                         >
                           <td className="task-table-title-cell">
