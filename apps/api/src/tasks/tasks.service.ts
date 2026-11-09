@@ -694,6 +694,8 @@ export class TasksService {
       await client.query('BEGIN');
       await this.assertAssignee(client, assigneeId);
       if (value.projectId) await this.assertProjectMember(client, value.projectId, user.id, assigneeId);
+      const followerIds = (value.followerIds ?? []).filter((followerId) => followerId !== user.id && followerId !== assigneeId);
+      await this.assertFollowerUsers(client, followerIds);
       const result = await client.query(
         `INSERT INTO tasks (title, description, status, priority, created_by, assignee_id, project_id, starts_on, due_on)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -704,7 +706,22 @@ export class TasksService {
           assigneeId, value.projectId ?? null, value.startsOn ?? null, value.dueOn ?? null],
       );
       const task = result.rows[0];
-      await client.query(`INSERT INTO task_audit_events (task_id, actor_user_id, action, changes) VALUES ($1,$2,'created',$3)`, [task.id, user.id, { fields: Object.keys(value) }]);
+      if (followerIds.length) {
+        await client.query(
+          `INSERT INTO task_followers(task_id,user_id,added_by)
+           SELECT $1,follower_id,$2 FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT DO NOTHING`,
+          [task.id, user.id, followerIds],
+        );
+        await client.query(
+          `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
+           SELECT follower_id,$2,$1,'task.followed',
+             'task.followed:' || $1::text || ':1:' || follower_id::text
+           FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT(idempotency_key) DO NOTHING`,
+          [task.id, user.id, followerIds],
+        );
+      }
+      await client.query(`INSERT INTO task_audit_events (task_id, actor_user_id, action, changes) VALUES ($1,$2,'created',$3)`,
+        [task.id, user.id, { fields: Object.keys(value), followerIdsAdded: followerIds }]);
       if (assigneeId !== user.id) {
         await client.query(
           `INSERT INTO notifications (recipient_user_id, actor_user_id, task_id, event_type, idempotency_key)
@@ -712,6 +729,8 @@ export class TasksService {
           [assigneeId, user.id, task.id, `task.assigned:${task.id}:1`],
         );
       }
+      task.followers = await this.taskFollowerRows(client, task.id);
+      task.canManage = true;
       await client.query('COMMIT');
       return { task };
     } catch (error) {
@@ -729,12 +748,19 @@ export class TasksService {
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      const existing = await this.loadAccessibleTask(client, id, user.id, true);
+      const existing = await this.loadAccessibleTask(client, id, user.id, true, false, false);
       if (existing.version !== Number(version)) throw new ConflictException({ code: 'TASK_CHANGED', message: 'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
       if (value.assigneeId) await this.assertAssignee(client, value.assigneeId);
       const projectId = Object.hasOwn(value, 'projectId') ? value.projectId ?? null : existing.project_id;
       const assigneeId = value.assigneeId ?? existing.assignee_id;
       if (projectId) await this.assertProjectMember(client, projectId, user.id, assigneeId);
+      const currentFollowers = await client.query('SELECT user_id FROM task_followers WHERE task_id=$1 ORDER BY user_id', [id]);
+      const previousFollowerIds = currentFollowers.rows.map((row: { user_id: string }) => row.user_id);
+      const requestedFollowerIds = Object.hasOwn(value, 'followerIds') ? (value.followerIds ?? []) : previousFollowerIds;
+      const nextFollowerIds = requestedFollowerIds.filter((followerId) => followerId !== existing.created_by && followerId !== assigneeId);
+      await this.assertFollowerUsers(client, nextFollowerIds);
+      const addedFollowerIds = nextFollowerIds.filter((followerId) => !previousFollowerIds.includes(followerId));
+      const removedFollowerIds = previousFollowerIds.filter((followerId) => !nextFollowerIds.includes(followerId));
       const columns: Record<string, string> = { title: 'title', description: 'description', status: 'status', priority: 'priority', assigneeId: 'assignee_id', projectId: 'project_id', startsOn: 'starts_on', dueOn: 'due_on' };
       const sets: string[] = [];
       const values: unknown[] = [];
@@ -744,13 +770,32 @@ export class TasksService {
       }
       values.push(id, Number(version));
       const updated = await client.query(
-        `UPDATE tasks SET ${sets.join(', ')}, updated_at = now(), version = version + 1
+        `UPDATE tasks SET ${sets.length ? sets.join(', ') + ', ' : ''}updated_at = now(), version = version + 1
          WHERE id = $${values.length - 1} AND version = $${values.length} AND archived_at IS NULL
          RETURNING id, title, description, status, priority, created_by AS "createdBy", assignee_id AS "assigneeId",
            project_id AS "projectId", starts_on::text AS "startsOn", due_on::text AS "dueOn", version, updated_at AS "updatedAt"`, values,
       );
       if (!updated.rowCount) throw new ConflictException({ code: 'TASK_CHANGED', message: 'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
-      await client.query(`INSERT INTO task_audit_events (task_id, actor_user_id, action, changes) VALUES ($1,$2,'updated',$3)`, [id, user.id, { fields: Object.keys(value) }]);
+      if (removedFollowerIds.length) {
+        await client.query('DELETE FROM task_followers WHERE task_id=$1 AND user_id=ANY($2::uuid[])', [id, removedFollowerIds]);
+      }
+      if (addedFollowerIds.length) {
+        await client.query(
+          `INSERT INTO task_followers(task_id,user_id,added_by)
+           SELECT $1,follower_id,$2 FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT DO NOTHING`,
+          [id, user.id, addedFollowerIds],
+        );
+        await client.query(
+          `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
+           SELECT follower_id,$2,$1,'task.followed',
+             'task.followed:' || $1::text || ':' || $4::text || ':' || follower_id::text
+           FROM unnest($3::uuid[]) AS followers(follower_id) ON CONFLICT(idempotency_key) DO NOTHING`,
+          [id, user.id, addedFollowerIds, updated.rows[0].version],
+        );
+      }
+      await client.query(`INSERT INTO task_audit_events (task_id, actor_user_id, action, changes) VALUES ($1,$2,'updated',$3)`, [id, user.id, {
+        fields: Object.keys(value), followerIdsAdded: addedFollowerIds, followerIdsRemoved: removedFollowerIds,
+      }]);
       if (value.assigneeId && value.assigneeId !== existing.assignee_id && value.assigneeId !== user.id) {
         await client.query(
           `INSERT INTO notifications (recipient_user_id, actor_user_id, task_id, event_type, idempotency_key)
@@ -758,6 +803,8 @@ export class TasksService {
           [value.assigneeId, user.id, id, `task.assigned:${id}:${updated.rows[0].version}`],
         );
       }
+      updated.rows[0].followers = await this.taskFollowerRows(client, id);
+      updated.rows[0].canManage = true;
       await client.query('COMMIT');
       return { task: updated.rows[0] };
     } catch (error) {
@@ -773,7 +820,7 @@ export class TasksService {
     const client = await this.db.pool.connect();
     try {
       await client.query('BEGIN');
-      const existing = await this.loadAccessibleTask(client, id, user.id, true, restore);
+      const existing = await this.loadAccessibleTask(client, id, user.id, true, restore, false);
       if (existing.version !== Number(version)) throw new ConflictException({ code: 'TASK_CHANGED', message: 'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
       const updated = await client.query(
         `UPDATE tasks SET archived_at = ${restore ? 'NULL' : 'now()'}, updated_at = now(), version = version + 1
@@ -786,15 +833,30 @@ export class TasksService {
     finally { client.release(); }
   }
 
-  private async loadAccessibleTask(client: import('pg').PoolClient, id: string, userId: string, lock: boolean, includeArchived = false) {
+  private async loadAccessibleTask(client: import('pg').PoolClient, id: string, userId: string, lock: boolean, includeArchived = false, includeFollowers = true) {
     const result = await client.query(
-      `SELECT t.version, t.assignee_id, t.project_id FROM tasks t WHERE t.id = $1 AND ($3 OR t.archived_at IS NULL)
+      `SELECT t.version, t.assignee_id, t.project_id, t.created_by FROM tasks t WHERE t.id = $1 AND ($3 OR t.archived_at IS NULL)
        AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
-        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2)) ${lock ? 'FOR UPDATE' : ''}`, [id, userId, includeArchived],
+       ) OR ($4 AND EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))) ${lock ? 'FOR UPDATE' : ''}`,
+      [id, userId, includeArchived, includeFollowers],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
-    return result.rows[0] as { version: number; assignee_id: string; project_id: string | null };
+    return result.rows[0] as { version: number; assignee_id: string; project_id: string | null; created_by: string };
+  }
+
+  private async assertFollowerUsers(client: import('pg').PoolClient, userIds: string[]) {
+    if (!userIds.length) return;
+    const active = await client.query("SELECT id FROM users WHERE id=ANY($1::uuid[]) AND status='active'", [userIds]);
+    if (active.rowCount !== userIds.length) throw invalid('Takipçiler arasında etkin olmayan veya bulunamayan çalışan var.');
+  }
+
+  private async taskFollowerRows(client: import('pg').PoolClient, taskId: string) {
+    const result = await client.query(
+      `SELECT u.id,u.display_name AS "displayName" FROM task_followers tf
+       JOIN users u ON u.id=tf.user_id WHERE tf.task_id=$1 ORDER BY u.display_name`, [taskId],
+    );
+    return result.rows;
   }
 
   private async assertAssignee(client: import('pg').PoolClient, userId: string) {
@@ -854,7 +916,7 @@ function boundedText(value: unknown, min: number, max: number, label: string): s
 
 function validateTaskInput(input: unknown, creating: boolean): TaskInput {
   const value = objectInput(input);
-  const allowed = new Set(['title', 'description', 'status', 'priority', 'assigneeId', 'projectId', 'startsOn', 'dueOn', ...(creating ? [] : ['version'])]);
+  const allowed = new Set(['title', 'description', 'status', 'priority', 'assigneeId', 'projectId', 'startsOn', 'dueOn', 'followerIds', ...(creating ? [] : ['version'])]);
   if (Object.keys(value).some((key) => !allowed.has(key))) throw invalid('Görev alanlarını kontrol edin.');
   const output: TaskInput = {};
   if (creating || Object.hasOwn(value, 'title')) output.title = boundedText(value.title, 1, 240, 'Görev adı');
@@ -874,6 +936,14 @@ function validateTaskInput(input: unknown, creating: boolean): TaskInput {
   if (Object.hasOwn(value, 'projectId')) {
     if (value.projectId !== null && (typeof value.projectId !== 'string' || !UUID.test(value.projectId))) throw invalid('Proje geçersiz.');
     output.projectId = value.projectId as string | null;
+  }
+  if (Object.hasOwn(value, 'followerIds')) {
+    if (!Array.isArray(value.followerIds) || value.followerIds.length > 20 ||
+        value.followerIds.some((id) => typeof id !== 'string' || !UUID.test(id)) ||
+        new Set(value.followerIds).size !== value.followerIds.length) {
+      throw invalid('Görev takipçilerini kontrol edin. En fazla 20 farklı çalışan seçebilirsiniz.');
+    }
+    output.followerIds = value.followerIds as string[];
   }
   for (const key of ['startsOn', 'dueOn'] as const) if (Object.hasOwn(value, key)) {
     const date = value[key];
