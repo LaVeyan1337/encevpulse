@@ -27,7 +27,9 @@ export class TasksService {
 
   async list(user: AuthUser, query: Record<string, string | undefined>) {
     const status = query.status;
-    if (status && status !== 'all' && !STATUSES.includes(status as TaskStatus)) throw invalid('Görev durumu geçersiz.');
+    if (status && status !== 'all' && status !== 'active' && !STATUSES.includes(status as TaskStatus)) throw invalid('Görev durumu geçersiz.');
+    const due = query.due ?? 'all';
+    if (!['all', 'overdue', 'upcoming'].includes(due)) throw invalid('Teslim tarihi filtresi geçersiz.');
     const priority = query.priority;
     if (priority && priority !== 'all' && !PRIORITIES.includes(priority as Priority)) throw invalid('Görev önceliği geçersiz.');
     const view = query.view ?? 'all';
@@ -51,12 +53,18 @@ export class TasksService {
        ))
        AND (($2 = 'archived' AND t.archived_at IS NOT NULL) OR ($2 <> 'archived' AND t.archived_at IS NULL))
        AND ($3 = 'all' OR ($3 = 'assigned' AND t.assignee_id = $1) OR ($3 = 'created' AND t.created_by = $1) OR $3 = 'archived')
-       AND ($4::text IS NULL OR t.status = $4)
+       AND ($4::text IS NULL OR ($4 = 'active' AND t.status <> 'done') OR t.status = $4)
        AND ($5::text IS NULL OR t.priority = $5)
        AND ($6 = '' OR position(lower($6) in lower(t.title || ' ' || t.description)) > 0)
+       AND ($7::text = 'all'
+         OR ($7 = 'overdue' AND t.status <> 'done'
+           AND t.due_on < (now() AT TIME ZONE 'Europe/Istanbul')::date)
+         OR ($7 = 'upcoming' AND t.status <> 'done'
+           AND t.due_on >= (now() AT TIME ZONE 'Europe/Istanbul')::date
+           AND t.due_on <= (now() AT TIME ZONE 'Europe/Istanbul')::date + 7))
        ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.position, t.due_on NULLS LAST, t.updated_at DESC, t.id
-       LIMIT $7 OFFSET $8`,
-      [user.id, view, view, status && status !== 'all' ? status : null, priority && priority !== 'all' ? priority : null, search, limit + 1, offset],
+       LIMIT $8 OFFSET $9`,
+      [user.id, view, view, status && status !== 'all' ? status : null, priority && priority !== 'all' ? priority : null, search, due, limit + 1, offset],
     );
     const hasMore = result.rows.length > limit;
     const tasks = hasMore ? result.rows.slice(0, limit) : result.rows;

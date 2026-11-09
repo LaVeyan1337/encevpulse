@@ -30,6 +30,11 @@ test('Workspace arayüzü Genel Bakış, Görev Geçmişi, Kanban ve arama gerek
   assert.match(workspace, /task-table/);
   assert.match(workspace, /Devam ediyor/);
   assert.match(workspace, /Bekliyor/);
+  assert.match(workspace, /due=\$\{dueFilter\}/);
+  assert.match(workspace, /openAssignedTasks\(\{ due: 'overdue' \}\)/);
+  assert.match(workspace, /openAssignedTasks\(\{ due: 'upcoming' \}\)/);
+  assert.match(workspace, /openAssignedTasks\(\{ status: 'active' \}\)/);
+  assert.match(workspace, /aria-label="Teslim tarihi filtresi"/);
 
   // Scope C: Görev yorumları ve kullanıcıya ait yorum kontrolleri
   assert.match(workspace, /task-comments-section/);

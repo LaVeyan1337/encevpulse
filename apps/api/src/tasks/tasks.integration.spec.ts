@@ -21,6 +21,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
   const suffix = randomBytes(5).toString('hex');
   const names = [`ta${suffix}`, `tb${suffix}`, `tc${suffix}`];
   const upcomingDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const overdueDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const hasher = new PasswordHasher();
   const hash = await hasher.hash('Yerel-Gorev-Test-Parolasi-2026!');
   const userIds: string[] = [];
@@ -94,6 +95,42 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
 
       const outsiderSpecificActivity = await api(base, outsider, `tasks/${created.data.task.id}/activity`);
       assert.equal(outsiderSpecificActivity.response.status, 404);
+    });
+
+    await t.test('Genel Bakış görev kısayolları tarih ve açık iş kapsamını doğru filtreler', async () => {
+      const overdueTask = await api(base, alice, 'tasks', 'POST', {
+        title: 'Geciken kişisel görev filtresi', assigneeId: userIds[0], dueOn: overdueDate,
+      });
+      assert.equal(overdueTask.response.status, 201);
+      taskIds.push(overdueTask.data.task.id);
+
+      const inProgressTask = await api(base, alice, 'tasks', 'POST', {
+        title: 'Devam eden kişisel görev filtresi', assigneeId: userIds[0], status: 'in_progress',
+      });
+      assert.equal(inProgressTask.response.status, 201);
+      taskIds.push(inProgressTask.data.task.id);
+
+      const completedTask = await api(base, alice, 'tasks', 'POST', {
+        title: 'Tamamlanmış kişisel görev filtresi', assigneeId: userIds[0], status: 'done',
+      });
+      assert.equal(completedTask.response.status, 201);
+      taskIds.push(completedTask.data.task.id);
+
+      const upcoming = await api(base, alice, 'tasks?view=assigned&due=upcoming');
+      assert.ok(upcoming.data.tasks.some((task: { id: string }) => task.id === taskIds[0]));
+      assert.ok(!upcoming.data.tasks.some((task: { id: string }) => task.id === overdueTask.data.task.id));
+
+      const overdue = await api(base, alice, 'tasks?view=assigned&due=overdue');
+      assert.ok(overdue.data.tasks.some((task: { id: string }) => task.id === overdueTask.data.task.id));
+      assert.ok(!overdue.data.tasks.some((task: { id: string }) => task.id === taskIds[0]));
+
+      const unfinished = await api(base, alice, 'tasks?view=assigned&status=active');
+      assert.ok(unfinished.data.tasks.some((task: { id: string }) => task.id === taskIds[0]));
+      assert.ok(unfinished.data.tasks.some((task: { id: string }) => task.id === inProgressTask.data.task.id));
+      assert.ok(!unfinished.data.tasks.some((task: { id: string }) => task.id === completedTask.data.task.id));
+
+      const invalidDue = await api(base, alice, 'tasks?view=assigned&due=next-month');
+      assert.equal(invalidDue.response.status, 400);
     });
 
     await t.test('proje üyeliği ve sorumlu görünürlüğü', async () => {

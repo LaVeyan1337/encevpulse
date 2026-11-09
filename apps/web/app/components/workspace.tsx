@@ -292,8 +292,9 @@ export function Workspace({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [settledQuery, setSettledQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | TaskStatus>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | Priority>('all');
+  const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'upcoming'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | string>('all');
   const [view, setView] = useState<'all' | 'assigned' | 'created' | 'archived'>('assigned');
   const [layout, setLayout] = useState<'board' | 'list'>('board');
@@ -320,6 +321,7 @@ export function Workspace({
       const parts = [
         `view=${view}`,
         `status=${statusFilter}`,
+        `due=${dueFilter}`,
         `priority=${priorityFilter}`,
         `q=${encodeURIComponent(settledQuery)}`,
         'limit=100',
@@ -327,7 +329,7 @@ export function Workspace({
       ];
       return `tasks?${parts.join('&')}`;
     },
-    [view, statusFilter, priorityFilter, settledQuery],
+    [view, statusFilter, dueFilter, priorityFilter, settledQuery],
   );
 
   const request = useCallback(
@@ -530,6 +532,20 @@ export function Workspace({
       ) as Record<TaskStatus, Task[]>,
     [filteredTasks],
   );
+
+  function openAssignedTasks(filters: {
+    status?: 'all' | 'active' | TaskStatus;
+    due?: 'all' | 'overdue' | 'upcoming';
+  } = {}) {
+    setView('assigned');
+    setStatusFilter(filters.status ?? 'all');
+    setDueFilter(filters.due ?? 'all');
+    setPriorityFilter('all');
+    setProjectFilter('all');
+    setQuery('');
+    setSettledQuery('');
+    setSection('tasks');
+  }
 
   async function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1249,11 +1265,7 @@ export function Workspace({
                 <button
                   type="button"
                   className="summary-card"
-                  onClick={() => {
-                    setView('assigned');
-                    setStatusFilter('all');
-                    setSection('tasks');
-                  }}
+                  onClick={() => openAssignedTasks()}
                 >
                   <div className="summary-card-header">
                     <span>Bana atanan görevler</span>
@@ -1266,11 +1278,7 @@ export function Workspace({
                 <button
                   type="button"
                   className="summary-card"
-                  onClick={() => {
-                    setView('assigned');
-                    setStatusFilter('open');
-                    setSection('tasks');
-                  }}
+                  onClick={() => openAssignedTasks({ status: 'active' })}
                 >
                   <div className="summary-card-header">
                     <span>Açık görevler</span>
@@ -1281,10 +1289,7 @@ export function Workspace({
                 <button
                   type="button"
                   className="summary-card"
-                  onClick={() => {
-                    setView('assigned');
-                    setSection('tasks');
-                  }}
+                  onClick={() => openAssignedTasks({ due: 'overdue' })}
                 >
                   <div className="summary-card-header">
                     <span>Geciken</span>
@@ -1297,10 +1302,7 @@ export function Workspace({
                 <button
                   type="button"
                   className="summary-card"
-                  onClick={() => {
-                    setView('assigned');
-                    setSection('tasks');
-                  }}
+                  onClick={() => openAssignedTasks({ due: 'upcoming' })}
                 >
                   <div className="summary-card-header">
                     <span>7 gün içinde teslim</span>
@@ -1311,11 +1313,7 @@ export function Workspace({
                 <button
                   type="button"
                   className="summary-card"
-                  onClick={() => {
-                    setView('assigned');
-                    setStatusFilter('done');
-                    setSection('tasks');
-                  }}
+                  onClick={() => openAssignedTasks({ status: 'done' })}
                 >
                   <div className="summary-card-header">
                     <span>Tamamlanan</span>
@@ -1461,15 +1459,26 @@ export function Workspace({
                     aria-label="Durum filtresi"
                     value={statusFilter}
                     onChange={(event) =>
-                      setStatusFilter(event.target.value as 'all' | TaskStatus)
+                      setStatusFilter(event.target.value as 'all' | 'active' | TaskStatus)
                     }
                   >
                     <option value="all">Tüm durumlar</option>
+                    <option value="active">Tamamlanmamışlar</option>
                     {columns.map((col) => (
                       <option key={col.value} value={col.value}>
                         {col.label}
                       </option>
                     ))}
+                  </select>
+
+                  <select
+                    aria-label="Teslim tarihi filtresi"
+                    value={dueFilter}
+                    onChange={(event) => setDueFilter(event.target.value as 'all' | 'overdue' | 'upcoming')}
+                  >
+                    <option value="all">Tüm teslim tarihleri</option>
+                    <option value="overdue">Geciken</option>
+                    <option value="upcoming">7 gün içinde</option>
                   </select>
 
                   <select
