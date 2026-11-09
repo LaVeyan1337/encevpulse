@@ -51,7 +51,7 @@ export class TasksService {
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
-              CASE WHEN $3::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
+              CASE WHEN $10::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
               a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
                 FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
@@ -95,7 +95,7 @@ export class TasksService {
               t.assignee_id AS "assigneeId", t.project_id AS "projectId", t.starts_on::text AS "startsOn",
               t.due_on::text AS "dueOn", t.position, t.version, t.created_at AS "createdAt",
               t.updated_at AS "updatedAt", t.archived_at AS "archivedAt",
-              CASE WHEN $10::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
+              CASE WHEN $3::boolean THEN t.ced_case_id ELSE NULL END AS "cedCaseId",
               a.display_name AS "assigneeName", c.display_name AS "creatorName", p.name AS "projectName",
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',fu.id,'displayName',fu.display_name) ORDER BY fu.display_name)
                 FROM task_followers tf JOIN users fu ON fu.id=tf.user_id WHERE tf.task_id=t.id),'[]'::jsonb) AS followers,
@@ -799,7 +799,7 @@ export class TasksService {
          WHERE id = $${values.length - 2} AND version = $${values.length - 1} AND archived_at IS NULL
          RETURNING id, title, description, status, priority, created_by AS "createdBy", assignee_id AS "assigneeId",
            project_id AS "projectId", CASE WHEN $${values.length}::boolean THEN ced_case_id ELSE NULL END AS "cedCaseId",
-           starts_on::text AS "startsOn", due_on::text AS "dueOn", version, updated_at AS "updatedAt", updated_at AS "updatedAt"`, values,
+           starts_on::text AS "startsOn", due_on::text AS "dueOn", version, updated_at AS "updatedAt"`, values,
       );
       if (!updated.rowCount) throw new ConflictException({ code: 'TASK_CHANGED', message: 'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
       if (removedFollowerIds.length) {
@@ -1029,6 +1029,15 @@ export class TasksService {
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
     return result.rows[0] as { version: number; assignee_id: string; project_id: string | null; ced_case_id: string | null; created_by: string };
+  }
+
+  private async assertCedCaseMatchesProject(client: import('pg').PoolClient, caseId: string, projectId: string | null) {
+    if (!projectId) throw invalid('ÇED süreci bağlantısı için görev bir projeye bağlanmalıdır.');
+    const result=await client.query<{archived_at:string|null}>(
+      'SELECT archived_at FROM ced_cases WHERE id=$1 AND project_id=$2 FOR SHARE',[caseId,projectId],
+    );
+    if(!result.rowCount) throw invalid('Seçilen ÇED süreci bu projeye ait değil.');
+    if(result.rows[0].archived_at) throw invalid('Arşivlenmiş ÇED süreci yeni göreve bağlanamaz.');
   }
 
   private async assertCedCaseMatchesProject(client: import('pg').PoolClient, caseId: string, projectId: string | null) {

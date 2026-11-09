@@ -21,7 +21,9 @@ export class TasksController {
 
   @Get('tasks')
   async list(@Req() request: Request, @Query() query: Record<string, string | undefined>) {
-    return this.tasks.list(await this.authorize(request,'tasks','view'), query);
+    const user=await this.authorize(request,'tasks','view');
+    const includeCedCase=await this.access.hasPermission(user,'eced','view');
+    return this.tasks.list(user,query,includeCedCase);
   }
 
   @Get('tasks/summary')
@@ -170,7 +172,9 @@ export class TasksController {
 
   @Get('tasks/:id')
   async get(@Req() request: Request, @Param('id') id: string) {
-    return this.tasks.get(await this.authorize(request,'tasks','view'), id);
+    const user=await this.authorize(request,'tasks','view');
+    const includeCedCase=await this.access.hasPermission(user,'eced','view');
+    return this.tasks.get(user,id,includeCedCase);
   }
 
   @Get('tasks/:id/activity')
@@ -187,12 +191,18 @@ export class TasksController {
   @Post('tasks')
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() request: Request, @Body() body: unknown) {
-    return this.tasks.create(await this.authorize(request,'tasks','create',true), body);
+    const user=await this.authorize(request,'tasks','create',true);
+    const includeCedCase=await this.access.hasPermission(user,'eced','view');
+    if(hasField(body,'cedCaseId') && !includeCedCase) await this.access.assertPermission(user,'eced','view');
+    return this.tasks.create(user,body,includeCedCase);
   }
 
   @Patch('tasks/:id')
   async update(@Req() request: Request, @Param('id') id: string, @Body() body: unknown) {
-    return this.tasks.update(await this.authorize(request,'tasks','update',true), id, body);
+    const user=await this.authorize(request,'tasks','update',true);
+    const includeCedCase=await this.access.hasPermission(user,'eced','view');
+    if(hasField(body,'cedCaseId') && !includeCedCase) await this.access.assertPermission(user,'eced','view');
+    return this.tasks.update(user,id,body,includeCedCase);
   }
 
   @Post('tasks/:id/archive')
@@ -212,6 +222,10 @@ export class TasksController {
     await this.access.assertPermission(user,moduleKey,action);
     return user;
   }
+}
+
+function hasField(input:unknown,key:string):boolean {
+  return Boolean(input && typeof input==='object' && !Array.isArray(input) && Object.hasOwn(input,key));
 }
 
 function taskContentDisposition(filename:string):string {
