@@ -699,7 +699,7 @@ export class TasksService {
     finally { client.release(); }
   }
 
-  async create(user: AuthUser, input: unknown) {
+  async create(user: AuthUser, input: unknown, includeCedCase = false) {
     const value = validateTaskInput(input, true);
     const assigneeId = value.assigneeId ?? user.id;
     const client = await this.db.pool.connect();
@@ -707,16 +707,21 @@ export class TasksService {
       await client.query('BEGIN');
       await this.assertAssignee(client, assigneeId);
       if (value.projectId) await this.assertProjectMember(client, value.projectId, user.id, assigneeId);
+      if (value.cedCaseId) {
+        if (!includeCedCase) throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'ÇED süreci bağlantısı için e-ÇED görüntüleme yetkisi gerekir.'});
+        await this.assertCedCaseMatchesProject(client,value.cedCaseId,value.projectId ?? null);
+      }
       const followerIds = (value.followerIds ?? []).filter((followerId) => followerId !== user.id && followerId !== assigneeId);
       await this.assertFollowerUsers(client, followerIds);
       const result = await client.query(
-        `INSERT INTO tasks (title, description, status, priority, created_by, assignee_id, project_id, starts_on, due_on)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `INSERT INTO tasks (title, description, status, priority, created_by, assignee_id, project_id, ced_case_id, starts_on, due_on)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING id, title, description, status, priority, created_by AS "createdBy", assignee_id AS "assigneeId",
-           project_id AS "projectId", starts_on::text AS "startsOn", due_on::text AS "dueOn", version,
+           project_id AS "projectId", CASE WHEN $11::boolean THEN ced_case_id ELSE NULL END AS "cedCaseId",
+           starts_on::text AS "startsOn", due_on::text AS "dueOn", version,
            created_at AS "createdAt", updated_at AS "updatedAt"`,
         [value.title, value.description ?? '', value.status ?? 'open', value.priority ?? 'normal', user.id,
-          assigneeId, value.projectId ?? null, value.startsOn ?? null, value.dueOn ?? null],
+          assigneeId, value.projectId ?? null, value.cedCaseId ?? null, value.startsOn ?? null, value.dueOn ?? null, includeCedCase],
       );
       const task = result.rows[0];
       if (followerIds.length) {
@@ -752,7 +757,7 @@ export class TasksService {
     } finally { client.release(); }
   }
 
-  async update(user: AuthUser, id: string, input: unknown) {
+  async update(user: AuthUser, id: string, input: unknown, includeCedCase = false) {
     assertUuid(id);
     const value = validateTaskInput(input, false);
     const version = objectInput(input).version;
@@ -766,7 +771,12 @@ export class TasksService {
       if (value.assigneeId) await this.assertAssignee(client, value.assigneeId);
       const projectId = Object.hasOwn(value, 'projectId') ? value.projectId ?? null : existing.project_id;
       const assigneeId = value.assigneeId ?? existing.assignee_id;
+      const cedCaseId = Object.hasOwn(value,'cedCaseId') ? value.cedCaseId ?? null : existing.ced_case_id;
       if (projectId) await this.assertProjectMember(client, projectId, user.id, assigneeId);
+      if (Object.hasOwn(value,'cedCaseId') && !includeCedCase) throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'ÇED süreci bağlantısını değiştirmek için e-ÇED görüntüleme yetkisi gerekir.'});
+      const processLinkChanged = cedCaseId !== existing.ced_case_id || projectId !== existing.project_id;
+      if (processLinkChanged && existing.ced_case_id && !includeCedCase) throw new ForbiddenException({code:'MODULE_PERMISSION_DENIED',message:'Bağlı ÇED sürecini değiştirmek için e-ÇED görüntüleme yetkisi gerekir.'});
+      if (processLinkChanged && cedCaseId) await this.assertCedCaseMatchesProject(client,cedCaseId,projectId);
       const currentFollowers = await client.query('SELECT user_id FROM task_followers WHERE task_id=$1 ORDER BY user_id', [id]);
       const previousFollowerIds = currentFollowers.rows.map((row: { user_id: string }) => row.user_id);
       const requestedFollowerIds = Object.hasOwn(value, 'followerIds') ? (value.followerIds ?? []) : previousFollowerIds;
@@ -776,19 +786,20 @@ export class TasksService {
       await this.assertFollowerUsers(client, nextFollowerIds);
       const addedFollowerIds = nextFollowerIds.filter((followerId) => !previousFollowerIds.includes(followerId));
       const removedFollowerIds = previousFollowerIds.filter((followerId) => !nextFollowerIds.includes(followerId));
-      const columns: Record<string, string> = { title: 'title', description: 'description', status: 'status', priority: 'priority', assigneeId: 'assignee_id', projectId: 'project_id', startsOn: 'starts_on', dueOn: 'due_on' };
+      const columns: Record<string, string> = { title: 'title', description: 'description', status: 'status', priority: 'priority', assigneeId: 'assignee_id', projectId: 'project_id', cedCaseId: 'ced_case_id', startsOn: 'starts_on', dueOn: 'due_on' };
       const sets: string[] = [];
       const values: unknown[] = [];
       for (const [key, column] of Object.entries(columns)) if (Object.hasOwn(value, key)) {
         values.push((value as Record<string, unknown>)[key] ?? null);
         sets.push(`${column} = $${values.length}`);
       }
-      values.push(id, Number(version));
+      values.push(id, Number(version), includeCedCase);
       const updated = await client.query(
         `UPDATE tasks SET ${sets.length ? sets.join(', ') + ', ' : ''}updated_at = now(), version = version + 1
-         WHERE id = $${values.length - 1} AND version = $${values.length} AND archived_at IS NULL
+         WHERE id = $${values.length - 2} AND version = $${values.length - 1} AND archived_at IS NULL
          RETURNING id, title, description, status, priority, created_by AS "createdBy", assignee_id AS "assigneeId",
-           project_id AS "projectId", starts_on::text AS "startsOn", due_on::text AS "dueOn", version, updated_at AS "updatedAt"`, values,
+           project_id AS "projectId", CASE WHEN $${values.length}::boolean THEN ced_case_id ELSE NULL END AS "cedCaseId",
+           starts_on::text AS "startsOn", due_on::text AS "dueOn", version, updated_at AS "updatedAt", updated_at AS "updatedAt"`, values,
       );
       if (!updated.rowCount) throw new ConflictException({ code: 'TASK_CHANGED', message: 'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.' });
       if (removedFollowerIds.length) {
@@ -1010,14 +1021,23 @@ export class TasksService {
 
   private async loadAccessibleTask(client: import('pg').PoolClient, id: string, userId: string, lock: boolean, includeArchived = false, includeFollowers = true) {
     const result = await client.query(
-      `SELECT t.version, t.assignee_id, t.project_id, t.created_by FROM tasks t WHERE t.id = $1 AND ($3 OR t.archived_at IS NULL)
+      `SELECT t.version, t.assignee_id, t.project_id, t.created_by, t.ced_case_id FROM tasks t WHERE t.id = $1 AND ($3 OR t.archived_at IS NULL)
        AND (t.created_by = $2 OR t.assignee_id = $2 OR EXISTS (
          SELECT 1 FROM project_members pm WHERE pm.project_id = t.project_id AND pm.user_id = $2
        ) OR ($4 AND EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))) ${lock ? 'FOR UPDATE' : ''}`,
       [id, userId, includeArchived, includeFollowers],
     );
     if (!result.rowCount) throw new NotFoundException({ code: 'TASK_NOT_FOUND', message: 'Görev bulunamadı.' });
-    return result.rows[0] as { version: number; assignee_id: string; project_id: string | null; created_by: string };
+    return result.rows[0] as { version: number; assignee_id: string; project_id: string | null; ced_case_id: string | null; created_by: string };
+  }
+
+  private async assertCedCaseMatchesProject(client: import('pg').PoolClient, caseId: string, projectId: string | null) {
+    if (!projectId) throw invalid('ÇED süreci bağlantısı için görev bir projeye bağlanmalıdır.');
+    const result=await client.query<{archived_at:string|null}>(
+      'SELECT archived_at FROM ced_cases WHERE id=$1 AND project_id=$2 FOR SHARE',[caseId,projectId],
+    );
+    if(!result.rowCount) throw invalid('Seçilen ÇED süreci bu projeye ait değil.');
+    if(result.rows[0].archived_at) throw invalid('Arşivlenmiş ÇED süreci yeni göreve bağlanamaz.');
   }
 
   private async assertFollowerUsers(client: import('pg').PoolClient, userIds: string[]) {
@@ -1091,7 +1111,7 @@ function boundedText(value: unknown, min: number, max: number, label: string): s
 
 function validateTaskInput(input: unknown, creating: boolean): TaskInput {
   const value = objectInput(input);
-  const allowed = new Set(['title', 'description', 'status', 'priority', 'assigneeId', 'projectId', 'startsOn', 'dueOn', 'followerIds', ...(creating ? [] : ['version'])]);
+  const allowed = new Set(['title', 'description', 'status', 'priority', 'assigneeId', 'projectId', 'cedCaseId', 'startsOn', 'dueOn', 'followerIds', ...(creating ? [] : ['version'])]);
   if (Object.keys(value).some((key) => !allowed.has(key))) throw invalid('Görev alanlarını kontrol edin.');
   const output: TaskInput = {};
   if (creating || Object.hasOwn(value, 'title')) output.title = boundedText(value.title, 1, 240, 'Görev adı');
@@ -1111,6 +1131,10 @@ function validateTaskInput(input: unknown, creating: boolean): TaskInput {
   if (Object.hasOwn(value, 'projectId')) {
     if (value.projectId !== null && (typeof value.projectId !== 'string' || !UUID.test(value.projectId))) throw invalid('Proje geçersiz.');
     output.projectId = value.projectId as string | null;
+  }
+  if (Object.hasOwn(value,'cedCaseId')) {
+    if (value.cedCaseId !== null && (typeof value.cedCaseId !== 'string' || !UUID.test(value.cedCaseId))) throw invalid('ÇED süreci geçersiz.');
+    output.cedCaseId = value.cedCaseId as string | null;
   }
   if (Object.hasOwn(value, 'followerIds')) {
     if (!Array.isArray(value.followerIds) || value.followerIds.length > 20 ||
