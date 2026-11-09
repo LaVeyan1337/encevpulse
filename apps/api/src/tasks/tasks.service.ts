@@ -2,6 +2,12 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { DatabaseService } from '../database/database.service.js';
 import type { AuthUser } from '../auth/auth.service.js';
 import { DEFAULT_INSTITUTION_NAMES, DEFAULT_OPINION_SUBJECT } from '../ced/institution-defaults.js';
+import {
+  CHAT_ATTACHMENT_MAX_FILES,
+  CHAT_ATTACHMENT_USER_QUOTA_BYTES,
+  validateTaskAttachmentFiles,
+  type UploadedChatFile,
+} from '../chat/chat-attachments.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['open', 'in_progress', 'waiting', 'done'] as const;
@@ -845,6 +851,156 @@ export class TasksService {
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
+  }
+
+
+  async taskAttachments(user: AuthUser, taskId: string) {
+    assertUuid(taskId);
+    const access = await this.db.query(
+      `SELECT 1 FROM tasks t WHERE t.id=$1 AND (
+        t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
+          SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
+        ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2)
+      )`, [taskId,user.id],
+    );
+    if (!access.rowCount) throw new NotFoundException({code:'TASK_NOT_FOUND',message:'Görev bulunamadı.'});
+    const result = await this.db.query(
+      `SELECT id,task_id AS "taskId",original_name AS "originalName",mime_type AS "mimeType",
+              byte_size AS "byteSize",sha256,uploaded_by AS "uploadedBy",created_at AS "createdAt"
+       FROM task_attachments WHERE task_id=$1 AND deleted_at IS NULL
+       ORDER BY created_at,id`, [taskId],
+    );
+    return {attachments:result.rows};
+  }
+
+  async addTaskAttachments(user: AuthUser, taskId: string, uploads: UploadedChatFile[]) {
+    assertUuid(taskId);
+    if (!Array.isArray(uploads)||uploads.length<1||uploads.length>CHAT_ATTACHMENT_MAX_FILES) {
+      throw new BadRequestException({code:'TASK_ATTACHMENT_COUNT',message:'Bir görev için 1–5 dosya ekleyebilirsiniz.'});
+    }
+    const files=validateTaskAttachmentFiles(uploads);
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const task=await this.loadAccessibleTask(client,taskId,user.id,true,false,false);
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('task-attachments-user:' || $1::text))",[user.id]);
+      const used=await client.query(
+        `SELECT COALESCE(sum(byte_size),0)::bigint AS bytes
+         FROM task_attachments WHERE uploaded_by=$1 AND deleted_at IS NULL`,[user.id],
+      );
+      const usedBytes=Number(used.rows[0]?.bytes??0);
+      const requestedBytes=files.reduce((sum,file)=>sum+file.byteSize,0);
+      if(usedBytes+requestedBytes>CHAT_ATTACHMENT_USER_QUOTA_BYTES) {
+        throw new BadRequestException({code:'TASK_ATTACHMENT_QUOTA',message:'Görev ekleri için kullanıcı başına 1 GB saklama sınırı doldu.'});
+      }
+      const bumped=await client.query(
+        `UPDATE tasks SET updated_at=now(),version=version+1
+         WHERE id=$1 AND version=$2 AND archived_at IS NULL RETURNING version`,[taskId,task.version],
+      );
+      if(!bumped.rowCount) throw new ConflictException({code:'TASK_CHANGED',message:'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
+      const inserted:Array<{id:string;originalName:string}>=[];
+      for(const file of files) {
+        const row=await client.query(
+          `INSERT INTO task_attachments(task_id,uploaded_by,original_name,mime_type,byte_size,sha256,content)
+           VALUES($1,$2,$3,$4,$5,$6,$7)
+           RETURNING id,original_name AS "originalName"`,
+          [taskId,user.id,file.originalName,file.mimeType,file.byteSize,file.sha256,file.content],
+        );
+        inserted.push(row.rows[0]);
+      }
+      await client.query(
+        `INSERT INTO task_audit_events(task_id,actor_user_id,action,changes)
+         VALUES($1,$2,'updated',$3)`,
+        [taskId,user.id,{fields:['attachments'],attachmentIds:inserted.map(item=>item.id),attachmentNames:inserted.map(item=>item.originalName)}],
+      );
+      await this.notifyTaskFollowersUpdated(client,taskId,user.id,bumped.rows[0].version);
+      const remaining=await this.taskAttachmentRows(client,taskId);
+      await client.query('COMMIT');
+      return {attachments:remaining,added:inserted.length,taskVersion:bumped.rows[0].version};
+    } catch(error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async getTaskAttachment(user: AuthUser, attachmentId: string) {
+    assertUuid(attachmentId);
+    const result=await this.db.query(
+      `SELECT a.id,a.task_id AS "taskId",a.original_name AS "originalName",a.mime_type AS "mimeType",
+              a.byte_size AS "byteSize",a.sha256,a.content
+       FROM task_attachments a JOIN tasks t ON t.id=a.task_id
+       WHERE a.id=$1 AND a.deleted_at IS NULL AND a.content IS NOT NULL
+         AND (t.created_by=$2 OR t.assignee_id=$2 OR EXISTS (
+           SELECT 1 FROM project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=$2
+         ) OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id=t.id AND tf.user_id=$2))`,
+      [attachmentId,user.id],
+    );
+    if(!result.rowCount) throw new NotFoundException({code:'TASK_ATTACHMENT_NOT_FOUND',message:'Görev eki bulunamadı.'});
+    return result.rows[0] as {
+      id:string;taskId:string;originalName:string;mimeType:string;byteSize:number;sha256:string;content:Buffer;
+    };
+  }
+
+  async deleteTaskAttachment(user: AuthUser, attachmentId: string, input: unknown) {
+    assertUuid(attachmentId);
+    const value=objectInput(input);
+    if(Object.keys(value).some(key=>key!=='version')||!Number.isInteger(value.version)||Number(value.version)<1) {
+      throw invalid('Görev sürümü geçersiz; yenileyip tekrar deneyin.');
+    }
+    const client=await this.db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target=await client.query(
+        `SELECT task_id AS "taskId" FROM task_attachments WHERE id=$1 AND deleted_at IS NULL`,
+        [attachmentId],
+      );
+      if(!target.rowCount) throw new NotFoundException({code:'TASK_ATTACHMENT_NOT_FOUND',message:'Görev eki bulunamadı.'});
+      const taskId=target.rows[0].taskId as string;
+      const task=await this.loadAccessibleTask(client,taskId,user.id,true,false,false);
+      if(task.version!==Number(value.version)) throw new ConflictException({code:'TASK_CHANGED',message:'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
+      const removed=await client.query(
+        `UPDATE task_attachments SET content=NULL,deleted_at=now()
+         WHERE id=$1 AND task_id=$2 AND deleted_at IS NULL RETURNING original_name AS "originalName"`,
+        [attachmentId,taskId],
+      );
+      if(!removed.rowCount) throw new NotFoundException({code:'TASK_ATTACHMENT_NOT_FOUND',message:'Görev eki bulunamadı.'});
+      const bumped=await client.query(
+        `UPDATE tasks SET updated_at=now(),version=version+1
+         WHERE id=$1 AND version=$2 AND archived_at IS NULL RETURNING version`,
+        [taskId,Number(value.version)],
+      );
+      if(!bumped.rowCount) throw new ConflictException({code:'TASK_CHANGED',message:'Görev başka bir işlemde değiştirildi. Yenileyip tekrar deneyin.'});
+      await client.query(
+        `INSERT INTO task_audit_events(task_id,actor_user_id,action,changes)
+         VALUES($1,$2,'updated',$3)`,
+        [taskId,user.id,{fields:['attachments'],attachmentsRemoved:[removed.rows[0].originalName]}],
+      );
+      await this.notifyTaskFollowersUpdated(client,taskId,user.id,bumped.rows[0].version);
+      await client.query('COMMIT');
+      return {taskVersion:bumped.rows[0].version};
+    } catch(error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
+  private async taskAttachmentRows(client: import('pg').PoolClient,taskId: string) {
+    const result=await client.query(
+      `SELECT id,task_id AS "taskId",original_name AS "originalName",mime_type AS "mimeType",
+              byte_size AS "byteSize",sha256,uploaded_by AS "uploadedBy",created_at AS "createdAt"
+       FROM task_attachments WHERE task_id=$1 AND deleted_at IS NULL ORDER BY created_at,id`,[taskId],
+    );
+    return result.rows;
+  }
+
+  private async notifyTaskFollowersUpdated(client: import('pg').PoolClient,taskId: string,actorId: string,version: number) {
+    await client.query(
+      `INSERT INTO notifications(recipient_user_id,actor_user_id,task_id,event_type,idempotency_key)
+       SELECT tf.user_id,$2::uuid,$1::uuid,'task.updated',
+         'task.updated:' || ($1::uuid)::text || ':' || ($3::integer)::text || ':' || tf.user_id::text
+       FROM task_followers tf WHERE tf.task_id=$1 AND tf.user_id<>$2
+       ON CONFLICT(idempotency_key) DO NOTHING`,[taskId,actorId,version],
+    );
   }
 
   private async loadAccessibleTask(client: import('pg').PoolClient, id: string, userId: string, lock: boolean, includeArchived = false, includeFollowers = true) {

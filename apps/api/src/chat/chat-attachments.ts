@@ -67,29 +67,38 @@ function contentMatches(mimeType: string, buffer: Buffer): boolean {
 }
 
 export function validateChatAttachmentFiles(files: UploadedChatFile[]): ValidatedChatFile[] {
+  return validateAttachmentFiles(files,'chat');
+}
+
+export function validateTaskAttachmentFiles(files: UploadedChatFile[]): ValidatedChatFile[] {
+  return validateAttachmentFiles(files,'task');
+}
+
+function validateAttachmentFiles(files: UploadedChatFile[], context: 'chat' | 'task'): ValidatedChatFile[] {
+  const subject = context === 'chat' ? 'mesaj' : 'görev';
   if (!Array.isArray(files)||files.length<1||files.length>CHAT_ATTACHMENT_MAX_FILES) {
-    throw invalid('Bir mesajda 1–5 dosya ekleyebilirsiniz.');
+    throw invalid(context,`Bir ${subject} için 1–5 dosya ekleyebilirsiniz.`);
   }
   let totalBytes=0;
   const validated=files.map((file)=>{
-    if (!file||!Buffer.isBuffer(file.buffer)||file.buffer.length<1) throw invalid('Dosya içeriği okunamadı.');
+    if (!file||!Buffer.isBuffer(file.buffer)||file.buffer.length<1) throw invalid(context,'Dosya içeriği okunamadı.');
     const byteSize=file.buffer.length;
-    if (byteSize>CHAT_ATTACHMENT_MAX_FILE_BYTES) throw invalid('Her dosya en fazla 12 MB olabilir.');
-    if (Number(file.size)!==byteSize) throw invalid('Dosya boyutu doğrulanamadı.');
+    if (byteSize>CHAT_ATTACHMENT_MAX_FILE_BYTES) throw invalid(context,'Her dosya en fazla 12 MB olabilir.');
+    if (Number(file.size)!==byteSize) throw invalid(context,'Dosya boyutu doğrulanamadı.');
     totalBytes+=byteSize;
     const originalPath=String(file.originalname??'').replace(/\\/g,'/');
     const rawName=originalPath.split('/').pop()??'';
     const originalName=rawName.normalize('NFC').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,180);
     const extension=originalName.slice(originalName.lastIndexOf('.')).toLocaleLowerCase('en-US');
     const allowedMimes=EXTENSION_MIMES[extension];
-    if(!originalName||!allowedMimes) throw invalid('Bu dosya türüne izin verilmiyor.');
+    if(!originalName||!allowedMimes) throw invalid(context,'Bu dosya türüne izin verilmiyor.');
     const reportedMime=String(file.mimetype??'').split(';')[0].trim().toLocaleLowerCase('en-US');
     const mimeType=reportedMime&&reportedMime!=='application/octet-stream'?reportedMime:allowedMimes[0];
     if(!allowedMimes.includes(mimeType)||!contentMatches(mimeType,file.buffer)) {
-      throw invalid('Dosya uzantısı veya içeriği desteklenen türle eşleşmiyor.');
+      throw invalid(context,'Dosya uzantısı veya içeriği desteklenen türle eşleşmiyor.');
     }
     if((mimeType==='text/plain'||mimeType==='text/csv')&&byteSize>1024*1024) {
-      throw invalid('Metin dosyaları en fazla 1 MB olabilir.');
+      throw invalid(context,'Metin dosyaları en fazla 1 MB olabilir.');
     }
     return {
       originalName,
@@ -99,10 +108,10 @@ export function validateChatAttachmentFiles(files: UploadedChatFile[]): Validate
       content:file.buffer,
     };
   });
-  if(totalBytes>CHAT_ATTACHMENT_MAX_TOTAL_BYTES) throw invalid('Bir mesajdaki toplam ek boyutu en fazla 24 MB olabilir.');
+  if(totalBytes>CHAT_ATTACHMENT_MAX_TOTAL_BYTES) throw invalid(context,`Bir ${subject} için toplam ek boyutu en fazla 24 MB olabilir.`);
   return validated;
 }
 
-function invalid(message: string): BadRequestException {
-  return new BadRequestException({code:'INVALID_CHAT_ATTACHMENT',message});
+function invalid(context:'chat'|'task',message:string): BadRequestException {
+  return new BadRequestException({code:context==='chat'?'INVALID_CHAT_ATTACHMENT':'INVALID_TASK_ATTACHMENT',message});
 }

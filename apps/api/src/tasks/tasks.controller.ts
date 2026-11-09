@@ -1,9 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Delete, Get, Header, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Req, Res, StreamableFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import type { Request, Response } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { AccessControlService } from '../access-control/access-control.service.js';
 import type { ModuleAction } from '../access-control/access-control.service.js';
 import { TasksService } from './tasks.service.js';
+import { TaskUploadGuard } from './task-upload.guard.js';
+import type { AuthUser } from '../auth/auth.service.js';
+import { CHAT_ATTACHMENT_MAX_FILE_BYTES, CHAT_ATTACHMENT_MAX_FILES, type UploadedChatFile } from '../chat/chat-attachments.js';
+
+type TaskUploadRequest = Request & { taskUploadUser?: AuthUser };
 
 @Controller()
 export class TasksController {
@@ -121,6 +127,47 @@ export class TasksController {
     await this.tasks.archiveProject(await this.authorize(request,'projects','update',true), id, body, true);
   }
 
+  @Get('tasks/:id/attachments')
+  async taskAttachments(@Req() request: Request,@Param('id') id: string) {
+    return this.tasks.taskAttachments(await this.authorize(request,'tasks','view'),id);
+  }
+
+  @Post('tasks/:id/attachments')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(TaskUploadGuard)
+  @UseInterceptors(FilesInterceptor('files',CHAT_ATTACHMENT_MAX_FILES,{
+    limits:{files:CHAT_ATTACHMENT_MAX_FILES,fileSize:CHAT_ATTACHMENT_MAX_FILE_BYTES,fields:0,parts:CHAT_ATTACHMENT_MAX_FILES},
+  }))
+  async addTaskAttachments(
+    @Req() request: TaskUploadRequest,
+    @Param('id') id: string,
+    @UploadedFiles() files: UploadedChatFile[],
+  ) {
+    const user=request.taskUploadUser;
+    if(!user) throw new Error('Task upload authorization was not initialized.');
+    return this.tasks.addTaskAttachments(user,id,files??[]);
+  }
+
+  @Get('tasks/attachments/:attachmentId/download')
+  @Header('Cache-Control','private, no-store')
+  @Header('X-Content-Type-Options','nosniff')
+  async downloadTaskAttachment(
+    @Req() request: Request,
+    @Param('attachmentId') id: string,
+    @Res({passthrough:true}) response: Response,
+  ) {
+    const attachment=await this.tasks.getTaskAttachment(await this.authorize(request,'tasks','view'),id);
+    response.setHeader('Content-Type','application/octet-stream');
+    response.setHeader('Content-Length',String(attachment.byteSize));
+    response.setHeader('Content-Disposition',taskContentDisposition(attachment.originalName));
+    return new StreamableFile(attachment.content);
+  }
+
+  @Delete('tasks/attachments/:attachmentId')
+  async deleteTaskAttachment(@Req() request: Request,@Param('attachmentId') id: string,@Body() body: unknown) {
+    return this.tasks.deleteTaskAttachment(await this.authorize(request,'tasks','delete',true),id,body);
+  }
+
   @Get('tasks/:id')
   async get(@Req() request: Request, @Param('id') id: string) {
     return this.tasks.get(await this.authorize(request,'tasks','view'), id);
@@ -165,4 +212,9 @@ export class TasksController {
     await this.access.assertPermission(user,moduleKey,action);
     return user;
   }
+}
+
+function taskContentDisposition(filename:string):string {
+  const safe=filename.replace(/[\\r\\n"]/g,'_').replace(/[^\\x20-\\x7e]/g,'_').slice(0,160)||'dosya';
+  return `attachment; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
