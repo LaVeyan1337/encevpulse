@@ -497,6 +497,7 @@ export function Workspace({
     }
     let cancelled = false;
     setLoadingTaskAttachments(true);
+    setTaskAttachments([]);
     setTaskAttachmentError('');
     request(`tasks/${selected.id}/attachments`)
       .then((result) => {

@@ -215,6 +215,6 @@ export class TasksController {
 }
 
 function taskContentDisposition(filename:string):string {
-  const safe=filename.replace(/[\\r\\n"]/g,'_').replace(/[^\\x20-\\x7e]/g,'_').slice(0,160)||'dosya';
+  const safe=filename.replace(/[\r\n"]/g,'_').replace(/[^\x20-\x7e]/g,'_').slice(0,160)||'dosya';
   return `attachment; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }

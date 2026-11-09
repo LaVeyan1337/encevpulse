@@ -15,7 +15,9 @@ export class TaskUploadGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request=context.switchToHttp().getRequest<TaskUploadRequest>();
     const user=await this.auth.authorizeRequest(request,true,'multipart');
-    await this.access.assertPermission(user,'tasks','create');
+    const canCreate=await this.access.hasPermission(user,'tasks','create');
+    const canUpdate=await this.access.hasPermission(user,'tasks','update');
+    if(!canCreate&&!canUpdate) await this.access.assertPermission(user,'tasks','create');
     request.taskUploadUser=user;
     return true;
   }
