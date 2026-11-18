@@ -1,11 +1,12 @@
 # ENCEV PULSE — Geliştirme Durumu
 
-**Son güncelleme:** 9 Kasım 2026
+**Son güncelleme:** 18 Kasım 2026
 
-## 9 Kasım 2026 — Güncel doğrulama ve kabul durumu
+## 18 Kasım 2026 — Güncel doğrulama ve kabul durumu
 
-- **Aktif çalışma dalı:** `work/encev-pulse-modules-2026-11-06`. Bu kayıt commit `ab87a8407dcd93697a807d891c42ccf7f54033e7` için geçerlidir. Çalışma dalı `main` veya `release/company-internal-2026-11-05` dalına birleştirilmemiş ve şirket ortamına dağıtılmamıştır.
-- **CI doğrulaması:** GitHub Actions koşusu [42610191396](https://github.com/LaVeyan1337/encevpulse/actions/runs/42610191396) başarılıdır. Temiz PostgreSQL 18.6 ortamında migration'lar uygulandı; Web testleri **27/27**, API testleri **52/52** geçti; Web/API TypeScript denetimleri, üretim derlemeleri ve e-ÇED eklenti paketi doğrulaması başarılı oldu. Doğrulanmış kaynak arşivi CI artifact'i olarak üretildi.
+- **Aktif çalışma dalı:** `work/encev-pulse-modules-2026-11-06`. Bu kayıt commit `e66b2a5b047af13466f1b2536e0279f97f537dc3` için geçerlidir. Çalışma dalı `main` veya `release/company-internal-2026-11-05` dalına birleştirilmemiş ve şirket ortamına dağıtılmamıştır.
+- **CI doğrulaması:** GitHub Actions koşusu [44294470294](https://github.com/LaVeyan1337/encevpulse/actions/runs/44294470294) başarılıdır. Temiz PostgreSQL 18.6 ortamında migration'lar uygulandı; Web testleri **27/27**, API testleri **53/53** geçti; Web/API TypeScript denetimleri, üretim derlemeleri ve exact-origin e-ÇED eklenti paketi doğrulaması başarılı oldu. Doğrulanmış kaynak arşivi CI artifact'i olarak üretildi.
+- **Proje yetkisi regresyonu:** Yalnızca `system_admin` rolü bulunan hesapla, etkin Projeler modülünde proje oluşturma ve güncelleme API entegrasyon testi eklendi; test 53/53 API testinin içinde başarılıdır.
 - **Kontrol bağlantıları:** Web tarafındaki statik UI kontrolü JSX/TSX düğmelerinde boş/no-op işlemciyi ve yer tutucu bağlantıları denetler; tıklanabilir genel kapsayıcıların klavye semantiğini ve tıklanabilir tablo satırlarının Enter/Space davranışını da kontrol eder. Takvim gün seçimi bir düğmedir. Bu tarama gerçek tarayıcıda her düğmeye tıklanarak yapılan kullanıcı kabul testinin yerine geçmez.
 - **Görevler & Süreç:** Kanban/liste, görev CRUD, sorumlu/proje/e-ÇED ilişkisi, takipçiler, yorumlar, audit, filtreleme, arşiv/geri yükleme ve yetki sınırları API entegrasyon testleriyle doğrulanmıştır. **Görev dosya ekleri güvenlik nedeniyle kapalıdır:** zararlı yazılım taraması ve saklama süresi onaylanana kadar yükleme alanı gösterilmez; listeleme/yükleme/indirme/silme API uçları varsayılan olarak kapalıdır. Üretim ortamında `TASK_ATTACHMENTS_ENABLED` değişkeniyle açılamaz.
 - **Genel Bakış / Projeler / Çalışanlar / Sohbet / Takvim / Kurum Rehberi / Kurum Görüşleri / Dilekçeler / e-ÇED / Notlarım / Sistem Yönetimi:** Bu dallarda API ve web otomatik testlerinin kapsadığı temel CRUD, erişim ve arayüz bağlantıları çalışır. Ancak aşağıdaki kabul maddeleri tamamlanmadan tüm modüller şirket kullanımı için eksiksiz ve üretime hazır sayılmaz.
