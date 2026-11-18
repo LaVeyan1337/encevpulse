@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Script } from 'node:vm';
 import { test } from 'node:test';
+import { resolveChatRequestIdentity } from '../app/components/chat-request-identity.ts';
 
 test('Workspace usability: project categories, multi-opinion flow, calendar scopes, chat filters and drawer portal', async () => {
   const paths = {
@@ -221,12 +222,40 @@ test('Workspace usability: project categories, multi-opinion flow, calendar scop
 test('Chat conversation switching isolates drafts and ignores stale responses', async () => {
   const chat = await readFile(new URL('../app/components/chat-workspace.tsx', import.meta.url), 'utf8');
   assert.match(chat, /function switchConversation\(id:string\|null\)/);
-  assert.match(chat, /composerDraftsRef\.current\.set\(previousId,\{draft,pendingFiles,replyTo\}\)/);
+  assert.match(chat, /composerDraftsRef\.current\.set\(previousId,\{draft,pendingFiles,replyTo,pendingRequestIdentity:pendingRequestIdentityRef\.current\}\)/);
   assert.match(chat, /selectedConversationIdRef\.current=id/);
   assert.match(chat, /if\(selectedConversationIdRef\.current!==id\)return;/);
   assert.match(chat, /if\(selectedConversationIdRef\.current!==conversationId\)return;/);
   assert.match(chat, /if\(selectedConversationIdRef\.current===targetConversationId\)/);
+  assert.match(chat, /resolveChatRequestIdentity/);
+  assert.match(chat, /form\.append\('clientRequestId',requestIdentity\.clientRequestId\)/);
+  assert.match(chat, /clientRequestId:requestIdentity\.clientRequestId/);
   assert.match(chat, /draft:saved\.draft\|\|value/);
   assert.match(chat, /pendingFiles:saved\.pendingFiles\.length\?saved\.pendingFiles:files/);
+  assert.match(chat, /disabled=\{sending\} maxLength=\{4000\}/);
   assert.equal((chat.match(/setSelectedId\(/g) ?? []).length, 2, 'All conversation changes must pass through the scoped switch helper.');
+});
+
+test('Chat request identity reuses the idempotency key for retries only when payload and reply match', () => {
+  let sequence = 0;
+  const createRequestId = () => 'request-' + (++sequence);
+  const first = resolveChatRequestIdentity(null, 'text:hello', null, createRequestId);
+  const retry = resolveChatRequestIdentity(first, 'text:hello', null, createRequestId);
+  assert.strictEqual(retry, first);
+  assert.equal(retry.clientRequestId, 'request-1');
+  assert.equal(sequence, 1, 'A retry must reuse the original request id.');
+
+  const edited = resolveChatRequestIdentity(retry, 'text:hello edited', null, createRequestId);
+  assert.notEqual(edited.clientRequestId, retry.clientRequestId);
+  assert.equal(edited.clientRequestId, 'request-2');
+
+  const replied = resolveChatRequestIdentity(edited, 'text:hello edited', 'message-2', createRequestId);
+  assert.notEqual(replied.clientRequestId, edited.clientRequestId);
+  assert.equal(replied.clientRequestId, 'request-3');
+
+  const sameFiles = JSON.stringify({kind:'attachments',caption:'',files:[['flora.jpg',1024,123,'image/jpeg']]});
+  const upload = resolveChatRequestIdentity(null, sameFiles, 'message-2', createRequestId);
+  const uploadRetry = resolveChatRequestIdentity(upload, sameFiles, 'message-2', createRequestId);
+  assert.equal(uploadRetry.clientRequestId, upload.clientRequestId);
+  assert.equal(sequence, 4, 'Identical attachment retries must reuse the original request id.');
 });
