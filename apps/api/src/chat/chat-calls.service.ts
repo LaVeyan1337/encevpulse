@@ -12,7 +12,9 @@ export class ChatCallsService {
   constructor(@Inject(DatabaseService) private readonly db:DatabaseService) {}
 
   async iceConfiguration(user:AuthUser) {
-    const stunUrls=urls(process.env.CHAT_STUN_URLS??'',['stun:']);
+    // A free public STUN endpoint is the no-extra-server default. Organizations may override it.
+    const configuredStunUrls=String(process.env.CHAT_STUN_URLS??'').trim();
+    const stunUrls=urls(configuredStunUrls||'stun:stun.l.google.com:19302',['stun:']);
     const turnUrls=urls(process.env.CHAT_TURN_URLS??'',['turn:','turns:']);
     const secret=String(process.env.CHAT_TURN_SHARED_SECRET??'');
     const ttlRaw=Number(process.env.CHAT_TURN_TTL_SECONDS??43200);

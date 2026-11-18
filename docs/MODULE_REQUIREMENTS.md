@@ -89,6 +89,14 @@ Bağlayıcı geliştirme ve test sınırları için [Veri Koruma Politikası](DA
 - **Gelişmiş:** Şablon sürümleme, güvenilir kaynaktan alan doldurma, çok adımlı onay ve çıktı kayıt defteri. Taslak, incelemede, onaylandı ve gönderildi durumları süreç sahibinin doğrulamasıyla kapsanabilir.
 - **Kabul:** Açılabilir gerçek `.docx` üretilir; zorunlu alan eksikse hangi alanın tamamlanacağı bildirilir; çıktı ilgili kayıt ve şablon sürümüyle izlenir; taslak/nihai ayrımı görünürdür; çıktı hedefi ve erişimi tanımlıdır.
 
+**Uygulama kapsamı (5 Kasım 2026):**
+- Onaylı şablonlar yalnızca süreç sahibi/belge sorumlusu tarafından yüklenir; sürüm dosyaları ve SHA-256 özeti PostgreSQL'de saklanır.
+- Word metninde tek metin satırında `{{PROJECT_NAME}}`, `{{INSTITUTION_NAME}}`, `{{PETITION_SUBJECT}}`, `{{PETITION_BODY}}` gibi tanımlı alanlar kullanılır. Bilinmeyen veya bölünmüş alan işaretleyicisi reddedilir.
+- Proje, oturum açmış çalışan ve kullanıcı tarafından girilen dilekçe alanları sunucu tarafında birleştirilir. Zorunlu alan eksikse hangi alanın gerektiği bildirilir ve dosya üretilmez.
+- Çıktı gerçek DOCX olarak oluşturulur, PULSE veritabanında proje kaydına bağlı saklanır; metin önizlemesi, indirme ve sürüm/işlem denetimi vardır.
+- Durumlar: taslak → incelemede → onaylandı → gönderildi. Çalışan kendi taslağını incelemeye sunabilir; süreç sahibi/belge sorumlusu onaylar. “Gönderildi” insan teyididir; e-imza veya otomatik dış gönderim değildir.
+- **Açık kalan:** EnÇev'in onaylı gerçek DOCX şablonları ve her dilekçe türünün mevzuat/kurum özelindeki alanları ürün sahibince yüklenip kabul edilmelidir. İçerik veya hukuki ifade örneği varsayılarak üretilmez. Şablon sürümleri ve içerik politikası ayrıca onaylanmalıdır.
+
 ## 10. e-ÇED Takip
 
 **Amaç:** e-ÇED dosyalarının aşama, sorumlu, tarih ve bekleyen işini izlemek.

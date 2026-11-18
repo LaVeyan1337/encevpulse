@@ -106,19 +106,19 @@ test('e-ÇED API: pairing tokens, allowlisted browser reports, scoped claims and
     assert.equal(ecedModule?.enabled,true,'e-ÇED is an implemented and active module.');
     assert.ok(ecedModule.actions.includes('manage'),'System administrator should fully manage active e-ÇED.');
     const petitionsModule=adminPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
-    assert.equal(petitionsModule?.enabled,true,'The browser-local DOCX template workflow is enabled.');
-    assert.ok(petitionsModule.actions.includes('manage'),'System administrator should fully manage enabled Petitions.');
+    assert.equal(petitionsModule?.enabled,true,'The server-side DOCX workflow is active.');
+    assert.ok(petitionsModule.actions.includes('manage'),'System administrator can manage active petition templates.');
     const ownerPermissions=await api(base,ownerA,'auth/permissions/me');
     assert.equal(ownerPermissions.response.status,200);
     const ownerPetitions=ownerPermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(ownerPetitions?.enabled,true);
-    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update'),
-      'Process owners can create and update their local petition drafts.');
+    assert.ok(ownerPetitions.actions.includes('view')&&ownerPetitions.actions.includes('create')&&ownerPetitions.actions.includes('update')&&ownerPetitions.actions.includes('manage'),'Process owners can manage templates and documents.');
     const employeePermissions=await api(base,employee,'auth/permissions/me');
     assert.equal(employeePermissions.response.status,200);
     const employeePetitions=employeePermissions.data.modules.find((item:{moduleKey:string})=>item.moduleKey==='petitions');
     assert.equal(employeePetitions?.enabled,true);
-    assert.deepEqual(employeePetitions.actions,[],'Enabling the module must not grant default document access to all employees.');
+    assert.ok(employeePetitions.actions.includes('view')&&employeePetitions.actions.includes('create')&&employeePetitions.actions.includes('update'),'Employees can create drafts and submit their own documents for review.');
+    assert.ok(!employeePetitions.actions.includes('manage'),'Employees cannot manage shared templates or approve documents.');
 
     const createdA=await api(base,ownerA,'eced/pairings','POST',{deviceName:'Test Chrome'});
     assert.equal(createdA.response.status,201,JSON.stringify(createdA.data));

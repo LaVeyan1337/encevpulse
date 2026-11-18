@@ -22,7 +22,7 @@ Uygulamada rol izinleri modül ve eylem düzeyinde PostgreSQL'de tutulur. Geçer
 
 - İzin anahtarı: view, create, update, delete veya manage. manage ilgili modülde tüm eylemleri kapsar ve tek başına atanır.
 - Bir kullanıcının birden fazla rolü varsa izinler birleşir (OR). Bir rolden izin kaldırılması, başka bir rolden gelen yetkiyi iptal etmez.
-- Modül kapalıysa rol izni bulunsa da erişim reddedilir. Takvim, Drive, Kurum Rehberi, Kurum Görüşleri, Dilekçeler, e-ÇED, Notlarım ve Sistem Ayarları başlangıçta kapalıdır; süreç sahipleri kabul etmeden açılmaz.
+- Modül kapalıysa rol izni bulunsa da erişim reddedilir. Ortak Drive, bağımsız Kurum Rehberi ve Dilekçeler; kaynak dosya yetkisi, bağımsız kurum CRUD akışı ve gerçek alan doldurmalı Word üretimi tamamlanmadığı için kapalıdır. Kurum iletişim listesi, Kurum Görüşleri içindeki proje kapsamlı görünümde kullanılabilir. Takvim, Kurum Görüşleri, e-ÇED eklenti izleme ve Notlarım mevcut gerçek akışlarıyla etkinleştirilmiştir; otomatik yasal süre ve portal doğrulaması gibi eksik işlevler ayrıca tamamlanmış sayılmaz. Başlangıç izinleri süreç sahiplerince onaylanmalıdır.
 - system_admin rolünün Kullanıcılar, Rol/Modül İzinleri ve Sistem Ayarları yönetimi emniyet yetkisi kaldırılamaz. Bu rol iş verilerindeki tüm kayıtları otomatik görmez.
 - Modül yetkisi kayıt sahipliğinin yerine geçmez: görevler atama/oluşturan/proje üyeliği; projeler sahip/üye; sohbetler aktif konuşma üyeliğiyle ayrıca sınırlandırılır.
 - Çalışan hesabı oluşturma ekranı varsayılan employee seçer. Başka rol ilk kez seçildiğinde employee otomatik eklenmez; yönetici isterse ayrıca seçebilir. API roleCodes alanını hiç göndermezse eski entegrasyon uyumluluğu için employee varsayılanı uygulanır; açıkça boş rol listesi reddedilir.
@@ -90,19 +90,25 @@ Bu akış mevcut e-ÇED sisteminden otomatik veri alınacağını varsaymaz. Man
 
 ## Kurum Rehberi akışı
 
-1. Çalışan, proje veya Kurum Görüşü kapsamında dış kurum/kuruluşu arar. İç çalışan hesapları bu rehberde değil, kullanıcı ve ekip yönetimindedir.
-2. Kurum kaydından doğrulanmış iletişim noktalarını ve kurumla ilişkili yazışma/proje bağlantılarını inceler.
-3. Yeni kurum veya iletişim bilgisi ekleme/düzeltme yetkisi olan kullanıcı değişiklik yapar; kaynağı ve güncelleme geçmişi korunur.
+1. Çalışan dış kurum/kuruluş ve iletişim kişisini arar. İç çalışan hesapları bu rehberde değil, kullanıcı ve ekip yönetimindedir.
+2. Kurum veya iletişim kaydı bulunmuyorsa yetkili süreç sahibi/belge sorumlusu yeni kayıt açar; kurum adı ve kayıt kaynağı zorunludur.
+3. Kaynak etiketi, URL/yazı referansı ve varsa teyit tarihi kullanıcı tarafından girilir. Sistem dış kurum sistemine bağlanıp doğrulama yapmaz; kullanıcı beyanı ile otomatik doğrulama birbirinden ayrıdır.
+4. Yetkili kullanıcı kayıt bilgilerini günceller veya arşivler. Sürüm çakışması eski verinin üzerine yazmayı engeller; oluşturma, güncelleme ve arşivleme aktör/zaman bilgisiyle denetim kaydına eklenir.
+5. Proje Kurum Görüşü kayıtlarından gelen iletişim bilgileri ortak rehbere kendiliğinden açılmaz. Bir kaydın ortak rehberde görünmesi için ayrıca yetkili kullanıcı tarafından eklenmesi gerekir.
 
-Kurum Rehberi dış kurum ve iletişim bilgilerini kapsar. Şirket çalışanları kullanıcı ve ekip yönetimi altında yer alır.
+Kurum Rehberi dış kurum ve iletişim bilgilerini kapsar. Çalışan hesapları ve ekipleri kullanıcı yönetiminde yer alır. İlk rol izinleri: çalışan görüntüler; süreç sahibi ve belge sorumlusu ekler, düzenler ve arşivler. Resmî kaynak eşitlemesi sonraki karar/onay gerektirir.
 
 ## Dilekçe oluşturma akışı
 
-1. Kullanıcı yetkili şablonu ve ilgili süreç/projeyi seçer.
-2. Sistem gerekli alanları ve veri kaynağını açıklar; eksik/çelişen bilgiler düzeltilmeden çıktı üretmez.
-3. Gerçek `.docx` dosyası oluşturulur; şablon biçimi korunur ve çıktı kullanıcıya önizleme/indirme veya tanımlı depoya kaydetme imkânı verir.
-4. Kullanıcı belgeyi inceler. Taslak ile onaylanmış/nihai belge ayrımı görünür olur.
-5. Belge sürümü, oluşturan kişi, tarih ve ilişkili kayıt izlenebilir.
+1. Süreç sahibi veya belge sorumlusu, EnÇev tarafından onaylanmış `.docx` şablonunu yükler. Şablondaki alanlar tek Word metin satırında `{{PROJECT_NAME}}` biçiminde tanımlanır. Şablon sürümü, dosya özeti ve yükleyen kişi kaydedilir.
+2. Çalışan erişim yetkisi olan projeyi ve etkin şablon sürümünü seçer. Projeye ait ad/tür/sorumlu/tarihler ve kendi kullanıcı bilgisi sistem tarafından doldurulur.
+3. Dilekçe konusu, hitap, kurum ve metin gibi kullanıcı alanları doldurulur. Zorunlu alan eksikse üretim durur ve eksik alanlar belirtilir.
+4. API şablonu doğrular ve gerçek `.docx` üretir. Çıktı proje kaydına bağlı olarak PULSE PostgreSQL içinde saklanır; metin önizlemesi ve indirme sunulur. Orijinal şablon değiştirilmez.
+5. Belge taslak olarak kaydedilir. Belge sahibi “İncelemeye gönder” işlemini yapar; süreç sahibi/belge sorumlusu düzeltmeye iade edebilir veya onaylayabilir.
+6. Kuruma gönderim insan tarafından yapılır. Yetkili kullanıcı yalnız gönderimi teyit ettikten sonra “Gönderildi olarak işaretle” durumunu seçer; PULSE dış kuruma otomatik gönderim veya elektronik imza yapmaz.
+7. Her belge hangi şablon sürümüyle üretildiği, dosya SHA-256 özeti, oluşturan kişi, proje, durum ve indirme/onay geçmişiyle izlenebilir.
+
+Şablon dosyaları ve çıktılar PULSE veritabanında saklanır; bu akış şirket NAS/SMB paylaşımına bağlanmaz. Gerçek şirket şablonlarının içeriği ve hangi dilekçe türlerinde kullanılacağı süreç sahibi tarafından ayrıca onaylanmalıdır.
 
 ## Hata ve istisna akışları
 

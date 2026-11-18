@@ -110,6 +110,8 @@ export class AccessControlService {
     if(enabled&&lockedOff.includes(moduleKey)) {
       const messages:Record<string,string>={
         drive:'Ortak Drive, şirket dosya alanının kaynak yetkilerini koruyan bağlantısı ve ayrıca verilmiş erişim izni olmadan açılamaz.',
+        institution_guide:'Bağımsız kurum ekleme, düzenleme ve arşiv akışı tamamlanmadı. Proje kapsamlı rehber görünümü Kurum Görüşleri içinde kullanılabilir.',
+
       };
       throw new ConflictException({code:'MODULE_NOT_READY',message:messages[moduleKey]});
     }

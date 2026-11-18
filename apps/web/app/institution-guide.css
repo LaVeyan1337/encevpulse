@@ -35,3 +35,27 @@
 .institution-guide-note{margin:0;color:var(--text-muted);font-size:10px;line-height:1.55}
 @media(max-width:760px){.institution-guide-heading{align-items:stretch;flex-direction:column}.institution-guide-actions{align-self:flex-start}.institution-guide-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr))}}
 @media(max-width:520px){.institution-guide-summary{flex-wrap:wrap}.institution-guide-summary .institution-guide-scope{width:100%;margin:0}.institution-guide-grid{grid-template-columns:1fr}}
+
+.institution-guide-editor{display:grid;gap:16px;padding:20px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface-raised) 94%,var(--accent-subtle)),var(--surface));border:1px solid var(--border-strong);border-radius:16px;box-shadow:var(--shadow-md);backdrop-filter:blur(22px)}
+.institution-guide-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.institution-guide-editor-heading h3{margin:5px 0 0;color:var(--text);font-size:18px;letter-spacing:-.02em}
+.institution-guide-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.institution-guide-field{display:grid;gap:6px;min-width:0;color:var(--text-secondary);font-size:11px;font-weight:700}
+.institution-guide-field>span b{color:var(--danger);font-weight:800}
+.institution-guide-field input,.institution-guide-field textarea{width:100%;min-width:0;padding:10px 11px;color:var(--text);background:color-mix(in srgb,var(--surface-raised) 90%,transparent);border:1px solid var(--border-strong);border-radius:9px;outline:none;font:inherit;font-size:13px;font-weight:500;transition:border-color .16s,box-shadow .16s}
+.institution-guide-field input:focus,.institution-guide-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+.institution-guide-field input::placeholder,.institution-guide-field textarea::placeholder{color:var(--text-muted)}
+.institution-guide-field textarea{resize:vertical;min-height:58px;line-height:1.5}
+.institution-guide-field-wide{grid-column:1/-1}
+.institution-guide-provenance{margin:0;color:var(--text-muted);font-size:11px;line-height:1.5}
+.institution-guide-form-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
+.institution-guide-source{display:grid;gap:3px;margin-top:13px;padding:10px 11px;background:var(--accent-subtle);border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:9px;min-width:0}
+.institution-guide-source span{color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+.institution-guide-source strong{color:var(--text);font-size:11px;overflow-wrap:anywhere}
+.institution-guide-source small{color:var(--text-secondary);font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.institution-guide-card footer{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.institution-guide-card footer button{padding:0;color:var(--accent);background:transparent;border:0;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.institution-guide-card-actions{display:flex;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.institution-guide-card-actions .secondary-button{min-height:30px;padding:5px 10px;font-size:10px}
+.institution-guide-card-actions .danger{color:var(--danger);border-color:var(--danger-border)}
+@media(max-width:680px){.institution-guide-form-grid{grid-template-columns:1fr}.institution-guide-field-wide{grid-column:auto}.institution-guide-editor{padding:15px}}

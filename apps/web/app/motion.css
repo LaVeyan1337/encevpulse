@@ -64,14 +64,14 @@
 .task-card-open:focus-visible{outline-offset:3px;border-radius:8px}
 .workspace-shell::after {
   content:'';position:fixed;z-index:-1;inset:-12%;pointer-events:none;
-  background:radial-gradient(ellipse 32% 25% at 72% 23%,rgba(195,139,111,.10),transparent 76%),
-             radial-gradient(ellipse 28% 22% at 22% 79%,rgba(133,158,135,.09),transparent 76%);
+  background:radial-gradient(ellipse 32% 25% at 72% 23%,rgba(71,164,235,.14),transparent 76%),
+             radial-gradient(ellipse 28% 22% at 22% 79%,rgba(63,191,207,.10),transparent 76%);
   animation:ambientDrift 28s ease-in-out infinite;
 }
 .page-skeleton{min-width:0}
 .skeleton-tile{pointer-events:none}
-.ghost-line{display:block;position:relative;overflow:hidden;border-radius:999px;background:linear-gradient(100deg,rgba(176,169,155,.09) 17%,rgba(219,207,189,.22) 40%,rgba(176,169,155,.09) 62%);background-size:240% 100%;animation:ghostSweep 1.9s cubic-bezier(.4,0,.2,1) infinite}
-:root[data-theme='light'] .ghost-line{background:linear-gradient(100deg,rgba(125,115,99,.07) 17%,rgba(192,177,154,.2) 40%,rgba(125,115,99,.07) 62%);background-size:240% 100%}
+.ghost-line{display:block;position:relative;overflow:hidden;border-radius:999px;background:linear-gradient(100deg,rgba(139,184,229,.09) 17%,rgba(188,222,255,.22) 40%,rgba(176,169,155,.09) 62%);background-size:240% 100%;animation:ghostSweep 1.9s cubic-bezier(.4,0,.2,1) infinite}
+:root[data-theme='light'] .ghost-line{background:linear-gradient(100deg,rgba(105,146,189,.07) 17%,rgba(129,180,225,.2) 40%,rgba(125,115,99,.07) 62%);background-size:240% 100%}
 .skeleton-metric-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
 .ghost-label{width:58%;height:11px}.ghost-icon{width:30px;height:30px;border-radius:10px}
 .ghost-number{width:54px;height:31px;margin-top:18px;border-radius:8px}
@@ -88,7 +88,7 @@
 .ghost-avatar{width:23px;height:23px;border-radius:50%;flex:0 0 auto}.ghost-person{width:36%;height:9px}.ghost-date{width:20%;height:9px;margin-left:auto}
 .skeleton-table{overflow:hidden}.skeleton-table th,.skeleton-table td{height:54px}
 .ghost-table-heading{width:66px;height:10px}.ghost-table-cell{width:70px;height:10px}.ghost-table-cell-wide{width:min(190px,22vw)}
-.skeleton-table tbody tr:nth-child(2n){background:rgba(130,120,105,.025)}
+.skeleton-table tbody tr:nth-child(2n){background:rgba(91,137,190,.035)}
 @media(max-width:760px){.workspace-page-enter{transform-origin:50% 4%;animation-duration:.84s}.skeleton-column{min-height:255px}}
 @media(prefers-reduced-motion:reduce){
   .workspace-page-enter,.drawer-backdrop,.drawer-panel,.notification-popover,.user-menu-popover,

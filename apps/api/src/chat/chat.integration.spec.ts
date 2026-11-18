@@ -406,7 +406,12 @@ test('sohbet API: üyelik, roller, mesajlar, okundu bilgisi, arama ve görev ba�
       const iceConfig=await api(base,alice,'chat/call-configuration');
       assert.equal(iceConfig.response.status,200);
       assert.ok(Array.isArray(iceConfig.data.iceServers));
+      assert.ok(iceConfig.data.iceServers.some((server:any)=>{
+        const urls=Array.isArray(server.urls)?server.urls:[server.urls];
+        return urls.some((url:unknown)=>typeof url==='string'&&url.startsWith('stun:'));
+      }),'Ücretsiz varsayılan STUN yapılandırması bulunmalı.');
       assert.equal(typeof iceConfig.data.relayConfigured,'boolean');
+      assert.equal(iceConfig.data.relayConfigured,false,'TURN yalnızca kurum ayrıca yapılandırırsa kullanılmalı.');
 
       const groupCall=await api(base,alice,`chat/conversations/${groupId}/calls`,'POST',{mediaType:'audio'});
       assert.equal(groupCall.response.status,400,'Grup araması ilk sürümde desteklenmediği için açıkça reddedilmeli.');

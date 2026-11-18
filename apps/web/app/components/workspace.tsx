@@ -836,7 +836,7 @@ export function Workspace({
   }
 
   const sectionTitle =
-    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'institution_guide' ? 'Kurum Rehberi' : section === 'eced' ? 'e-ÇED Canlı Takip' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : (user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar');
+    section === 'overview' ? 'Genel Bakış' : section === 'tasks' ? 'Görevler' : section === 'projects' ? 'Projeler' : section === 'calendar' ? 'Takvim' : section === 'institution_opinions' ? 'Kurum Görüşleri' : section === 'institution_guide' ? 'Kurum Rehberi' : section === 'eced' ? 'e-ÇED Eklenti İzleme' : section === 'petitions' ? 'Dilekçeler' : section === 'notes' ? 'Notlarım' : section === 'people' ? 'Çalışanlar' : section === 'chat' ? 'Sohbet' : (user.roles.includes('system_admin') ? 'Sistem Yönetimi' : 'Kullanıcılar');
 
   return (
     <div className="workspace-shell">
@@ -1020,7 +1020,7 @@ export function Workspace({
         </nav>
 
         <div className="sidebar-bottom">
-          <span className="sidebar-caption">EnÇev Çevre Mühendisliği</span>
+          <span className="sidebar-caption">ENÇEV ENERJİ</span>
         </div>
       </aside>
 
@@ -1750,6 +1750,7 @@ export function Workspace({
               canCreate={hasModulePermission('institution_opinions','create')}
               canUpdate={hasModulePermission('institution_opinions','update')}
               canDelete={hasModulePermission('institution_opinions','delete')}
+              canManageRules={hasModulePermission('institution_opinions','manage')}
               canOpenProject={hasModulePermission('projects')}
               onOpenProject={(projectId) => { void openProject(projectId, 'opinions'); }}
             />
@@ -1759,6 +1760,9 @@ export function Workspace({
             <InstitutionGuideWorkspace
               request={request}
               canOpenOpinions={hasModulePermission('institution_opinions')}
+              canCreate={hasModulePermission('institution_guide','create')}
+              canUpdate={hasModulePermission('institution_guide','update')}
+              canDelete={hasModulePermission('institution_guide','delete')}
               onOpenOpinions={()=>setSection('institution_opinions')}
             />
           )}
@@ -1777,6 +1781,10 @@ export function Workspace({
             <PetitionsWorkspace
               projects={projects.map(({id,name,status})=>({id,name,status}))}
               canCreate={hasModulePermission('petitions','create')}
+              canUpdate={hasModulePermission('petitions','update')}
+              canManageTemplates={hasModulePermission('petitions','manage')}
+              canApprove={user.roles.includes('system_admin')||user.roles.includes('process_owner')||user.roles.includes('document_steward')}
+              request={request}
             />
           )}
 
@@ -2613,6 +2621,7 @@ export function Workspace({
                     canCreate={hasModulePermission('institution_opinions','create')}
                     canUpdate={hasModulePermission('institution_opinions','update')}
                     canDelete={hasModulePermission('institution_opinions','delete')}
+              canManageRules={hasModulePermission('institution_opinions','manage')}
                     canOpenProject={false}
                     onOpenProject={()=>{}}
                   />

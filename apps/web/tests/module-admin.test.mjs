@@ -4,34 +4,41 @@ import { test } from 'node:test';
 
 const read=(path)=>readFile(new URL(path,import.meta.url),'utf8');
 
-test('Sistem yönetimi hazır modülleri yönetir; NAS bağlantısı kapalı tutulur',async()=>{
-  const [page,controller,access,migration,workspace]=await Promise.all([
+test('Sistem yönetimi tamamlanmamış Drive modülünü kapalı tutar; Dilekçeler etkin ve yetki kontrollüdür',async()=>{
+  const [page,controller,access,activationMigration,notReadyMigration,directoryMigration,petitionMigration,workspace]=await Promise.all([
     read('../app/routes/home.tsx'),
     read('../../api/src/auth/auth.controller.ts'),
     read('../../api/src/access-control/access-control.service.ts'),
     read('../../../drizzle/0021_notes_and_module_activation.sql'),
+    read('../../../drizzle/0022_disable_incomplete_modules.sql'),
+    read('../../../drizzle/0023_institution_directory_crud.sql'),
+    read('../../../drizzle/0024_petition_docx_workflow.sql'),
     read('../app/components/workspace.tsx'),
   ]);
-  assert.match(page,/adminTab==='modules'/);
-  assert.match(page,/PUT',credentials:'same-origin'/);
-  assert.match(page,/blocked\[moduleKey\]/);
-  assert.match(page,/drive:'Ortak Drive/);
-  assert.match(controller,/@Put\('modules\/:moduleKey'\)/);
-  assert.match(controller,/this\.assertSystemAdmin\(user\)/);
-  assert.match(access,/CORE_MODULE_REQUIRED/);
-  assert.match(access,/MODULE_NOT_READY/);
+  assert.ok(page.includes("adminTab==='modules'"));
+  assert.ok(page.includes("PUT',credentials:'same-origin'"));
+  assert.ok(page.includes('blocked[moduleKey]'));
+  assert.ok(page.includes("drive:'Şirket dosya alanına erişim"));
+  assert.ok(page.includes("institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur"));
+  assert.ok(controller.includes("@Put('modules/:moduleKey')"));
+  assert.ok(controller.includes('this.assertSystemAdmin(user)'));
+  assert.ok(access.includes('CORE_MODULE_REQUIRED'));
+  assert.ok(access.includes('MODULE_NOT_READY'));
   for(const key of ['calendar','institution_opinions','eced','institution_guide','petitions','notes','settings']) {
-    assert.match(migration,new RegExp("'"+key+"'"));
-    assert.match(migration,/SET is_enabled = true/);
+    assert.ok(activationMigration.includes("'"+key+"'"));
+    assert.ok(activationMigration.includes('SET is_enabled = true'));
   }
-  assert.match(migration,/institution_guide/);
+  assert.ok(notReadyMigration.includes('SET is_enabled = false'));
+  assert.ok(notReadyMigration.includes("institution_guide','petitions"));
+  assert.ok(directoryMigration.includes("UPDATE app_modules SET is_enabled = true WHERE module_key = 'institution_guide'"));
+  assert.ok(directoryMigration.includes("('employee','institution_guide','view')"));
+  assert.ok(directoryMigration.includes("('process_owner','institution_guide','create')"));
   assert.ok(access.includes("const lockedOff=['drive'];"));
-  assert.match(migration,/calendar','institution_opinions','eced','institution_guide','petitions','notes','settings/);
-  assert.match(page,/petitions:'Etkin: tarayıcıda DOCX şablonu saklama/);
-  for(const key of ['drive']) {
-    assert.doesNotMatch(migration,new RegExp("UPDATE app_modules[^;]*"+key));
-    assert.match(access,new RegExp("'"+key+"'"));
-  }
-  assert.match(workspace,/Sistem Yönetimi/);
-  assert.match(workspace,/hasModulePermission\('notes'\)/);
+  assert.ok(petitionMigration.includes("UPDATE app_modules SET is_enabled = true WHERE module_key = 'petitions'"));
+  assert.ok(petitionMigration.includes("('employee','petitions','create')"));
+  assert.ok(petitionMigration.includes("('process_owner','petitions','manage')"));
+  assert.ok(!/UPDATE app_modules[^;]*'drive'/.test(activationMigration));
+  assert.ok(access.includes("'drive'"));
+  assert.ok(workspace.includes('Sistem Yönetimi'));
+  assert.ok(workspace.includes("hasModulePermission('notes')"));
 });

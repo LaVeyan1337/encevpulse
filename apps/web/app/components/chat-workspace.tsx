@@ -121,6 +121,7 @@ export function ChatWorkspace({
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const attachmentInputRef=useRef<HTMLInputElement|null>(null);
   const selectedConversationIdRef=useRef<string|null>(selectedId);
+  const composerDraftsRef=useRef(new Map<string,{draft:string;pendingFiles:File[];replyTo:Message|null}>());
   const recorderRef=useRef<MediaRecorder|null>(null);
   const recordingStreamRef=useRef<MediaStream|null>(null);
   const recordingChunksRef=useRef<Blob[]>([]);
@@ -148,6 +149,34 @@ export function ChatWorkspace({
     return true;
   }),[conversations,conversationFilter]);
 
+  function switchConversation(id:string|null) {
+    const previousId=selectedConversationIdRef.current;
+    if(previousId===id) {
+      setSelectedId(id);
+      return;
+    }
+    if(previousId)composerDraftsRef.current.set(previousId,{draft,pendingFiles,replyTo});
+    selectedConversationIdRef.current=id;
+    const nextDraft=id?composerDraftsRef.current.get(id):undefined;
+    if(id)composerDraftsRef.current.delete(id);
+    setSelectedId(id);
+    setDraft(nextDraft?.draft??'');
+    setPendingFiles(nextDraft?.pendingFiles??[]);
+    setReplyTo(nextDraft?.replyTo??null);
+    setSendState('idle');
+    setEditingId(null);
+    setEditingBody('');
+    setSearchTargetMessageId(null);
+    setHasMoreMessages(false);
+    setLoadingOlder(false);
+    setDetail(null);
+    setMessages([]);
+    setMessageLoading(false);
+    pendingScrollRestore.current=null;
+    messageHistoryLoaded.current=false;
+    setError('');
+  }
+
   const loadConversations=useCallback(async()=>{
     const result=await request('chat/conversations');
     const list=(result.conversations??[]) as Conversation[];
@@ -157,11 +186,13 @@ export function ChatWorkspace({
 
   const loadDetail=useCallback(async(id:string)=>{
     const result=await request('chat/conversations/'+id);
+    if(selectedConversationIdRef.current!==id)return;
     setDetail(result as ChatDetail);
   },[request]);
 
   const loadMessages=useCallback(async(id:string,markRead=true,preserveHistory=false)=>{
     const result=await request('chat/conversations/'+id+'/messages');
+    if(selectedConversationIdRef.current!==id)return [];
     const list=(result.messages??[]) as Message[];
     const hadHistory=preserveHistory&&messageHistoryLoaded.current;
     setMessages(current=>{
@@ -183,19 +214,15 @@ export function ChatWorkspace({
   },[request,canUpdate]);
 
   const openConversation=useCallback(async(id:string)=>{
-    setSelectedId(id);
+    switchConversation(id);
     setMobileThreadOpen(true);
-    setError('');
-    setDetail(null);
-    setMessages([]);
-    messageHistoryLoaded.current=false;
     setMessageLoading(true);
     try {
       await Promise.all([loadDetail(id),loadMessages(id)]);
     } catch(cause) {
-      setError(cause instanceof Error?cause.message:'Sohbet yüklenemedi.');
+      if(selectedConversationIdRef.current===id)setError(cause instanceof Error?cause.message:'Sohbet yüklenemedi.');
     } finally {
-      setMessageLoading(false);
+      if(selectedConversationIdRef.current===id)setMessageLoading(false);
     }
   },[loadDetail,loadMessages]);
 
@@ -303,10 +330,9 @@ export function ChatWorkspace({
       catch{return;}
       if(update.eventType==='call.changed')void refreshActiveCall();
       if(update.conversationId===selectedId&&update.accessRevoked===true){
-        setSelectedId(null);
-        setDetail(null);
-        setMessages([]);
-        messageHistoryLoaded.current=false;
+        const revokedId=selectedConversationIdRef.current;
+        switchConversation(null);
+        if(revokedId)composerDraftsRef.current.delete(revokedId);
         setError('Bu sohbetten çıkarıldınız; erişiminiz kaldırıldı.');
         void loadConversations().catch(()=>undefined);
         return;
@@ -349,7 +375,6 @@ export function ChatWorkspace({
 
   useEffect(()=>{
     selectedConversationIdRef.current=selectedId;
-    setPendingFiles([]);
     setRecordingError('');
     if(recorderRef.current&&recorderRef.current.state!=='inactive'){
       recorderRef.current.onstop=null;
@@ -417,13 +442,15 @@ export function ChatWorkspace({
 
   async function loadOlderMessages() {
     if(!selectedId||!hasMoreMessages||loadingOlder||messages.length===0)return;
+    const conversationId=selectedId;
     const oldest=messages[0];
     const element=scrollRef.current;
     if(element)pendingScrollRestore.current={height:element.scrollHeight,top:element.scrollTop};
     setLoadingOlder(true);
     try{
-      const path='chat/conversations/'+selectedId+'/messages?beforeCreatedAt='+encodeURIComponent(oldest.createdAt)+'&beforeId='+encodeURIComponent(oldest.id);
+      const path='chat/conversations/'+conversationId+'/messages?beforeCreatedAt='+encodeURIComponent(oldest.createdAt)+'&beforeId='+encodeURIComponent(oldest.id);
       const result=await request(path);
+      if(selectedConversationIdRef.current!==conversationId)return;
       const older=(result.messages??[]) as Message[];
       setMessages(current=>{
         const known=new Set(current.map(item=>item.id));
@@ -432,8 +459,10 @@ export function ChatWorkspace({
       setHasMoreMessages(Boolean(result.page?.hasMore));
     }catch(cause){
       pendingScrollRestore.current=null;
-      setError(cause instanceof Error?cause.message:'Eski mesajlar yüklenemedi.');
-    }finally{setLoadingOlder(false);}
+      if(selectedConversationIdRef.current===conversationId)setError(cause instanceof Error?cause.message:'Eski mesajlar yüklenemedi.');
+    }finally{
+      if(selectedConversationIdRef.current===conversationId)setLoadingOlder(false);
+    }
   }
 
   async function refreshActiveCall(){
@@ -609,7 +638,7 @@ export function ChatWorkspace({
       await peer.setLocalDescription(answer);
       await sendCallSignal(callId,'answer',{type:answer.type,sdp:answer.sdp??''});
       setActiveCall(current=>current?{...current,status:'accepted'}:current);
-      setSelectedId(activeCall.conversationId);
+      switchConversation(activeCall.conversationId);
       setMobileThreadOpen(true);
       await Promise.all([loadDetail(activeCall.conversationId),loadMessages(activeCall.conversationId,true,true)]);
     }catch(cause){
@@ -653,6 +682,7 @@ export function ChatWorkspace({
 
   async function uploadAttachments(files:File[],caption:string,targetConversationId=selectedId,replyMessageId=replyTo?.id??null) {
     if(!canCreate||!targetConversationId||files.length===0||sending)return;
+    const replySnapshot=replyTo?.id===replyMessageId?replyTo:null;
     if(files.length>5){setError('Bir mesajda en fazla 5 dosya gönderebilirsiniz.');return;}
     if(files.some(file=>file.size<1||file.size>12*1024*1024)||files.reduce((total,file)=>total+file.size,0)>24*1024*1024){
       setError('Her dosya en fazla 12 MB, bir mesajdaki toplam ekler en fazla 24 MB olabilir.');
@@ -666,16 +696,28 @@ export function ChatWorkspace({
     setSending(true);setSendState('idle');setError('');
     try{
       await request('chat/conversations/'+targetConversationId+'/attachments','POST',form);
-      setSendState('sent');
       if(selectedConversationIdRef.current===targetConversationId){
+        setSendState('sent');
         setDraft(current=>current.trim()===caption?'':current);
         setPendingFiles([]);
         setReplyTo(null);
         await Promise.all([loadMessages(targetConversationId,true,true),loadConversations()]);
-      }else await loadConversations();
+      }else{
+        composerDraftsRef.current.delete(targetConversationId);
+        await loadConversations();
+      }
     }catch(cause){
-      setSendState('failed');
-      setError(cause instanceof Error?cause.message:'Dosya gönderilemedi. Seçtiğiniz dosyalar korunmuştur.');
+      if(selectedConversationIdRef.current===targetConversationId){
+        setSendState('failed');
+        setError(cause instanceof Error?cause.message:'Dosya gönderilemedi. Seçtiğiniz dosyalar korunmuştur.');
+      }else{
+        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null};
+        composerDraftsRef.current.set(targetConversationId,{
+          draft:saved.draft||caption,
+          pendingFiles:saved.pendingFiles.length?saved.pendingFiles:files,
+          replyTo:saved.replyTo??replySnapshot,
+        });
+      }
     }finally{setSending(false);}
   }
 
@@ -688,21 +730,35 @@ export function ChatWorkspace({
       return;
     }
     if(!value)return;
+    const targetConversationId=selectedId;
     setSending(true);setSendState('idle');setError('');
     const clientRequestId=crypto.randomUUID();
     const currentReply=replyTo?.id??null;
+    const replySnapshot=currentReply?messages.find(item=>item.id===currentReply)??null:null;
     setDraft('');setReplyTo(null);
     try {
-      await request('chat/conversations/'+selectedId+'/messages','POST',{
+      await request('chat/conversations/'+targetConversationId+'/messages','POST',{
         body:value,replyToId:currentReply,clientRequestId,
       });
-      setSendState('sent');
-      await Promise.all([loadMessages(selectedId,true,true),loadConversations()]);
+      if(selectedConversationIdRef.current===targetConversationId){
+        setSendState('sent');
+        await loadMessages(targetConversationId,true,true);
+      }else composerDraftsRef.current.delete(targetConversationId);
+      await loadConversations();
     } catch(cause) {
-      setDraft(value);
-      setReplyTo(currentReply?messages.find(item=>item.id===currentReply)??null:null);
-      setSendState('failed');
-      setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
+      if(selectedConversationIdRef.current===targetConversationId){
+        setDraft(current=>current||value);
+        setReplyTo(current=>current??replySnapshot);
+        setSendState('failed');
+        setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
+      }else{
+        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null};
+        composerDraftsRef.current.set(targetConversationId,{
+          ...saved,
+          draft:saved.draft||value,
+          replyTo:saved.replyTo??replySnapshot,
+        });
+      }
     } finally {setSending(false);}
   }
 
@@ -766,14 +822,10 @@ export function ChatWorkspace({
     if(typeof result.conversationId!=='string'||typeof result.id!=='string')return;
     const conversationId=result.conversationId as string;
     const targetId=result.id as string;
-    setSelectedId(conversationId);
+    switchConversation(conversationId);
     setError('');
     setSearchOpen(false);
-    setDetail(null);
-    setMessages([]);
-    messageHistoryLoaded.current=false;
     setMessageLoading(true);
-    setSearchTargetMessageId(null);
     try {
       const [detailResult,firstPage]=await Promise.all([
         request('chat/conversations/'+conversationId),
@@ -783,6 +835,7 @@ export function ChatWorkspace({
       let page=firstPage.page;
       let pageCount=0;
       while(page?.hasMore&&!collected.some(message=>message.id===targetId)&&pageCount<100) {
+        if(selectedConversationIdRef.current!==conversationId)return;
         const cursor=page.nextCursor as {createdAt:string;id:string}|null;
         if(!cursor)break;
         const next=await request(
@@ -794,6 +847,7 @@ export function ChatWorkspace({
         page=next.page;
         pageCount+=1;
       }
+      if(selectedConversationIdRef.current!==conversationId)return;
       setDetail(detailResult as ChatDetail);
       setMessages(collected);
       messageHistoryLoaded.current=true;
@@ -804,15 +858,17 @@ export function ChatWorkspace({
         const latest=collected[collected.length-1];
         if(latest&&canUpdate) {
           await request('chat/conversations/'+conversationId+'/read','POST',{messageId:latest.id});
-          setConversations(items=>items.map(item=>item.id===conversationId?{...item,unreadCount:0}:item));
+          if(selectedConversationIdRef.current===conversationId)setConversations(items=>items.map(item=>item.id===conversationId?{...item,unreadCount:0}:item));
         }
         await loadConversations();
       } else {
         setError('Aranan mesaj bulundu ancak son 5.000 mesaj içinde yüklenemedi. Aramayı daraltıp yeniden deneyin.');
       }
     } catch(cause) {
-      setError(cause instanceof Error?cause.message:'Arama sonucundaki mesaj açılamadı.');
-    } finally {setMessageLoading(false);}
+      if(selectedConversationIdRef.current===conversationId)setError(cause instanceof Error?cause.message:'Arama sonucundaki mesaj açılamadı.');
+    } finally {
+      if(selectedConversationIdRef.current===conversationId)setMessageLoading(false);
+    }
   }
 
   async function startDirect(person:DirectoryPerson) {
@@ -945,7 +1001,11 @@ export function ChatWorkspace({
     setActionBusy(true);
     try {
       await request('chat/conversations/'+selectedId+'/members/'+member.id,'DELETE',{});
-      if(member.id===currentUserId){setDetail(null);setSelectedId(null);setMessages([]);}
+      if(member.id===currentUserId){
+        const removedId=selectedConversationIdRef.current;
+        switchConversation(null);
+        if(removedId)composerDraftsRef.current.delete(removedId);
+      }
       else await loadDetail(selectedId);
       await loadConversations();
     } catch(cause) {setError(cause instanceof Error?cause.message:'Sohbet üyeliği değiştirilemedi.');}

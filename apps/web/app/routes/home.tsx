@@ -855,9 +855,10 @@ export default function Home() {
                       const lockedCore=['overview','tasks','users','permissions','settings'].includes(module.moduleKey);
                       const blockedReason=({
                         drive:'Şirket dosya alanına erişim ayrıca açık izin ve kaynak kullanıcı yetkilerini koruyan bir API gerektirir.',
+                        institution_guide:'Kurum kayıtları manuel kaynak bilgisiyle tutulur; harici kurum sistemleriyle otomatik eşitleme bulunmaz.',
                       } as Record<string,string>)[module.moduleKey];
                       const moduleHint=({
-                        petitions:'Etkin: tarayıcıda DOCX şablonu saklama, SHA-256 bütünlük kontrolü ve biçimi koruyan yerel kopya indirme. Dinamik alan doldurma, ortak NAS kilidi ve onay/durum akışı henüz yoktur.',
+                        petitions:'Word şablonları sürümlenir; üretilen belgeler ilgili proje kaydıyla birlikte saklanır.',
                       } as Record<string,string>)[module.moduleKey];
                       return (
                         <div className="permission-module-row" key={module.moduleKey}>
@@ -1083,7 +1084,7 @@ export default function Home() {
           </section>
         )}
       </main>
-      <footer className="auth-footer">EnÇev</footer>
+      <footer className="auth-footer">ENÇEV ENERJİ</footer>
     </div>
   );
 }

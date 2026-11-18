@@ -53,7 +53,7 @@ test('e-ÇED screen and API use scoped pairing, conservative account states and 
   assert.ok(component.includes("report.sessionState==='active'"));
   assert.ok(component.includes("fresh.every(report=>report.sessionState==='logged_out')"));
   assert.ok(component.includes("tone='busy';label=reserved?'Kullanımda · rezerve':'Açık'"));
-  assert.ok(component.includes("tone='ready';label='Girişe hazır'"));
+  assert.ok(component.includes("tone='ready';label='Oturum kapalı işaretli'"));
   assert.ok(component.includes("Sinyal eski · durum belirsiz"));
   assert.ok(!component.includes('Girişe hazır · aktif sinyal yok'));
   assert.ok(component.includes('Bağlantı doğrulanamadı'));
