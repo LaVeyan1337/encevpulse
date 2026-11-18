@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EmployeeAvatar } from './avatars';
+import { resolveChatRequestIdentity, type ChatRequestIdentity } from './chat-request-identity.js';
 
 type Request = (path:string,method?:string,data?:unknown)=>Promise<Record<string,any>>;
 type Conversation = {
@@ -121,7 +122,8 @@ export function ChatWorkspace({
   const scrollRef=useRef<HTMLDivElement|null>(null);
   const attachmentInputRef=useRef<HTMLInputElement|null>(null);
   const selectedConversationIdRef=useRef<string|null>(selectedId);
-  const composerDraftsRef=useRef(new Map<string,{draft:string;pendingFiles:File[];replyTo:Message|null}>());
+  const composerDraftsRef=useRef(new Map<string,{draft:string;pendingFiles:File[];replyTo:Message|null;pendingRequestIdentity:ChatRequestIdentity|null}>());
+  const pendingRequestIdentityRef=useRef<ChatRequestIdentity|null>(null);
   const recorderRef=useRef<MediaRecorder|null>(null);
   const recordingStreamRef=useRef<MediaStream|null>(null);
   const recordingChunksRef=useRef<Blob[]>([]);
@@ -155,10 +157,11 @@ export function ChatWorkspace({
       setSelectedId(id);
       return;
     }
-    if(previousId)composerDraftsRef.current.set(previousId,{draft,pendingFiles,replyTo});
+    if(previousId)composerDraftsRef.current.set(previousId,{draft,pendingFiles,replyTo,pendingRequestIdentity:pendingRequestIdentityRef.current});
     selectedConversationIdRef.current=id;
     const nextDraft=id?composerDraftsRef.current.get(id):undefined;
     if(id)composerDraftsRef.current.delete(id);
+    pendingRequestIdentityRef.current=nextDraft?.pendingRequestIdentity??null;
     setSelectedId(id);
     setDraft(nextDraft?.draft??'');
     setPendingFiles(nextDraft?.pendingFiles??[]);
@@ -688,22 +691,38 @@ export function ChatWorkspace({
       setError('Her dosya en fazla 12 MB, bir mesajdaki toplam ekler en fazla 24 MB olabilir.');
       return;
     }
+    const payloadKey=JSON.stringify({
+      kind:'attachments',caption,
+      files:files.map(file=>[file.name,file.size,file.lastModified,file.type]),
+    });
+    const activeTarget=selectedConversationIdRef.current===targetConversationId;
+    const savedBefore=composerDraftsRef.current.get(targetConversationId);
+    const requestIdentity=resolveChatRequestIdentity(
+      activeTarget?pendingRequestIdentityRef.current:savedBefore?.pendingRequestIdentity??null,
+      payloadKey,replyMessageId,()=>crypto.randomUUID(),
+    );
+    if(activeTarget)pendingRequestIdentityRef.current=requestIdentity;
+    else if(savedBefore)composerDraftsRef.current.set(targetConversationId,{...savedBefore,pendingRequestIdentity:requestIdentity});
     const form=new FormData();
     form.append('caption',caption);
     if(replyMessageId)form.append('replyToId',replyMessageId);
-    form.append('clientRequestId',crypto.randomUUID());
+    form.append('clientRequestId',requestIdentity.clientRequestId);
     for(const file of files)form.append('files',file,file.name);
     setSending(true);setSendState('idle');setError('');
     try{
       await request('chat/conversations/'+targetConversationId+'/attachments','POST',form);
       if(selectedConversationIdRef.current===targetConversationId){
-        setSendState('sent');
-        setDraft(current=>current.trim()===caption?'':current);
-        setPendingFiles([]);
-        setReplyTo(null);
+        if(pendingRequestIdentityRef.current?.clientRequestId===requestIdentity.clientRequestId){
+          pendingRequestIdentityRef.current=null;
+          setSendState('sent');
+          setDraft(current=>current.trim()===caption?'':current);
+          setPendingFiles([]);
+          setReplyTo(current=>current?.id===replyMessageId?null:current);
+        }
         await Promise.all([loadMessages(targetConversationId,true,true),loadConversations()]);
       }else{
-        composerDraftsRef.current.delete(targetConversationId);
+        const saved=composerDraftsRef.current.get(targetConversationId);
+        if(saved?.pendingRequestIdentity?.clientRequestId===requestIdentity.clientRequestId)composerDraftsRef.current.delete(targetConversationId);
         await loadConversations();
       }
     }catch(cause){
@@ -711,11 +730,12 @@ export function ChatWorkspace({
         setSendState('failed');
         setError(cause instanceof Error?cause.message:'Dosya gönderilemedi. Seçtiğiniz dosyalar korunmuştur.');
       }else{
-        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null};
+        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null,pendingRequestIdentity:null};
         composerDraftsRef.current.set(targetConversationId,{
           draft:saved.draft||caption,
           pendingFiles:saved.pendingFiles.length?saved.pendingFiles:files,
           replyTo:saved.replyTo??replySnapshot,
+          pendingRequestIdentity:requestIdentity,
         });
       }
     }finally{setSending(false);}
@@ -731,32 +751,42 @@ export function ChatWorkspace({
     }
     if(!value)return;
     const targetConversationId=selectedId;
-    setSending(true);setSendState('idle');setError('');
-    const clientRequestId=crypto.randomUUID();
     const currentReply=replyTo?.id??null;
     const replySnapshot=currentReply?messages.find(item=>item.id===currentReply)??null:null;
-    setDraft('');setReplyTo(null);
+    const payloadKey=JSON.stringify({kind:'text',body:value});
+    const requestIdentity=resolveChatRequestIdentity(
+      pendingRequestIdentityRef.current,payloadKey,currentReply,()=>crypto.randomUUID(),
+    );
+    pendingRequestIdentityRef.current=requestIdentity;
+    setSending(true);setSendState('idle');setError('');
     try {
       await request('chat/conversations/'+targetConversationId+'/messages','POST',{
-        body:value,replyToId:currentReply,clientRequestId,
+        body:value,replyToId:currentReply,clientRequestId:requestIdentity.clientRequestId,
       });
       if(selectedConversationIdRef.current===targetConversationId){
-        setSendState('sent');
+        if(pendingRequestIdentityRef.current?.clientRequestId===requestIdentity.clientRequestId){
+          pendingRequestIdentityRef.current=null;
+          setDraft(current=>current.trim()===value?'':current);
+          setReplyTo(current=>current?.id===currentReply?null:current);
+          setSendState('sent');
+        }
         await loadMessages(targetConversationId,true,true);
-      }else composerDraftsRef.current.delete(targetConversationId);
+      }else{
+        const saved=composerDraftsRef.current.get(targetConversationId);
+        if(saved?.pendingRequestIdentity?.clientRequestId===requestIdentity.clientRequestId)composerDraftsRef.current.delete(targetConversationId);
+      }
       await loadConversations();
     } catch(cause) {
       if(selectedConversationIdRef.current===targetConversationId){
-        setDraft(current=>current||value);
-        setReplyTo(current=>current??replySnapshot);
         setSendState('failed');
         setError(cause instanceof Error?cause.message:'Mesaj gönderilemedi. Metin korunmuştur.');
       }else{
-        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null};
+        const saved=composerDraftsRef.current.get(targetConversationId)??{draft:'',pendingFiles:[],replyTo:null,pendingRequestIdentity:null};
         composerDraftsRef.current.set(targetConversationId,{
           ...saved,
           draft:saved.draft||value,
           replyTo:saved.replyTo??replySnapshot,
+          pendingRequestIdentity:requestIdentity,
         });
       }
     } finally {setSending(false);}
@@ -1163,7 +1193,7 @@ export function ChatWorkspace({
                             {!message.deletedAt&&(
                               <>
                                 <div className="chat-message-tools">
-                                  {canCreate&&<button type="button" onClick={()=>setReplyTo(message)} title="Yanıtla">↶ Yanıtla</button>}
+                                  {canCreate&&<button type="button" onClick={()=>setReplyTo(message)} disabled={sending} title="Yanıtla">↶ Yanıtla</button>}
                                   {message.linkedTaskId&&canViewTasks&&<button type="button" onClick={()=>onTaskOpen(message.linkedTaskId!)} title="Bağlı görevi aç">✓ Görevi aç</button>}
                                   {!message.linkedTaskId&&canCreateTask&&<button type="button" onClick={()=>openTaskDraft(message)} title="Mesajdan görev oluştur">＋ Görev</button>}
                                   {canUpdate&&(!message.isMine||detail.myRole==='owner'||detail.myRole==='admin')&&<button type="button" onClick={()=>void togglePin(message)}>{message.pinnedAt?'Sabitlemeyi kaldır':'Sabitle'}</button>}
@@ -1189,15 +1219,16 @@ export function ChatWorkspace({
               )}
             </div>
             {canCreate ? <form className="chat-composer" onSubmit={sendMessage}>
-              {replyTo&&<div className="chat-replying"><span><strong>{replyTo.senderName}</strong> mesajına yanıt veriliyor</span><p>{replyTo.body.slice(0,120)}</p><button type="button" onClick={()=>setReplyTo(null)} aria-label="Yanıtı iptal et">×</button></div>}
+              {replyTo&&<div className="chat-replying"><span><strong>{replyTo.senderName}</strong> mesajına yanıt veriliyor</span><p>{replyTo.body.slice(0,120)}</p><button type="button" onClick={()=>setReplyTo(null)} disabled={sending} aria-label="Yanıtı iptal et">×</button></div>}
               {pendingFiles.length>0&&<div className="chat-pending-files" aria-label="Gönderilmeye hazır dosyalar">
-                {pendingFiles.map((file,index)=><div key={file.name+'-'+index}><span>{file.name} · {fileSizeLabel(file.size)}</span><button type="button" onClick={()=>setPendingFiles(items=>items.filter((_,fileIndex)=>fileIndex!==index))} aria-label={file.name+' dosyasını kaldır'}>×</button></div>)}
+                {pendingFiles.map((file,index)=><div key={file.name+'-'+index}><span>{file.name} · {fileSizeLabel(file.size)}</span><button type="button" onClick={()=>setPendingFiles(items=>items.filter((_,fileIndex)=>fileIndex!==index))} disabled={sending} aria-label={file.name+' dosyasını kaldır'}>×</button></div>)}
               </div>}
               <div className="chat-composer-media">
                 <input
                   ref={attachmentInputRef}
                   type="file"
                   multiple
+                  disabled={sending}
                   hidden
                   accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,audio/*"
                   onChange={event=>{
@@ -1217,7 +1248,7 @@ export function ChatWorkspace({
                 {recording&&<span className="chat-recording-live" role="status">Kayıt sürüyor · en fazla 2 dakika</span>}
                 {recordingError&&<span className="chat-recording-error" role="alert">{recordingError}</span>}
               </div>
-              <textarea value={draft} onChange={event=>setDraft(event.target.value)} maxLength={4000} rows={2} placeholder={replyTo?'Yanıtınızı yazın…':'Mesajınızı yazın…'} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
+              <textarea value={draft} onChange={event=>setDraft(event.target.value)} disabled={sending} maxLength={4000} rows={2} placeholder={replyTo?'Yanıtınızı yazın…':'Mesajınızı yazın…'} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
               <div className="chat-composer-bottom"><span>{sendState==='sent'?'Mesaj gönderildi':sendState==='failed'?'Gönderim başarısız · İçerik korundu':recording?'Kaydı bitirerek sesli mesajı gönderin':'Enter ile gönder · Shift + Enter ile satır ekle'}</span><span>{draft.length}/4000</span><button type="submit" disabled={sending||recording||(!draft.trim()&&pendingFiles.length===0)}>{sending?'Gönderiliyor…':pendingFiles.length?'Dosyaları gönder':'Gönder'} <b>↗</b></button></div>
             </form> : <div className="chat-readonly-note">Bu konuşmaları görüntüleme yetkiniz var; mesaj gönderme izniniz bulunmuyor.</div>}
           </>
