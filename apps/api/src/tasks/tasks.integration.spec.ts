@@ -19,7 +19,7 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
     password: process.env.POSTGRES_PASSWORD, connectionTimeoutMillis: 3000, application_name: 'encev-pulse-task-tests',
   });
   const suffix = randomBytes(5).toString('hex');
-  const names = [`ta${suffix}`, `tb${suffix}`, `tc${suffix}`, `tp${suffix}`];
+  const names = [`ta${suffix}`, `tb${suffix}`, `tc${suffix}`, `tp${suffix}`, `tm${suffix}`];
   const upcomingDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const overdueDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const hasher = new PasswordHasher();
@@ -65,25 +65,28 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
   }
 
   try {
-    const roles = await pool.query<{ id: string; code: string }>("SELECT id,code FROM roles WHERE code IN ('employee','process_owner')");
+    const roles = await pool.query<{ id: string; code: string }>("SELECT id,code FROM roles WHERE code IN ('employee','process_owner','system_admin')");
     const roleByCode = new Map(roles.rows.map((role) => [role.code, role.id]));
-    assert.ok(roleByCode.get('employee') && roleByCode.get('process_owner'), 'Employee and process-owner roles must exist before task tests.');
+    assert.ok(roleByCode.get('employee') && roleByCode.get('process_owner') && roleByCode.get('system_admin'), 'Employee, process-owner and system-admin roles must exist before task tests.');
     const ecedEnabled = await pool.query("SELECT is_enabled FROM app_modules WHERE module_key='eced'");
     assert.equal(ecedEnabled.rows[0]?.is_enabled,true,'e-ÇED must be enabled for process-link integration tests.');
+    const projectsEnabled = await pool.query("SELECT is_enabled FROM app_modules WHERE module_key='projects'");
+    assert.equal(projectsEnabled.rows[0]?.is_enabled,true,'Projects must be enabled for project workflow integration tests.');
     for (const username of names) {
       const user = await pool.query<{ id: string }>(
         'INSERT INTO users (username,email,display_name,password_hash) VALUES ($1,$2,$3,$4) RETURNING id',
         [username, `${username}@encev.com.tr`, `Task fixture ${username}`, hash],
       );
       userIds.push(user.rows[0].id);
-      const roleId=roleByCode.get(username===names[3]?'process_owner':'employee')!;
+      const roleCode=username===names[3]?'process_owner':username===names[4]?'system_admin':'employee';
+      const roleId=roleByCode.get(roleCode)!;
       await pool.query('INSERT INTO user_role_assignments (user_id,role_id,assigned_by) VALUES ($1,$2,$1)', [userIds.at(-1), roleId]);
     }
     app = await NestFactory.create(ApplicationModule, { logger: ['error'] });
     app.setGlobalPrefix('api');
     await app.listen(0, '127.0.0.1');
     const base = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
-    const [alice, bob, outsider, processOwner] = await Promise.all(names.map((name) => signIn(base, name)));
+    const [alice, bob, outsider, processOwner, systemAdmin] = await Promise.all(names.map((name) => signIn(base, name)));
 
     await t.test('görev oluşturma ve kişisel erişim', async () => {
       const created = await api(base, alice, 'tasks', 'POST', {
@@ -111,6 +114,27 @@ test('görev API: gerçek oturum, proje üyeliği, CRUD, sürüm ve arşiv yetki
 
       const outsiderSpecificActivity = await api(base, outsider, `tasks/${created.data.task.id}/activity`);
       assert.equal(outsiderSpecificActivity.response.status, 404);
+    });
+
+    await t.test('sistem yöneticisi etkin Projeler modülünde proje oluşturur ve düzenler', async () => {
+      const created = await api(base, systemAdmin, 'projects', 'POST', {
+        name: 'System admin fixture project',
+      });
+      assert.equal(created.response.status, 201, JSON.stringify(created.data));
+      const projectId = created.data.project.id as string;
+      projectIds.push(projectId);
+      assert.equal(created.data.project.ownerId, userIds[4]);
+
+      const detail = await api(base, systemAdmin, `projects/${projectId}`);
+      assert.equal(detail.response.status, 200, JSON.stringify(detail.data));
+      const updated = await api(base, systemAdmin, `projects/${projectId}`, 'PATCH', {
+        version: detail.data.project.version,
+        name: 'System admin fixture project updated',
+        status: 'active',
+      });
+      assert.equal(updated.response.status, 200, JSON.stringify(updated.data));
+      assert.equal(updated.data.project.name, 'System admin fixture project updated');
+      assert.equal(updated.data.project.status, 'active');
     });
 
     await t.test('proje üyeliği ve sorumlu görünürlüğü', async () => {
